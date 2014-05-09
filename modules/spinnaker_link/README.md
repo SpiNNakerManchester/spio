@@ -21,8 +21,8 @@ A high-level overview of the modules are is shown below:
 	    '--------'             '--'--`--'
 	                               |
 	                       clk ----+------------------...
-	
-	
+
+
 	                SpiNNaker Link Sender
 	                `````````````````````
 	    ,--------,             ,--------,
@@ -30,8 +30,8 @@ A high-level overview of the modules are is shown below:
 	    |        |  2of7[6:0]  | SpiNN- |<=====/======
 	    | SpiNN- |<=====/======| aker   |
 	    | aker   |             | Link   |     vld
-	    | Chip   |     ack     | Recei- |<------------
-	    |        |------------>| ver    |
+	    | Chip   |     ack     | Sender |<------------
+	    |        |------------>|        |
 	    |        |             |        |     rdy
 	    |        |             |   /\   |------------>
 	    '--------'             '--'--`--'
