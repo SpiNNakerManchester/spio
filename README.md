@@ -4,6 +4,22 @@ spI/O
 A library of FPGA designs and re-usable modules for I/O (and internal
 connectivity) in SpiNNaker systems.
 
+Authors
+-------
+
+The software in this repository is largely the work of:
+
+* Luis Plana
+* Jeff Pepper
+* Jonathan Heathcote
+
+
+Copyright
+---------
+
+For the moment, all the designs are copyright of the University of Manchester,
+all rights reserved. This will hopefuly change in the near future.
+
 
 Common Interface
 ----------------
