@@ -7,7 +7,7 @@ connectivity) in SpiNNaker systems.
 Authors
 -------
 
-The software in this repository is largely the work of:
+The designs in this repository are largely the work of:
 
 * Luis Plana
 * Jeff Pepper
