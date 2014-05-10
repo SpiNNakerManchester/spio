@@ -64,13 +64,13 @@ always @ (posedge CLK_IN, posedge RESET_IN)
 	else
 		if (send_clock_correction_sequence_i)
 			begin
-				TXDATA_OUT    <= {4{`KCHR_CLKC}};
+				TXDATA_OUT    <= {4{`KCH_CLKC}};
 				TXCHARISK_OUT <=  4'b1111;
 			end
 		else if (!HANDSHAKE_COMPLETE_IN)
 			begin
-				TXDATA_OUT    <= { `KCHR_COMMA
-				                 , `KCHR_HANDSHAKE
+				TXDATA_OUT    <= { `KCH_COMMA
+				                 , `KCH_HANDSHAKE
 				                 , 7'b000000, HANDSHAKE_PHASE_IN
 				                 , `VERSION
 				                 };

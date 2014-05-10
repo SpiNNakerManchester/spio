@@ -123,7 +123,7 @@ wire is_word_aligned_i = is_byte_aligned_i && alignment_i != 4'b0000;
 
 // Detect clock correction sequence
 wire is_clock_correction_sequence = is_word_aligned_i
-                                  && aligned_rxdata_i    == {4{`KCHR_CLKC}}
+                                  && aligned_rxdata_i    == {4{`KCH_CLKC}}
                                   && aligned_rxcharisk_i == 4'b1111
                                   ;
 
@@ -154,8 +154,8 @@ wire is_clock_correction_sequence = is_word_aligned_i
 // Is the current packet a handshake (doesn't check the version or handshake
 // cycle)
 wire is_handshake_i = is_word_aligned_i
-                    && aligned_rxdata_i[31:24] == `KCHR_COMMA
-                    && aligned_rxdata_i[23:16] == `KCHR_HANDSHAKE
+                    && aligned_rxdata_i[31:24] == `KCH_COMMA
+                    && aligned_rxdata_i[23:16] == `KCH_HANDSHAKE
                     && aligned_rxcharisk_i == 4'b1100
                     ;
 
