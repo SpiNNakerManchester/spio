@@ -36,11 +36,11 @@
 `timescale 1ns / 1ps
 module pkt_reg
 (
-  input  wire 			 clk,
-  input  wire 			 rst,
+  input  wire 			 CLK_IN,
+  input  wire 			 RESET_IN,
 
   // packet counter interface
-  output reg                     ctr_pkt,
+  output reg                     COUNT_PACKET_OUT,
 
   // status
   output reg                     busy,
@@ -50,9 +50,9 @@ module pkt_reg
   input  wire 			 ipkt_vld,
 
   // output packet
-  output reg   [`PKT_BITS - 1:0] pkt_data,
-  output reg  			 pkt_vld,
-  input  wire 			 pkt_rdy
+  output reg   [`PKT_BITS - 1:0] PKT_DATA_OUT,
+  output reg  			 PKT_VLD_OUT,
+  input  wire 			 PKT_RDY_IN
 );
 
   //---------------------------------------------------------------
@@ -64,30 +64,30 @@ module pkt_reg
   //---------------------------------------------------------------
   // output packet interface
   //---------------------------------------------------------------
-  always @ (posedge clk or posedge rst)
-    if (rst)
-      pkt_data <= {`PKT_BITS {1'b0}}; // not really necessary!
+  always @ (posedge CLK_IN or posedge RESET_IN)
+    if (RESET_IN)
+      PKT_DATA_OUT <= {`PKT_BITS {1'b0}}; // not really necessary!
     else
       if (ipkt_vld && !busy)
-        pkt_data <= ipkt_data;
+        PKT_DATA_OUT <= ipkt_data;
       else
-        pkt_data <= pkt_data;  // no change!
+        PKT_DATA_OUT <= PKT_DATA_OUT;  // no change!
 
   //---------------------------------------------------------------
   // output packet valid if not empty (combinatorial)
   //---------------------------------------------------------------
   always @ (*)
-    pkt_vld = full;
+    PKT_VLD_OUT = full;
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------
   // status
   //---------------------------------------------------------------
-  always @ (posedge clk or posedge rst)
-    if (rst)
+  always @ (posedge CLK_IN or posedge RESET_IN)
+    if (RESET_IN)
       full <= 1'b0;
     else
-      casex ({ipkt_vld, pkt_rdy})
+      casex ({ipkt_vld, PKT_RDY_IN})
         2'b1x:   full <= 1;
         2'b01:   full <= 0;
         default: full <= full;  // no change!
@@ -97,17 +97,17 @@ module pkt_reg
   // cannot accept a new packet (combinatorial)
   //---------------------------------------------------------------
   always @ (*)
-    busy = full && !pkt_rdy;
+    busy = full && !PKT_RDY_IN;
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------
   // packet counter interface
   //---------------------------------------------------------------
-  always @ (posedge clk or posedge rst)
-    if (rst)
-      ctr_pkt <= 1'b0;
+  always @ (posedge CLK_IN or posedge RESET_IN)
+    if (RESET_IN)
+      COUNT_PACKET_OUT <= 1'b0;
     else
-      ctr_pkt <= pkt_vld && pkt_rdy;
+      COUNT_PACKET_OUT <= PKT_VLD_OUT && PKT_RDY_IN;
   //---------------------------------------------------------------
 endmodule
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -117,20 +117,20 @@ endmodule
 `timescale 1ns / 1ps
 module packet_receiver
 (
-  input                         clk,
-  input                         rst,
+  input                         CLK_IN,
+  input                         RESET_IN,
 
   // packet counter interface
-  output wire                   ctr_pkt,
+  output wire                   COUNT_PACKET_OUT,
 
   // SpiNNaker link asynchronous interface
-  input                   [6:0] data_2of7,
-  output reg                    ack,
+  input                   [6:0] SL_DATA_2OF7_IN,
+  output reg                    SL_ACK_OUT,
 
   // synchronous interface
-  output wire [`PKT_BITS - 1:0] pkt_data,
-  output wire                   pkt_vld,
-  input                         pkt_rdy
+  output wire [`PKT_BITS - 1:0] PKT_DATA_OUT,
+  output wire                   PKT_VLD_OUT,
+  input                         PKT_RDY_IN
 );
 
   //---------------------------------------------------------------
@@ -174,19 +174,19 @@ module packet_receiver
   //---------------------------------------------------------------
   pkt_reg prg
   (
-    .clk       (clk),
-    .rst       (rst),
+    .CLK_IN       (CLK_IN),
+    .RESET_IN       (RESET_IN),
 
-    .ctr_pkt   (ctr_pkt),
+    .COUNT_PACKET_OUT   (COUNT_PACKET_OUT),
 
     .busy      (busy),
 
     .ipkt_data (ipkt_data),
     .ipkt_vld  (ipkt_vld),
 
-    .pkt_data  (pkt_data),
-    .pkt_vld   (pkt_vld),
-    .pkt_rdy   (pkt_rdy)
+    .PKT_DATA_OUT  (PKT_DATA_OUT),
+    .PKT_VLD_OUT   (PKT_VLD_OUT),
+    .PKT_RDY_IN   (PKT_RDY_IN)
   );
   //---------------------------------------------------------------
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -232,53 +232,53 @@ module packet_receiver
   //---------------------------------------------------------------
   // SpiNNaker link interface
   //---------------------------------------------------------------
-  always @(posedge clk or posedge rst)
-    if (rst)
+  always @(posedge CLK_IN or posedge RESET_IN)
+    if (RESET_IN)
     begin
       old_data_2of7 <= 7'd0;  // not really necessary!
-      ack           <= 1'b0;
+      SL_ACK_OUT           <= 1'b0;
     end
     else
       case (state)
 	REST_ST: begin
-                   old_data_2of7 <= data_2of7;  // remember 2of7 data
-	           ack           <= 1'b1;       // mimic SpiNNaker behaviour
+                   old_data_2of7 <= SL_DATA_2OF7_IN;  // remember 2of7 data
+	           SL_ACK_OUT           <= 1'b1;       // mimic SpiNNaker behaviour
                  end
 
 	TRAN_ST: casex ({dat, oob, eop, exp_eop, busy})
-	           5'b1xxxx,  // data symbol: ack and wait for next symbol
-		   5'bx1xxx,  // oob symbol: ack and go to error state
-	           5'bxx10x,  // unexpected eop: ack and start new packet
-	           5'bxx110:  // expected eop and not busy: ack and send packet 
+	           5'b1xxxx,  // data symbol: SL_ACK_OUT and wait for next symbol
+		   5'bx1xxx,  // oob symbol: SL_ACK_OUT and go to error state
+	           5'bxx10x,  // unexpected eop: SL_ACK_OUT and start new packet
+	           5'bxx110:  // expected eop and not busy: SL_ACK_OUT and send packet 
                      begin
-                       old_data_2of7 <= data_2of7;  // remember 2of7 data
-                       ack           <= ~ack;       // ack new symbol
+                       old_data_2of7 <= SL_DATA_2OF7_IN;  // remember 2of7 data
+                       SL_ACK_OUT           <= ~SL_ACK_OUT;       // SL_ACK_OUT new symbol
                      end
 
-		   // 5'bxx111,  // expected eop but busy: don't ack yet
-		   // 5'b000xx,  // no symbol arrived: don't ack
+		   // 5'bxx111,  // expected eop but busy: don't SL_ACK_OUT yet
+		   // 5'b000xx,  // no symbol arrived: don't SL_ACK_OUT
 		   default:
                      begin
                        old_data_2of7 <= old_data_2of7;  // no change!
-	               ack           <= ack;            // no change!
+	               SL_ACK_OUT           <= SL_ACK_OUT;            // no change!
 	             end
                  endcase
 
         IDLE_ST,
         ERR_ST:  if (nsb)  
                  begin
-                   old_data_2of7 <= data_2of7;      // remember 2of7 data
-	           ack           <= ~ack;           // ack new symbol
+                   old_data_2of7 <= SL_DATA_2OF7_IN;      // remember 2of7 data
+	           SL_ACK_OUT           <= ~SL_ACK_OUT;           // SL_ACK_OUT new symbol
 	         end
                  else
                  begin
                    old_data_2of7 <= old_data_2of7;  // no change!
-                   ack           <= ack;            // no change!
+                   SL_ACK_OUT           <= SL_ACK_OUT;            // no change!
                  end
 
         default: begin
                    old_data_2of7 <= old_data_2of7;  // no change!
-                   ack           <= ack;            // no change!
+                   SL_ACK_OUT           <= SL_ACK_OUT;            // no change!
                  end
       endcase 
   //---------------------------------------------------------------
@@ -287,16 +287,16 @@ module packet_receiver
   // packet assembly
   //---------------------------------------------------------------
   // shift in new symbol to assemble packet
-  always @(posedge clk or posedge rst)
-    if (rst)
+  always @(posedge CLK_IN or posedge RESET_IN)
+    if (RESET_IN)
       pkt_buf <= `PKT_BITS'b0;  // not really necessary!
     else
       if (dat)
         pkt_buf <= {symbol, pkt_buf[`PKT_BITS - 1:4]};
 
   // keep track of number of symbols received to check for frame errors
-  always @(posedge clk or posedge rst)
-    if (rst)
+  always @(posedge CLK_IN or posedge RESET_IN)
+    if (RESET_IN)
       symbol_cnt <= 5'd0;  // not really necessary!
     else
       case (state)
@@ -314,8 +314,8 @@ module packet_receiver
       endcase 
 
   // remember expected packet size
-  always @(posedge clk or posedge rst)
-    if (rst)
+  always @(posedge CLK_IN or posedge RESET_IN)
+    if (RESET_IN)
       long_pkt <= 1'b0;  // not really necessary!
     else
       case (state)
@@ -330,7 +330,7 @@ module packet_receiver
   // decoded 2-of-7 symbol (combinatorial)
   //---------------------------------------------------------------
   always @(*)
-    symbol = decode_2of7(data_2of7, old_data_2of7);
+    symbol = decode_2of7(SL_DATA_2OF7_IN, old_data_2of7);
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------
@@ -359,7 +359,7 @@ module packet_receiver
   // new symbol arrived (combinatorial)
   //---------------------------------------------------------------
   always @(*)
-    case (data_2of7 ^ old_data_2of7)
+    case (SL_DATA_2OF7_IN ^ old_data_2of7)
       0, 1, 2, 4,
       8, 16, 32,
       64:         nsb = 0;  // incomplete (single-bit change)
@@ -374,7 +374,7 @@ module packet_receiver
 //#    dat = nsb && !eop && !oob;
 
   always @(*)
-    case (data_2of7 ^ old_data_2of7)
+    case (SL_DATA_2OF7_IN ^ old_data_2of7)
       7'b0010001: dat = 1;  // 0
       7'b0010010: dat = 1;  // 1
       7'b0010100: dat = 1;  // 2
@@ -399,7 +399,7 @@ module packet_receiver
   // out-of-band symbol arrived (combinatorial)
   //---------------------------------------------------------------
   always @(*)
-    case (data_2of7 ^ old_data_2of7)
+    case (SL_DATA_2OF7_IN ^ old_data_2of7)
       7'b0010001: oob = 0;  // 0
       7'b0010010: oob = 0;  // 1
       7'b0010100: oob = 0;  // 2
@@ -428,7 +428,7 @@ module packet_receiver
   // end-of-packet symbol arrived (combinatorial)
   //---------------------------------------------------------------
   always @(*)
-    case (data_2of7 ^ old_data_2of7)
+    case (SL_DATA_2OF7_IN ^ old_data_2of7)
       7'b1100000: eop = 1;
       default:    eop = 0;
     endcase
@@ -444,8 +444,8 @@ module packet_receiver
   //---------------------------------------------------------------
   // state
   //---------------------------------------------------------------
-  always @(posedge clk or posedge rst)
-    if (rst)
+  always @(posedge CLK_IN or posedge RESET_IN)
+    if (RESET_IN)
       state <= REST_ST;
     else
       case (state)
@@ -462,10 +462,10 @@ module packet_receiver
                      state <= ERR_ST;
 
 	           5'bxx10x,  // unexpected eop: drop packet
-	           5'bxx110:  // expected eop and not busy: ack and send packet 
+	           5'bxx110:  // expected eop and not busy: SL_ACK_OUT and send packet 
                      state <= IDLE_ST;
 
-	           // 5'b1xxxx,  // data symbol: ack and wait for next symbol
+	           // 5'b1xxxx,  // data symbol: SL_ACK_OUT and wait for next symbol
 		   // 5'bxx111,  // expected eop but busy: wait
                    default:   // no symbol
                      state <= TRAN_ST;

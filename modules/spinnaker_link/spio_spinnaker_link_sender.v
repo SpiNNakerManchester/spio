@@ -33,20 +33,20 @@
 `timescale 1ns / 1ps
 module spio_spinnaker_link_sender
 (
-  input                        clk,
-  input                        rst,
+  input                        CLK_IN,
+  input                        RESET_IN,
 
   // packet counter interface
-  output reg                   ctr_pkt,
+  output reg                   COUNT_PACKET_OUT,
 
   // synchronous packet interface
-  input      [`PKT_BITS - 1:0] pkt_data,
-  input                        pkt_vld,
-  output reg                   pkt_rdy,
+  input      [`PKT_BITS - 1:0] PKT_DATA_IN,
+  input                        PKT_VLD_IN,
+  output reg                   PKT_RDY_OUT,
 
   // SpiNNaker link asynchronous interface
-  output reg             [6:0] data_2of7,
-  input                        ack
+  output reg             [6:0] SL_DATA_2OF7_OUT,
+  input                        SL_ACK_IN
 );
 
   //---------------------------------------------------------------
@@ -113,47 +113,47 @@ module spio_spinnaker_link_sender
   //---------------------------------------------------------------
   // SpiNNaker link interface
   //---------------------------------------------------------------
-  always @(posedge clk or posedge rst)
-    if (rst)
+  always @(posedge CLK_IN or posedge RESET_IN)
+    if (RESET_IN)
     begin
-      data_2of7 <= 7'd0;
+      SL_DATA_2OF7_OUT <= 7'd0;
       old_ack   <= 1'b0;  // not really necessary!
     end
     else
       case (state)
-        IDLE_ST: if (pkt_vld)
+        IDLE_ST: if (PKT_VLD_IN)
                  begin
-                   data_2of7 <= encode_2of7({1'b0, pkt_data[3:0]},
-                                             data_2of7
+                   SL_DATA_2OF7_OUT <= encode_2of7({1'b0, PKT_DATA_IN[3:0]},
+                                             SL_DATA_2OF7_OUT
                                            );  // send first nibble
-	           old_ack <= ack;             // remember ack value
+	           old_ack <= SL_ACK_IN;             // remember SL_ACK_IN value
 	         end
                  else
                  begin
-                   data_2of7 <= data_2of7;     // no change!
+                   SL_DATA_2OF7_OUT <= SL_DATA_2OF7_OUT;     // no change!
 	           old_ack   <= old_ack;       // no change!
 	         end
 
-	TRAN_ST: if (old_ack != ack)
+	TRAN_ST: if (old_ack != SL_ACK_IN)
 	         begin
                    if (eop)
-                     data_2of7 <= encode_2of7({1'b1, pkt_buf[3:0]},
-                                                 data_2of7
+                     SL_DATA_2OF7_OUT <= encode_2of7({1'b1, pkt_buf[3:0]},
+                                                 SL_DATA_2OF7_OUT
                                                );  // send eop
 	           else
-                     data_2of7 <= encode_2of7({1'b0, pkt_buf[3:0]},
-                                                 data_2of7
+                     SL_DATA_2OF7_OUT <= encode_2of7({1'b0, pkt_buf[3:0]},
+                                                 SL_DATA_2OF7_OUT
                                                );  // send next nibble
-	           old_ack <= ack;  // remember ack value
+	           old_ack <= SL_ACK_IN;  // remember SL_ACK_IN value
 	         end
                  else
                  begin
-                   data_2of7 <= data_2of7;  // no change!
+                   SL_DATA_2OF7_OUT <= SL_DATA_2OF7_OUT;  // no change!
 	           old_ack   <= old_ack;    // no change!
 	         end
 
         default: begin
-                   data_2of7 <= data_2of7;  // no change!
+                   SL_DATA_2OF7_OUT <= SL_DATA_2OF7_OUT;  // no change!
 	           old_ack   <= old_ack;    // no change!
 	         end
       endcase 
@@ -162,35 +162,35 @@ module spio_spinnaker_link_sender
   //---------------------------------------------------------------
   // packet interface
   //---------------------------------------------------------------
-  always @(posedge clk or posedge rst)
-    if (rst)
-      pkt_rdy <= 1'b1;
+  always @(posedge CLK_IN or posedge RESET_IN)
+    if (RESET_IN)
+      PKT_RDY_OUT <= 1'b1;
     else
       case (state)
-        IDLE_ST: if (pkt_vld)
-	           pkt_rdy <= 1'b0;
+        IDLE_ST: if (PKT_VLD_IN)
+	           PKT_RDY_OUT <= 1'b0;
                  else
-	           pkt_rdy <= 1'b1;
+	           PKT_RDY_OUT <= 1'b1;
 
-	EOP_ST:  if (old_ack != ack)
-	           pkt_rdy <= 1'b1;     // ready for next packet
+	EOP_ST:  if (old_ack != SL_ACK_IN)
+	           PKT_RDY_OUT <= 1'b1;     // ready for next packet
                  else
-	           pkt_rdy <= 1'b0;
+	           PKT_RDY_OUT <= 1'b0;
 
-        default:   pkt_rdy <= pkt_rdy;  // no change!
+        default:   PKT_RDY_OUT <= PKT_RDY_OUT;  // no change!
       endcase 
 
-  always @(posedge clk or posedge rst)
-    if (rst)
+  always @(posedge CLK_IN or posedge RESET_IN)
+    if (RESET_IN)
       pkt_buf <= {(`PKT_BITS - 4) {1'b0}};  // not really necessary!
     else
       case (state)
-        IDLE_ST: if (pkt_vld)
-	           pkt_buf <= pkt_data[`PKT_BITS - 1:4]; // first nibble gone
+        IDLE_ST: if (PKT_VLD_IN)
+	           pkt_buf <= PKT_DATA_IN[`PKT_BITS - 1:4]; // first nibble gone
                  else
                    pkt_buf <= pkt_buf;                   // no change!
 
-	TRAN_ST: if (old_ack != ack)
+	TRAN_ST: if (old_ack != SL_ACK_IN)
 	           pkt_buf <= pkt_buf >> 4;  // prepare for next nibble
                  else
                    pkt_buf <= pkt_buf;       // no change!
@@ -198,17 +198,17 @@ module spio_spinnaker_link_sender
         default:   pkt_buf <= pkt_buf;       // no change!
       endcase 
 
-  always @(posedge clk or posedge rst)
-    if (rst)
+  always @(posedge CLK_IN or posedge RESET_IN)
+    if (RESET_IN)
       symbol_cnt <= 5'd0;  // not really necessary!
     else
       case (state)
-        IDLE_ST: if (pkt_vld)
+        IDLE_ST: if (PKT_VLD_IN)
                    symbol_cnt <= 5'd1;  // start counting symbols (nibbles)
                  else
                    symbol_cnt <= 5'd0;
 
-	TRAN_ST: if (old_ack != ack)
+	TRAN_ST: if (old_ack != SL_ACK_IN)
                    symbol_cnt <= symbol_cnt + 1;
                  else
                    symbol_cnt <= symbol_cnt;  // no change!
@@ -216,13 +216,13 @@ module spio_spinnaker_link_sender
         default:   symbol_cnt <= symbol_cnt;  // no change!
       endcase 
 
-  always @(posedge clk or posedge rst)
-    if (rst)
+  always @(posedge CLK_IN or posedge RESET_IN)
+    if (RESET_IN)
       long_pkt <= 1'b0;  // not really necessary!
     else
       case (state)
-        IDLE_ST: if (pkt_vld)
-                   long_pkt <= pkt_data[1];  // remember packet size
+        IDLE_ST: if (PKT_VLD_IN)
+                   long_pkt <= PKT_DATA_IN[1];  // remember packet size
                  else
                    long_pkt <= long_pkt;     // no change!
 
@@ -233,11 +233,11 @@ module spio_spinnaker_link_sender
   //---------------------------------------------------------------
   // packet counter interface
   //---------------------------------------------------------------
-  always @ (posedge clk or posedge rst)
-    if (rst)
-      ctr_pkt <= 1'b0;
+  always @ (posedge CLK_IN or posedge RESET_IN)
+    if (RESET_IN)
+      COUNT_PACKET_OUT <= 1'b0;
     else
-      ctr_pkt <= (state == TRAN_ST) && (old_ack != ack) && eop;
+      COUNT_PACKET_OUT <= (state == TRAN_ST) && (old_ack != SL_ACK_IN) && eop;
   //---------------------------------------------------------------
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -255,22 +255,22 @@ module spio_spinnaker_link_sender
   //---------------------------------------------------------------
   // state
   //---------------------------------------------------------------
-  always @(posedge clk or posedge rst)
-    if (rst)
+  always @(posedge CLK_IN or posedge RESET_IN)
+    if (RESET_IN)
       state <= IDLE_ST;
     else
       case (state)
-        IDLE_ST: if (pkt_vld)
+        IDLE_ST: if (PKT_VLD_IN)
                    state <= TRAN_ST;
                  else
                    state <= IDLE_ST;  // no change!
 
-	TRAN_ST: if ((old_ack != ack) && eop)
+	TRAN_ST: if ((old_ack != SL_ACK_IN) && eop)
                    state <= EOP_ST;
                  else
                    state <= TRAN_ST;  // no change!
 
-	EOP_ST:  if (old_ack != ack)
+	EOP_ST:  if (old_ack != SL_ACK_IN)
                    state <= IDLE_ST;
                  else
                    state <= EOP_ST;   // no change!

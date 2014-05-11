@@ -32,10 +32,10 @@ module spio_spinnaker_link_sync2 #
   parameter SIZE = 1
 )
 (
-  input                   clk0,
-  input                   clk1,
-  input      [SIZE - 1:0] in,
-  output reg [SIZE - 1:0] out
+  input                   CLK0_IN,
+  input                   CLK1_IN,
+  input      [SIZE - 1:0] IN,
+  output reg [SIZE - 1:0] OUT
 );
 
   //---------------------------------------------------------------
@@ -48,10 +48,10 @@ module spio_spinnaker_link_sync2 #
   //--------------------------- datapath --------------------------
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   // flops
-  always @ (posedge clk0)
-       sync <= in;
+  always @ (posedge CLK0_IN)
+       sync <= IN;
 
-  always @ (posedge clk1)
-       out  <= sync;
+  always @ (posedge CLK1_IN)
+       OUT  <= sync;
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 endmodule
