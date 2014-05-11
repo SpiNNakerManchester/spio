@@ -27,7 +27,7 @@
 // ----------------------------------------------------------------
 // include spiNNlink global constants and parameters
 //
-`include "spio_spinnaker_link_definitions.v"
+`include "spio_spinnaker_link.h"
 // ----------------------------------------------------------------
 
 `timescale 1ns / 1ps
