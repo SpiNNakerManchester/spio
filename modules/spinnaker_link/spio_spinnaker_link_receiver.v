@@ -115,7 +115,7 @@ endmodule
 
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 `timescale 1ns / 1ps
-module packet_receiver
+module spio_spinnaker_link_receiver
 (
   input                         CLK_IN,
   input                         RESET_IN,
