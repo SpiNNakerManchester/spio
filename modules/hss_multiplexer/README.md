@@ -63,6 +63,10 @@ FPGA.
 You should look up the appropriate pins in the Spartan-6 manual and add matching
 constraints to the UCF.
 
+If you wish to use the same clock source for all links, set GTP0 for each tile
+to the same `REFCLK*` and GTP1 to use the PLL of GTP0 (this saves powering two
+PLLs in each tile).
+
 
 ### 2. Line Rate and Protocol Template
 
@@ -95,10 +99,13 @@ The other ports are not required by the module and may be left disabled.
 
 ### 4. Synchronisation and Clocking
 
-The TX and RX buffers (aka elastic buffers) should be enabled using the clock
-source `REFCLKPLL`. This takes care of clock-domain crossing involved with
-reading out data from the high-speed serial link and also makes the built-in
-clock correction facility possible.
+The TX and RX buffers (aka elastic buffers) should be enabled. This takes care
+of clock-domain crossing involved with reading out data from the high-speed
+serial link and also makes the built-in clock correction facility possible.
+
+The TXUSRCLK/RXUSRCLK source should be set to `REFCLKPLL` which exposes the GTP
+tile's incoming clock on its GTPCLKOUT[0] pin. This clock can then be divided
+and multiplied to provide clocks for the rest of the system.
 
 PPM Offset can be set to upto +/- 500 to allow better tolerance to differences
 in clock quality on either side of the link. (Apparently???)
@@ -198,31 +205,27 @@ Clocking Wizard IP CORE
 To generate the clocks for use by the GTP tile's FPGA logic interface, the
 'Clocking Wizard' IP CORE can be used.
 
-The GTP tile provides a version of its internal PLL clock divided to one tick
-per 10 transmitted bits, `TXOUTCLK`. This corresponds to one tick per byte sent
-(due to 8b/10b coding). In the GTP tile configuration described above,
-`GTPCLKOUT[0]` will be connected to `TXOUTCLK` and so can be substituted for
-TXOUTCLK in the following section.
+The tile requires two positive-edge aligned clock sources in addition to its
+external clock source: `TXUSRCLK` and `TXUSRCLK2`.  `TXUSRCLK2` should tick
+every time a 32-bit block of data is transmitted (that is, every 40 bits sent
+down the link after 8b/10b coding).  `TXUSRCLK` should tick every time a 8-bit
+value (10 bits after 8b/10b coding) is transmitted down the link.
 
-The tile requires two additional clock sources: `TXUSRCLK` and
-`TXUSRCLK2`. `TXUSRCLK2` should tick every time a 32-bit block of data
-is transmitted (that is, every 40 bits sent down the link after 8b/10b coding),
-or `TXOUTCLK`/4. `TXUSRCLK` should tick at the same rate as
-`TXOUTCLK` but be positive-edge aligned with `TXUSRCLK2`.
+For an example, with a 3 Gbit/s link driven by an external 150 MHz clock source:
+
+* `TXUSRCLK`  = 3 GHz / 10 = 300 MHz
+* `TXUSRCLK2` = 3 GHz / 40 = 75 MHz
 
 Since the FPGA interface lives in the `TXUSRCLK2` clock domain, logic
-communicating with the tile will typically run on this clock.
+communicating with the tile will typically also be clocked by this signal.
 
-For an example, with a 3 Gbit/s link:
+The GTP tile exposes its input clock signal on `GTPCLKOUT[0]` (if the TXUSRCLK
+Source and RXUSRCLK Source and set to `REFCLKPLL` as described in the previous
+section). This clock source must be use used to drive the clocking wizard since.
 
-* `TXOUTCLK`  = 3 GHz / 10         = 300 MHz
-* `TXUSRCLK`  = `TXOUTCLK`    = 300 MHz
-* `TXUSRCLK2` = `TXUSRCLK`/ 4 = 75 MHz
-
-These should be selected while following the IP CORE wizard.
-
-More details can be found in the subsection "Connecting TXUSRCLK and TXUSRCLK2"
-in the "FPGA TX Interface" section of the GTP tile manual.
+More details of the GTP blocks' clocking requirements can be found in the
+subsection "Connecting TXUSRCLK and TXUSRCLK2" in the "FPGA TX Interface"
+section of the GTP.
 
 ### 1. Clocking Features/Input Clocks
 
@@ -234,16 +237,16 @@ defaults!
 
 Jitter optimisation should be set to 'Balanced'.
 
-The input clock frequency should be set to the frequency of `TXOUTCLK{0,1}`. The
-source should be set to 'Global buffer' to allow the module to be connected to
-the GTP tile's PLL (which connects via a `BUFIO2`).
+The input clock frequency should be set to the frequency of the external clock
+driving the GTP tiles. The source should be set to 'Global buffer' to allow the
+module to be connected to the GTP tile's `GTPCLKOUT[0]` pin via a `BUFIO2`.
 
 
 ### 2. Output Clock Settings
 
-As a minimum, outputs at the frequencies required by `TXUSRCLK{0,1}` and
-`TXUSRCLK2{0,1}` should be selected. Both should have a phase of 0 degrees, a
-50% duty cycle and drive `BUFG` nets.
+As a minimum, outputs at the frequencies required by `TXUSRCLK` and `TXUSRCLK2`
+should be selected. These should have a phase of 0 degrees, a 50% duty cycle and
+drive `BUFG` nets.
 
 
 ### 3. I/O and Feedback
