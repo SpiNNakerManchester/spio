@@ -3,11 +3,9 @@
  * high-speed-serial link on a Spartan-6 FPGA.
  */
 
-module spio_hss_multiplexer #( // The width of each channel (here, one SpiNNaker packet)
-                               parameter CHANNEL_WIDTH = 72
-                               // The number of channels
-                             , parameter NUM_CHANNELS = 8
-                               // The interval at which clock correction sequences should
+`include "spio_hss_multiplexer_common.h"
+
+module spio_hss_multiplexer #( // The interval at which clock correction sequences should
                                // be inserted (in cycles).
                              , parameter CLOCK_CORRECTION_INTERVAL = 1000
                                // The number of bits for the above counter.
@@ -46,19 +44,59 @@ module spio_hss_multiplexer #( // The width of each channel (here, one SpiNNaker
                              ,   output wire  [3:0] TXCHARISK_OUT
                              
                                // Packet interface
-                                 // Incoming data from NUM_CHANNELS streams each
-                                 // CHANNEL_WIDTH wide. Since verilog does not
-                                 // support array types for inputs or outputs,
-                                 // the different channels are simply allocated
-                                 // to ascending pins of the busses below.
-                             ,   input  wire [(NUM_CHANNELS*CHANNEL_WIDTH)-1:0] TX_PKT_DATA_IN
-                             ,   input  wire [NUM_CHANNELS-1:0]                 TX_PKT_VLD_IN
-                             ,   output wire [NUM_CHANNELS-1:0]                 TX_PKT_RDY_OUT
-                                 // Outgoing data from NUM_CHANNELS streams each
-                                 // CHANNEL_WIDTH wide.
-                             ,   output wire [(NUM_CHANNELS*CHANNEL_WIDTH)-1:0] RX_PKT_DATA_OUT
-                             ,   output wire [NUM_CHANNELS-1:0]                 RX_PKT_VLD_OUT
-                             ,   input  wire [NUM_CHANNELS-1:0]                 RX_PKT_RDY_IN
+                                 // Incoming data from the eight streams.  Since verilog does not
+                                 // support array types for inputs or outputs, the different
+                                 // channels are simply enumerated below.
+                             ,   input  wire [`PKT_BITS-1:0] TX_PKT0_DATA_IN
+                             ,   input  wire                 TX_PKT0_VLD_IN
+                             ,   output wire                 TX_PKT0_RDY_OUT
+                             ,   input  wire [`PKT_BITS-1:0] TX_PKT1_DATA_IN
+                             ,   input  wire                 TX_PKT1_VLD_IN
+                             ,   output wire                 TX_PKT1_RDY_OUT
+                             ,   input  wire [`PKT_BITS-1:0] TX_PKT2_DATA_IN
+                             ,   input  wire                 TX_PKT2_VLD_IN
+                             ,   output wire                 TX_PKT2_RDY_OUT
+                             ,   input  wire [`PKT_BITS-1:0] TX_PKT3_DATA_IN
+                             ,   input  wire                 TX_PKT3_VLD_IN
+                             ,   output wire                 TX_PKT3_RDY_OUT
+                             ,   input  wire [`PKT_BITS-1:0] TX_PKT4_DATA_IN
+                             ,   input  wire                 TX_PKT4_VLD_IN
+                             ,   output wire                 TX_PKT4_RDY_OUT
+                             ,   input  wire [`PKT_BITS-1:0] TX_PKT5_DATA_IN
+                             ,   input  wire                 TX_PKT5_VLD_IN
+                             ,   output wire                 TX_PKT5_RDY_OUT
+                             ,   input  wire [`PKT_BITS-1:0] TX_PKT6_DATA_IN
+                             ,   input  wire                 TX_PKT6_VLD_IN
+                             ,   output wire                 TX_PKT6_RDY_OUT
+                             ,   input  wire [`PKT_BITS-1:0] TX_PKT7_DATA_IN
+                             ,   input  wire                 TX_PKT7_VLD_IN
+                             ,   output wire                 TX_PKT7_RDY_OUT
+                                 // Outgoing data from eight streams each
+                                 // `PKT_BITS wide.
+                             ,   output wire [`PKT_BITS-1:0] RX_PKT0_DATA_OUT
+                             ,   output wire                 RX_PKT0_VLD_OUT
+                             ,   input  wire                 RX_PKT0_RDY_IN
+                             ,   output wire [`PKT_BITS-1:0] RX_PKT1_DATA_OUT
+                             ,   output wire                 RX_PKT1_VLD_OUT
+                             ,   input  wire                 RX_PKT1_RDY_IN
+                             ,   output wire [`PKT_BITS-1:0] RX_PKT2_DATA_OUT
+                             ,   output wire                 RX_PKT2_VLD_OUT
+                             ,   input  wire                 RX_PKT2_RDY_IN
+                             ,   output wire [`PKT_BITS-1:0] RX_PKT3_DATA_OUT
+                             ,   output wire                 RX_PKT3_VLD_OUT
+                             ,   input  wire                 RX_PKT3_RDY_IN
+                             ,   output wire [`PKT_BITS-1:0] RX_PKT4_DATA_OUT
+                             ,   output wire                 RX_PKT4_VLD_OUT
+                             ,   input  wire                 RX_PKT4_RDY_IN
+                             ,   output wire [`PKT_BITS-1:0] RX_PKT5_DATA_OUT
+                             ,   output wire                 RX_PKT5_VLD_OUT
+                             ,   input  wire                 RX_PKT5_RDY_IN
+                             ,   output wire [`PKT_BITS-1:0] RX_PKT6_DATA_OUT
+                             ,   output wire                 RX_PKT6_VLD_OUT
+                             ,   input  wire                 RX_PKT6_RDY_IN
+                             ,   output wire [`PKT_BITS-1:0] RX_PKT7_DATA_OUT
+                             ,   output wire                 RX_PKT7_VLD_OUT
+                             ,   input  wire                 RX_PKT7_RDY_IN
                              
                                // High-level protocol Performance counters
                                  // Accessible as a bank of read-only registers
@@ -147,70 +185,70 @@ spio_hss_multiplexer_spinnlink_i( .clk       (CLK_IN)
                                 , ihsl_vld   (rxvld_i)
                                 
                                   // Incoming packet streams
-                                , .pkt_data0 (TX_PKT_DATA_IN[(CHANNEL_WIDTH*1)-1+:CHANNEL_WIDTH])
-                                , .pkt_vld0  (TX_PKT_VLD_IN[0])
-                                , .pkt_rdy0  (TX_PKT_RDY_OUT[0])
+                                , .pkt_data0 (TX_PKT0_DATA_IN)
+                                , .pkt_vld0  (TX_PKT0_VLD_IN)
+                                , .pkt_rdy0  (TX_PKT0_RDY_OUT)
                                 
-                                , .pkt_data1 (TX_PKT_DATA_IN[(CHANNEL_WIDTH*2)-1+:CHANNEL_WIDTH])
-                                , .pkt_vld1  (TX_PKT_VLD_IN[1])
-                                , .pkt_rdy1  (TX_PKT_RDY_OUT[1])
+                                , .pkt_data1 (TX_PKT1_DATA_IN)
+                                , .pkt_vld1  (TX_PKT1_VLD_IN)
+                                , .pkt_rdy1  (TX_PKT1_RDY_OUT)
                                 
-                                , .pkt_data2 (TX_PKT_DATA_IN[(CHANNEL_WIDTH*3)-1+:CHANNEL_WIDTH])
-                                , .pkt_vld2  (TX_PKT_VLD_IN[2])
-                                , .pkt_rdy2  (TX_PKT_RDY_OUT[2])
+                                , .pkt_data2 (TX_PKT2_DATA_IN)
+                                , .pkt_vld2  (TX_PKT2_VLD_IN)
+                                , .pkt_rdy2  (TX_PKT2_RDY_OUT)
                                 
-                                , .pkt_data3 (TX_PKT_DATA_IN[(CHANNEL_WIDTH*4)-1+:CHANNEL_WIDTH])
-                                , .pkt_vld3  (TX_PKT_VLD_IN[3])
-                                , .pkt_rdy3  (TX_PKT_RDY_OUT[3])
+                                , .pkt_data3 (TX_PKT3_DATA_IN)
+                                , .pkt_vld3  (TX_PKT3_VLD_IN)
+                                , .pkt_rdy3  (TX_PKT3_RDY_OUT)
                                 
-                                , .pkt_data4 (TX_PKT_DATA_IN[(CHANNEL_WIDTH*5)-1+:CHANNEL_WIDTH])
-                                , .pkt_vld4  (TX_PKT_VLD_IN[4])
-                                , .pkt_rdy4  (TX_PKT_RDY_OUT[4])
+                                , .pkt_data4 (TX_PKT4_DATA_IN)
+                                , .pkt_vld4  (TX_PKT4_VLD_IN)
+                                , .pkt_rdy4  (TX_PKT4_RDY_OUT)
                                 
-                                , .pkt_data5 (TX_PKT_DATA_IN[(CHANNEL_WIDTH*6)-1+:CHANNEL_WIDTH])
-                                , .pkt_vld5  (TX_PKT_VLD_IN[5])
-                                , .pkt_rdy5  (TX_PKT_RDY_OUT[5])
+                                , .pkt_data5 (TX_PKT5_DATA_IN)
+                                , .pkt_vld5  (TX_PKT5_VLD_IN)
+                                , .pkt_rdy5  (TX_PKT5_RDY_OUT)
                                 
-                                , .pkt_data6 (TX_PKT_DATA_IN[(CHANNEL_WIDTH*7)-1+:CHANNEL_WIDTH])
-                                , .pkt_vld6  (TX_PKT_VLD_IN[6])
-                                , .pkt_rdy6  (TX_PKT_RDY_OUT[6])
+                                , .pkt_data6 (TX_PKT6_DATA_IN)
+                                , .pkt_vld6  (TX_PKT6_VLD_IN)
+                                , .pkt_rdy6  (TX_PKT6_RDY_OUT)
                                 
-                                , .pkt_data7 (TX_PKT_DATA_IN[(CHANNEL_WIDTH*8)-1+:CHANNEL_WIDTH])
-                                , .pkt_vld7  (TX_PKT_VLD_IN[7])
-                                , .pkt_rdy7  (TX_PKT_RDY_OUT[7])
+                                , .pkt_data7 (TX_PKT7_DATA_IN)
+                                , .pkt_vld7  (TX_PKT7_VLD_IN)
+                                , .pkt_rdy7  (TX_PKT7_RDY_OUT)
                                 
                                   // Outgoing packet streams
-                                , opkt_data0 (RX_PKT_DATA_OUT[(CHANNEL_WIDTH*1)-1+:CHANNEL_WIDTH])
-                                , opkt_vld0  (RX_PKT_VLD_OUT[0])
-                                , opkt_rdy0  (RX_PKT_RDY_IN[0])
+                                , opkt_data0 (RX_PKT0_DATA_OUT)
+                                , opkt_vld0  (RX_PKT0_VLD_OUT)
+                                , opkt_rdy0  (RX_PKT0_RDY_IN)
                                 
-                                , opkt_data1 (RX_PKT_DATA_OUT[(CHANNEL_WIDTH*2)-1+:CHANNEL_WIDTH])
-                                , opkt_vld1  (RX_PKT_VLD_OUT[1])
-                                , opkt_rdy1  (RX_PKT_RDY_IN[1])
+                                , opkt_data1 (RX_PKT1_DATA_OUT)
+                                , opkt_vld1  (RX_PKT1_VLD_OUT)
+                                , opkt_rdy1  (RX_PKT1_RDY_IN)
                                 
-                                , opkt_data2 (RX_PKT_DATA_OUT[(CHANNEL_WIDTH*3)-1+:CHANNEL_WIDTH])
-                                , opkt_vld2  (RX_PKT_VLD_OUT[2])
-                                , opkt_rdy2  (RX_PKT_RDY_IN[2])
+                                , opkt_data2 (RX_PKT2_DATA_OUT)
+                                , opkt_vld2  (RX_PKT2_VLD_OUT)
+                                , opkt_rdy2  (RX_PKT2_RDY_IN)
                                 
-                                , opkt_data3 (RX_PKT_DATA_OUT[(CHANNEL_WIDTH*4)-1+:CHANNEL_WIDTH])
-                                , opkt_vld3  (RX_PKT_VLD_OUT[3])
-                                , opkt_rdy3  (RX_PKT_RDY_IN[3])
+                                , opkt_data3 (RX_PKT3_DATA_OUT)
+                                , opkt_vld3  (RX_PKT3_VLD_OUT)
+                                , opkt_rdy3  (RX_PKT3_RDY_IN)
                                 
-                                , opkt_data4 (RX_PKT_DATA_OUT[(CHANNEL_WIDTH*5)-1+:CHANNEL_WIDTH])
-                                , opkt_vld4  (RX_PKT_VLD_OUT[4])
-                                , opkt_rdy4  (RX_PKT_RDY_IN[4])
+                                , opkt_data4 (RX_PKT4_DATA_OUT)
+                                , opkt_vld4  (RX_PKT4_VLD_OUT)
+                                , opkt_rdy4  (RX_PKT4_RDY_IN)
                                 
-                                , opkt_data5 (RX_PKT_DATA_OUT[(CHANNEL_WIDTH*6)-1+:CHANNEL_WIDTH])
-                                , opkt_vld5  (RX_PKT_VLD_OUT[5])
-                                , opkt_rdy5  (RX_PKT_RDY_IN[5])
+                                , opkt_data5 (RX_PKT5_DATA_OUT)
+                                , opkt_vld5  (RX_PKT5_VLD_OUT)
+                                , opkt_rdy5  (RX_PKT5_RDY_IN)
                                 
-                                , opkt_data6 (RX_PKT_DATA_OUT[(CHANNEL_WIDTH*7)-1+:CHANNEL_WIDTH])
-                                , opkt_vld6  (RX_PKT_VLD_OUT[6])
-                                , opkt_rdy6  (RX_PKT_RDY_IN[6])
+                                , opkt_data6 (RX_PKT6_DATA_OUT)
+                                , opkt_vld6  (RX_PKT6_VLD_OUT)
+                                , opkt_rdy6  (RX_PKT6_RDY_IN)
                                 
-                                , opkt_data7 (RX_PKT_DATA_OUT[(CHANNEL_WIDTH*8)-1+:CHANNEL_WIDTH])
-                                , opkt_vld7  (RX_PKT_VLD_OUT[7])
-                                , opkt_rdy7  (RX_PKT_RDY_IN[7])
+                                , opkt_data7 (RX_PKT7_DATA_OUT)
+                                , opkt_vld7  (RX_PKT7_VLD_OUT)
+                                , opkt_rdy7  (RX_PKT7_RDY_IN)
                                 );
 
 endmodule

@@ -43,6 +43,8 @@
 // Bit sizes and ranges
 ////////////////////////////////////////////////////////////////////////////////
 
+`define NUM_CHANS        8
+
 `define PKT_BITS         72
 `define PKT_HDR_RNG       0 +: 8
 `define PKT_KEY_RNG       8 +: 32
