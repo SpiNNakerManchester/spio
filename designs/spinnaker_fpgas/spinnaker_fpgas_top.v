@@ -156,11 +156,6 @@ wire spinnaker_link_clk1_i;
 // Are the user clocks stable?
 wire usrclks_stable_i;
 
-// Clock correction state
-wire [2:0]    b2b_rxclkcorcnt_i [1:0];
-wire [2:0] periph_rxclkcorcnt_i;
-wire [2:0]   ring_rxclkcorcnt_i;
-
 // Comma detection and byte alignment status
 wire [1:0]    b2b_rxlossofsync_i [1:0];
 wire [1:0] periph_rxlossofsync_i;
@@ -207,20 +202,20 @@ wire       sl_in_ack_i   [15:0]; // SpiNNaker <-- FPGA Acknowledge
 
 
 // Board-to-board HSS multiplexer packet interfaces [b2b_link][port]
-wire [`PKT_BITS-1:0] b2b_pkt_txdata_i [1:0][`NUM_CHANS:0];
-wire                 b2b_pkt_txvld_i  [1:0][`NUM_CHANS:0];
-wire                 b2b_pkt_txrdy_i  [1:0][`NUM_CHANS:0];
-wire [`PKT_BITS-1:0] b2b_pkt_rxdata_i [1:0][`NUM_CHANS:0];
-wire                 b2b_pkt_rxvld_i  [1:0][`NUM_CHANS:0];
-wire                 b2b_pkt_rxrdy_i  [1:0][`NUM_CHANS:0];
+wire [`PKT_BITS-1:0] b2b_pkt_txdata_i [1:0][`NUM_CHANS-1:0];
+wire                 b2b_pkt_txvld_i  [1:0][`NUM_CHANS-1:0];
+wire                 b2b_pkt_txrdy_i  [1:0][`NUM_CHANS-1:0];
+wire [`PKT_BITS-1:0] b2b_pkt_rxdata_i [1:0][`NUM_CHANS-1:0];
+wire                 b2b_pkt_rxvld_i  [1:0][`NUM_CHANS-1:0];
+wire                 b2b_pkt_rxrdy_i  [1:0][`NUM_CHANS-1:0];
 
 // Peripheral HSS multiplexer packet interfaces
-wire [`PKT_BITS-1:0] periph_pkt_txdata_i [`NUM_CHANS:0];
-wire                 periph_pkt_txvld_i  [`NUM_CHANS:0];
-wire                 periph_pkt_txrdy_i  [`NUM_CHANS:0];
-wire [`PKT_BITS-1:0] periph_pkt_rxdata_i [`NUM_CHANS:0];
-wire                 periph_pkt_rxvld_i  [`NUM_CHANS:0];
-wire                 periph_pkt_rxrdy_i  [`NUM_CHANS:0];
+wire [`PKT_BITS-1:0] periph_pkt_txdata_i [`NUM_CHANS-1:0];
+wire                 periph_pkt_txvld_i  [`NUM_CHANS-1:0];
+wire                 periph_pkt_txrdy_i  [`NUM_CHANS-1:0];
+wire [`PKT_BITS-1:0] periph_pkt_rxdata_i [`NUM_CHANS-1:0];
+wire                 periph_pkt_rxvld_i  [`NUM_CHANS-1:0];
+wire                 periph_pkt_rxrdy_i  [`NUM_CHANS-1:0];
 
 
 // SpiNNaker link (synchronous) packet interfaces
@@ -403,7 +398,7 @@ assign periph_usrclk2_i = clk_37_5_i;
 assign   ring_usrclk2_i = clk_75_i;
 
 assign spinnaker_link_clk0_i = clk_150_i;
-assign spinnaker_link_clk1_i = b2b_usrclk_i;
+assign spinnaker_link_clk1_i = b2b_usrclk2_i;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -588,7 +583,7 @@ generate for (i = 0; i < 2; i = i + 1)
 		                     , .NUM_HANDSHAKES                 (B2B_NUM_HANDSHAKES)
 		                     , .NUM_HANDSHAKES_BITS            (B2B_NUM_HANDSHAKES_BITS)
 		                     )
-		b2b_hss_multiplexer_i( .CLK_IN                         (b2b_usrclk_i)
+		b2b_hss_multiplexer_i( .CLK_IN                         (b2b_usrclk2_i)
 		                     , .RESET_IN                       (b2b_hss_reset_i[i])
 		                       // Status Signals
 		                     , .HANDSHAKE_COMPLETE_OUT         (b2b_handshake_complete_i[i])
@@ -662,7 +657,7 @@ spio_hss_multiplexer   #( .CLOCK_CORRECTION_INTERVAL      (PERIPH_CLOCK_CORRECTI
                         , .NUM_HANDSHAKES                 (PERIPH_NUM_HANDSHAKES)
                         , .NUM_HANDSHAKES_BITS            (PERIPH_NUM_HANDSHAKES_BITS)
                         )
-periph_hss_multiplexer_i( .CLK_IN                         (periph_usrclk_i)
+periph_hss_multiplexer_i( .CLK_IN                         (periph_usrclk2_i)
                         , .RESET_IN                       (periph_hss_reset_i)
                           // Status Signals
                         , .HANDSHAKE_COMPLETE_OUT         (periph_handshake_complete_i)

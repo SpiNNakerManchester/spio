@@ -112,7 +112,6 @@
 `define CFC_KBITS        4'b1000
 
 `define CLKC_KBITS       4'b0001
-`define SYNC_KBITS       4'b1010
 `define ZERO_KBITS       {`KCH_BITS {1'b0}}
 
 // XXX: Clock correction now done by tx_control/rx_control, should eventually be
@@ -121,6 +120,7 @@
 
 // XXX: Now sent by tx_control/rx_control, should eventually be removed.
 `define SYNC_FRM         {`KCH_COMMA , `KCH_HANDSHAKE , 8'h01 , `VERSION}
+`define SYNC_KBITS       4'b1100
 
 `define ZERO_FRM         {`FRM_BITS {1'b0}}
 
