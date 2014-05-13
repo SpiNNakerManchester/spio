@@ -4,10 +4,11 @@
  */
 
 `include "spio_hss_multiplexer_common.h"
+`include "spio_hss_multiplexer_reg_bank.h"
 
 module spio_hss_multiplexer #( // The interval at which clock correction sequences should
                                // be inserted (in cycles).
-                             , parameter CLOCK_CORRECTION_INTERVAL = 1000
+                               parameter CLOCK_CORRECTION_INTERVAL = 1000
                                // The number of bits for the above counter.
                              , parameter CLOCK_CORRECTION_INTERVAL_BITS = 10
                                // Number of consecutive handshakes which must arrive
@@ -171,8 +172,8 @@ spio_hss_multiplexer_spinnlink_i( .clk       (CLK_IN)
                                 , .rst       (RESET_IN)
                                 
                                   // Monitoring interface
-                                , .reg_addr  (REG_ADDR_IN),
-                                , .reg_data  (REG_DATA_OUT),
+                                , .reg_addr  (REG_ADDR_IN)
+                                , .reg_data  (REG_DATA_OUT)
                                 
                                   // To high-speed serial: assembled frames out
                                 , .hsl_data  (txdata_i)
@@ -180,9 +181,9 @@ spio_hss_multiplexer_spinnlink_i( .clk       (CLK_IN)
                                 , .hsl_rdy   (txrdy_i)
                                 
                                   // From high-speed serial: assembled frames in
-                                , ihsl_data  (rxdata_i)
-                                , ihsl_kchr  (rxcharisk_i)
-                                , ihsl_vld   (rxvld_i)
+                                , .ihsl_data  (rxdata_i)
+                                , .ihsl_kchr  (rxcharisk_i)
+                                , .ihsl_vld   (rxvld_i)
                                 
                                   // Incoming packet streams
                                 , .pkt_data0 (TX_PKT0_DATA_IN)
@@ -218,37 +219,37 @@ spio_hss_multiplexer_spinnlink_i( .clk       (CLK_IN)
                                 , .pkt_rdy7  (TX_PKT7_RDY_OUT)
                                 
                                   // Outgoing packet streams
-                                , opkt_data0 (RX_PKT0_DATA_OUT)
-                                , opkt_vld0  (RX_PKT0_VLD_OUT)
-                                , opkt_rdy0  (RX_PKT0_RDY_IN)
+                                , .opkt_data0(RX_PKT0_DATA_OUT)
+                                , .opkt_vld0 (RX_PKT0_VLD_OUT)
+                                , .opkt_rdy0 (RX_PKT0_RDY_IN)
                                 
-                                , opkt_data1 (RX_PKT1_DATA_OUT)
-                                , opkt_vld1  (RX_PKT1_VLD_OUT)
-                                , opkt_rdy1  (RX_PKT1_RDY_IN)
+                                , .opkt_data1(RX_PKT1_DATA_OUT)
+                                , .opkt_vld1 (RX_PKT1_VLD_OUT)
+                                , .opkt_rdy1 (RX_PKT1_RDY_IN)
                                 
-                                , opkt_data2 (RX_PKT2_DATA_OUT)
-                                , opkt_vld2  (RX_PKT2_VLD_OUT)
-                                , opkt_rdy2  (RX_PKT2_RDY_IN)
+                                , .opkt_data2(RX_PKT2_DATA_OUT)
+                                , .opkt_vld2 (RX_PKT2_VLD_OUT)
+                                , .opkt_rdy2 (RX_PKT2_RDY_IN)
                                 
-                                , opkt_data3 (RX_PKT3_DATA_OUT)
-                                , opkt_vld3  (RX_PKT3_VLD_OUT)
-                                , opkt_rdy3  (RX_PKT3_RDY_IN)
+                                , .opkt_data3(RX_PKT3_DATA_OUT)
+                                , .opkt_vld3 (RX_PKT3_VLD_OUT)
+                                , .opkt_rdy3 (RX_PKT3_RDY_IN)
                                 
-                                , opkt_data4 (RX_PKT4_DATA_OUT)
-                                , opkt_vld4  (RX_PKT4_VLD_OUT)
-                                , opkt_rdy4  (RX_PKT4_RDY_IN)
+                                , .opkt_data4(RX_PKT4_DATA_OUT)
+                                , .opkt_vld4 (RX_PKT4_VLD_OUT)
+                                , .opkt_rdy4 (RX_PKT4_RDY_IN)
                                 
-                                , opkt_data5 (RX_PKT5_DATA_OUT)
-                                , opkt_vld5  (RX_PKT5_VLD_OUT)
-                                , opkt_rdy5  (RX_PKT5_RDY_IN)
+                                , .opkt_data5(RX_PKT5_DATA_OUT)
+                                , .opkt_vld5 (RX_PKT5_VLD_OUT)
+                                , .opkt_rdy5 (RX_PKT5_RDY_IN)
                                 
-                                , opkt_data6 (RX_PKT6_DATA_OUT)
-                                , opkt_vld6  (RX_PKT6_VLD_OUT)
-                                , opkt_rdy6  (RX_PKT6_RDY_IN)
+                                , .opkt_data6(RX_PKT6_DATA_OUT)
+                                , .opkt_vld6 (RX_PKT6_VLD_OUT)
+                                , .opkt_rdy6 (RX_PKT6_RDY_IN)
                                 
-                                , opkt_data7 (RX_PKT7_DATA_OUT)
-                                , opkt_vld7  (RX_PKT7_VLD_OUT)
-                                , opkt_rdy7  (RX_PKT7_RDY_IN)
+                                , .opkt_data7(RX_PKT7_DATA_OUT)
+                                , .opkt_vld7 (RX_PKT7_VLD_OUT)
+                                , .opkt_rdy7 (RX_PKT7_RDY_IN)
                                 );
 
 endmodule

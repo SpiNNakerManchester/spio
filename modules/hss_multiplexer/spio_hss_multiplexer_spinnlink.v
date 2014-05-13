@@ -30,6 +30,7 @@
 // include spiNNlink global constants and parameters
 //
 `include "spio_hss_multiplexer_common.h"
+`include "spio_hss_multiplexer_reg_bank.h"
 // ----------------------------------------------------------------
 
 `timescale 1ns / 1ps

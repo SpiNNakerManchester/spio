@@ -251,9 +251,6 @@ drive `BUFG` nets.
 
 ### 3. I/O and Feedback
 
-The `RESET` optional input should be enabled to allow the block to remain
-disabled while the GTP transceiver's PLL is getting locked.
-
 The `LOCKED` optional output may be useful to hold the multiplexer module in
 reset while the clock is not ready.
 

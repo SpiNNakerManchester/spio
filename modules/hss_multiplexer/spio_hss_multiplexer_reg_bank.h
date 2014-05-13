@@ -2,8 +2,8 @@
  * Diagnostic register types.
  */
 
-`ifndef SPIO_HSS_MUTLIPLEXER_COMMON_H
-`define SPIO_HSS_MUTLIPLEXER_COMMON_H
+`ifndef SPIO_HSS_MUTLIPLEXER_REG_BANK_H
+`define SPIO_HSS_MUTLIPLEXER_REG_BANK_H
 
 // XXX
 //`define VERSION          32'd14021300

@@ -12,8 +12,10 @@
  *  * Peripheral connectivity.
  */
 
-`include "spio_hss_multiplexer_reg_bank.h"
-`include "spio_spinnaker_link.h"
+`include "../../modules/spinnaker_link/spio_spinnaker_link.h"
+
+`include "../../modules/hss_multiplexer/spio_hss_multiplexer_common.h"
+`include "../../modules/hss_multiplexer/spio_hss_multiplexer_reg_bank.h"
 
 
 module spinnaker_fpgas_top #( // Enable simulation mode for GTP tile
@@ -66,32 +68,27 @@ module spinnaker_fpgas_top #( // Enable simulation mode for GTP tile
                               // three different FPGAs are connected to
                               // different configurations, these pins have their
                               // directions set by the FPGA ID signal.
-                              inout wire [15:0] SL00_INOUT,
-                            , inout wire [15:0] SL01_INOUT,
-                            , inout wire [15:0] SL02_INOUT,
-                            , inout wire [15:0] SL03_INOUT,
-                            , inout wire [15:0] SL04_INOUT,
-                            , inout wire [15:0] SL05_INOUT,
-                            , inout wire [15:0] SL06_INOUT,
-                            , inout wire [15:0] SL07_INOUT,
-                            , inout wire [15:0] SL08_INOUT,
-                            , inout wire [15:0] SL09_INOUT,
-                            , inout wire [15:0] SL10_INOUT,
-                            , inout wire [15:0] SL11_INOUT,
-                            , inout wire [15:0] SL12_INOUT,
-                            , inout wire [15:0] SL13_INOUT,
-                            , inout wire [15:0] SL14_INOUT,
-                            , inout wire [15:0] SL15_INOUT,
+                            , inout wire [15:0] SL0_INOUT
+                            , inout wire [15:0] SL1_INOUT
+                            , inout wire [15:0] SL2_INOUT
+                            , inout wire [15:0] SL3_INOUT
+                            , inout wire [15:0] SL4_INOUT
+                            , inout wire [15:0] SL5_INOUT
+                            , inout wire [15:0] SL6_INOUT
+                            , inout wire [15:0] SL7_INOUT
+                            , inout wire [15:0] SL8_INOUT
+                            , inout wire [15:0] SL9_INOUT
+                            , inout wire [15:0] SL10_INOUT
+                            , inout wire [15:0] SL11_INOUT
+                            , inout wire [15:0] SL12_INOUT
+                            , inout wire [15:0] SL13_INOUT
+                            , inout wire [15:0] SL14_INOUT
+                            , inout wire [15:0] SL15_INOUT
                             );
 
 genvar i;
 
-
-// FPGA unique identifiers (as in FPGA_ID_IN)
-localparam FPGA0 = 2'b00;
-localparam FPGA1 = 2'b01;
-localparam FPGA2 = 2'b10;
-
+`include "spinnaker_fpgas_top.h"
 
 // GTP internal loopback connectivity (for debugging)
 localparam    B2B_GTP_LOOPBACK = 3'b000;
@@ -109,10 +106,13 @@ wire reset_i;
 // Reset GTP blocks
 wire gtp_reset_i;
 
+// Reset clock scaler
+wire clk_reset_i;
+
 // Reset for HSS link modules
 wire    b2b_hss_reset_i [1:0];
 wire periph_hss_reset_i;
-wire   ring_hss_reset_i;
+//wire   ring_hss_reset_i;
 
 // Reset for SpiNNaker link blocks
 wire spinnaker_link_reset_i;
@@ -120,33 +120,16 @@ wire spinnaker_link_reset_i;
 // Reset for LED control
 wire led_reset_i;
 
-wire red_led_i;;
-wire grn_led_i;;
+wire red_led_i;
+wire grn_led_i;
 
 wire [1:0] fpga_id_i;
-
-// Give the SpiNNaker links an indexable interface.
-wire [15:0] sl_inout_i [15:0];
-assign sl_inout_i[ 0] = SL00_INOUT;
-assign sl_inout_i[ 1] = SL01_INOUT;
-assign sl_inout_i[ 2] = SL02_INOUT;
-assign sl_inout_i[ 3] = SL03_INOUT;
-assign sl_inout_i[ 4] = SL04_INOUT;
-assign sl_inout_i[ 5] = SL05_INOUT;
-assign sl_inout_i[ 6] = SL06_INOUT;
-assign sl_inout_i[ 7] = SL07_INOUT;
-assign sl_inout_i[ 8] = SL10_INOUT;
-assign sl_inout_i[ 9] = SL11_INOUT;
-assign sl_inout_i[10] = SL12_INOUT;
-assign sl_inout_i[11] = SL13_INOUT;
-assign sl_inout_i[12] = SL14_INOUT;
-assign sl_inout_i[13] = SL15_INOUT;
 
 // Input clock to the GTP modules from the external clock
 wire gtpclkin_i;
 
 // The GTP's external clock signal, exposed for general use
-wire unbuffered_gtpclkout_i;
+wire [1:0] unbuffered_gtpclkout_i;
 wire gtpclkout_i;
 
 // GTP tile reset completion signals
@@ -185,9 +168,9 @@ wire [31:0]    b2b_rxdata_i [1:0];
 wire [31:0] periph_rxdata_i;
 wire [31:0]   ring_rxdata_i;
 
-wire  [3:0]    b2b_rxchariscomma_ie [1:0];
-wire  [3:0] periph_rxchariscomma_ie;
-wire  [3:0]   ring_rxchariscomma_ie;
+wire  [3:0]    b2b_rxchariscomma_i [1:0];
+wire  [3:0] periph_rxchariscomma_i;
+wire  [3:0]   ring_rxchariscomma_i;
 
 wire  [3:0]    b2b_rxcharisk_i [1:0];
 wire  [3:0] periph_rxcharisk_i;
@@ -254,12 +237,14 @@ IBUF reset_buf (.I (RESET_IN), .O (reset_i));
 
 assign gtp_reset_i = reset_i;
 
+assign clk_reset_i = reset_i;
+
 // HSS blocks are connected to the GTP blocks and so must wait until they have
 // completely reset.
 assign    b2b_hss_reset_i[0] =    !b2b_gtpresetdone_i[0] & usrclks_stable_i;
 assign    b2b_hss_reset_i[1] =    !b2b_gtpresetdone_i[1] & usrclks_stable_i;
 assign periph_hss_reset_i    = !periph_gtpresetdone_i    & usrclks_stable_i;
-assign   ring_hss_reset_i    =   !ring_gtpresetdone_i    & usrclks_stable_i;
+//assign   ring_hss_reset_i    =   !ring_gtpresetdone_i    & usrclks_stable_i;
 
 assign spinnaker_link_reset_i = usrclks_stable_i;
 
@@ -270,10 +255,27 @@ assign led_reset_i = usrclks_stable_i;
 // LEDs
 ////////////////////////////////////////////////////////////////////////////////
 
-OBUF red_led_buf_i (.I (red_led_i), .O (RED_LED_OUT));
-OBUF grn_led_buf_i (.I (grn_led_i), .O (GRN_LED_OUT));
+// Since the FPGA can't provide the 3.3 volts required to light the LEDs, they
+// are connected something like this:
+//
+//   FPGA Pin ----------------,
+//                            |
+//        3v3 ---[Resistor]---+
+//                            |
+//                          [LED]
+//                            |
+//        Gnd ----------------'
+//
+// If the FPGA pin is left floating, the LED is driven by the 3v3 line via the
+// resistor. If the FPGA is connected and driven low, the potential across the
+// LED becomes zero and it goes out. As a result, the LED's state can be set by
+// changing the tristate signal of a tristate buffer driven low.
+OBUFT red_led_buf_i (.I (1'b0), .O (RED_LED_OUT), .T(~red_led_i));
+OBUFT grn_led_buf_i (.I (1'b0), .O (GRN_LED_OUT), .T(~grn_led_i));
 
 // TODO: Flash the LEDs to indicate status
+assign red_led_i = !led_reset_i;
+assign grn_led_i = !led_reset_i;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -300,31 +302,6 @@ IBUF fpga_id_buf_i [1:0] (.I (FPGA_ID_IN), .O (fpga_id_i));
 //     * HIGH_SL[0]   = Ack
 //     * HIGH_SL[7:1] = Data
 
-// In the below bit fields, 1=input, 0=output with the LSB corresponding to the
-// SpiNNaker -> FPGA data pins and FPGA -> SpiNNaker ack pin and the MSB the
-// FPGA -> SpiNNaker data pins and SpiNNaker -> FPGA ack pin.
-localparam LOW_SL    = 2'b10;
-localparam HIGH_SL   = 2'b01;
-localparam UNUSED_SL = 2'b11;
-
-localparam [31:0] FPGA0_SL_TYPES = { HIGH_SL, HIGH_SL, HIGH_SL, HIGH_SL
-                                   , HIGH_SL, HIGH_SL, HIGH_SL, HIGH_SL
-                                   , HIGH_SL, LOW_SL,  HIGH_SL, LOW_SL
-                                   , HIGH_SL, LOW_SL,  HIGH_SL, LOW_SL
-                                   };
-
-localparam [31:0] FPGA1_SL_TYPES = { HIGH_SL, LOW_SL,  HIGH_SL, LOW_SL
-                                   , HIGH_SL, LOW_SL,  HIGH_SL, LOW_SL
-                                   , HIGH_SL, HIGH_SL, HIGH_SL, HIGH_SL
-                                   , HIGH_SL, HIGH_SL, HIGH_SL, HIGH_SL
-                                   };
-
-localparam [31:0] FPGA2_SL_TYPES = { LOW_SL,  LOW_SL,  LOW_SL,  LOW_SL
-                                   , LOW_SL,  LOW_SL,  LOW_SL,  LOW_SL
-                                   , LOW_SL,  LOW_SL,  LOW_SL,  LOW_SL
-                                   , LOW_SL,  LOW_SL,  LOW_SL,  LOW_SL
-                                   };
-
 // Get the link types for this FPGA
 reg [31:0] sl_types_i;
 always @ (*)
@@ -348,25 +325,34 @@ endgenerate
 
 
 // Buffer the incoming SpiNNaker link signals and split input and output parts
+wire [15:0] sl_in_pins_i  [15:0];
+wire [15:0] sl_out_pins_i [15:0];
+IOBUF sl0_buf_i  [15:0] (.IO(SL0_INOUT),  .O(sl_in_pins_i[ 0]), .I(sl_out_pins_i[ 0]), .T(sl_tristate_i[ 0]));
+IOBUF sl1_buf_i  [15:0] (.IO(SL1_INOUT),  .O(sl_in_pins_i[ 1]), .I(sl_out_pins_i[ 1]), .T(sl_tristate_i[ 1]));
+IOBUF sl2_buf_i  [15:0] (.IO(SL2_INOUT),  .O(sl_in_pins_i[ 2]), .I(sl_out_pins_i[ 2]), .T(sl_tristate_i[ 2]));
+IOBUF sl3_buf_i  [15:0] (.IO(SL3_INOUT),  .O(sl_in_pins_i[ 3]), .I(sl_out_pins_i[ 3]), .T(sl_tristate_i[ 3]));
+IOBUF sl4_buf_i  [15:0] (.IO(SL4_INOUT),  .O(sl_in_pins_i[ 4]), .I(sl_out_pins_i[ 4]), .T(sl_tristate_i[ 4]));
+IOBUF sl5_buf_i  [15:0] (.IO(SL5_INOUT),  .O(sl_in_pins_i[ 5]), .I(sl_out_pins_i[ 5]), .T(sl_tristate_i[ 5]));
+IOBUF sl6_buf_i  [15:0] (.IO(SL6_INOUT),  .O(sl_in_pins_i[ 6]), .I(sl_out_pins_i[ 6]), .T(sl_tristate_i[ 6]));
+IOBUF sl7_buf_i  [15:0] (.IO(SL7_INOUT),  .O(sl_in_pins_i[ 7]), .I(sl_out_pins_i[ 7]), .T(sl_tristate_i[ 7]));
+IOBUF sl8_buf_i  [15:0] (.IO(SL8_INOUT),  .O(sl_in_pins_i[ 8]), .I(sl_out_pins_i[ 8]), .T(sl_tristate_i[ 8]));
+IOBUF sl9_buf_i  [15:0] (.IO(SL9_INOUT),  .O(sl_in_pins_i[ 9]), .I(sl_out_pins_i[ 9]), .T(sl_tristate_i[ 9]));
+IOBUF sl10_buf_i [15:0] (.IO(SL10_INOUT), .O(sl_in_pins_i[10]), .I(sl_out_pins_i[10]), .T(sl_tristate_i[10]));
+IOBUF sl11_buf_i [15:0] (.IO(SL11_INOUT), .O(sl_in_pins_i[11]), .I(sl_out_pins_i[11]), .T(sl_tristate_i[11]));
+IOBUF sl12_buf_i [15:0] (.IO(SL12_INOUT), .O(sl_in_pins_i[12]), .I(sl_out_pins_i[12]), .T(sl_tristate_i[12]));
+IOBUF sl13_buf_i [15:0] (.IO(SL13_INOUT), .O(sl_in_pins_i[13]), .I(sl_out_pins_i[13]), .T(sl_tristate_i[13]));
+IOBUF sl14_buf_i [15:0] (.IO(SL14_INOUT), .O(sl_in_pins_i[14]), .I(sl_out_pins_i[14]), .T(sl_tristate_i[14]));
+IOBUF sl15_buf_i [15:0] (.IO(SL15_INOUT), .O(sl_in_pins_i[15]), .I(sl_out_pins_i[15]), .T(sl_tristate_i[15]));
+
 generate for (i = 0; i < 16; i = i + 1)
 	begin : spinnaker_link_buffering
-		wire [15:0] sl_in_pins_i;
-		wire [15:0] sl_out_pins_i;
-		
-		// Buffer the pins
-		IOBUF sl_buf_i [15:0] ( .IO (sl_inout_i[i])
-		                      , .O  (sl_in_pins_i)
-		                      , .I  (sl_out_pins_i)
-		                      , .T  (sl_tristate_i[i])
-		                      );
-		
 		// Select the appropriate input signals given the link type
-		assign sl_in_data_i[i] = (sl_types_i[2*i+:2] == HIGH_SL) ? sl_in_pins_i[7:1] : sl_in_pins_i[15:9];
-		assign sl_out_ack_i[i] = (sl_types_i[2*i+:2] == HIGH_SL) ? sl_in_pins_i[8]   : sl_in_pins_i[0];
+		assign sl_in_data_i[i] = (sl_types_i[2*i+:2] == HIGH_SL) ?  sl_in_pins_i[i][7:1] : sl_in_pins_i[i][15:9];
+		assign sl_out_ack_i[i] = (sl_types_i[2*i+:2] == HIGH_SL) ?  sl_in_pins_i[i][8]   : sl_in_pins_i[i][0];
 		
 		// Duplicate the output signals since the tristate will ensure that they get
 		// to the right pins
-		assign sl_out_pins_i = {2{sl_out_data_i, sl_in_ack_i}};
+		assign sl_out_pins_i[i] = {2{sl_out_data_i[i], sl_in_ack_i[i]}};
 	end
 endgenerate
 
@@ -383,7 +369,7 @@ IBUFDS refclk_ibufds_i ( .O (gtpclkin_i)
 
 // Buffer the copy of the transceiver's external clock
 BUFIO2 # (.DIVIDE (1), .DIVIDE_BYPASS ("TRUE"))
-gtpclkout_0_pll_bufio2_i ( .I            (unbuffered_gtpclkout_i)
+gtpclkout_0_pll_bufio2_i ( .I            (unbuffered_gtpclkout_i[0])
                          , .DIVCLK       (gtpclkout_i)
                          , .IOCLK        () // Unused
                          , .SERDESSTROBE () // Unused
@@ -399,9 +385,9 @@ clock_scaler
 clock_scaler_i ( .CLK_IN1  (gtpclkout_i) // 150  Mhz (Input)
                , .CLK_OUT1 (clk_300_i)   // 300  MHz (Output)
                , .CLK_OUT2 (clk_75_i)    // 75   MHz (Output)
-               , .CLK_OUT1 (clk_150_i)   // 150  MHz (Output)
-               , .CLK_OUT2 (clk_37_5_i)  // 37.5 MHz (Output)
-               , .RESET    (reset_i)
+               , .CLK_OUT3 (clk_150_i)   // 150  MHz (Output)
+               , .CLK_OUT4 (clk_37_5_i)  // 37.5 MHz (Output)
+               , .RESET    (clk_reset_i)
                , .LOCKED   (usrclks_stable_i)
                );
 
@@ -435,8 +421,8 @@ gtp_x0_y0_i ( // TILE0 (X0_Y0)
                 // PLL Ports
             ,   .TILE0_CLK00_IN             (gtpclkin_i)
             ,   .TILE0_CLK01_IN             (1'b0) // Uses the first block's clock, just tie-off
-            ,   .TILE0_GTPRESET0_IN         (reset_i)
-            ,   .TILE0_GTPRESET1_IN         (reset_i)
+            ,   .TILE0_GTPRESET0_IN         (gtp_reset_i)
+            ,   .TILE0_GTPRESET1_IN         (gtp_reset_i)
             ,   .TILE0_PLLLKDET0_OUT        () // RESETDONE* implies this
             ,   .TILE0_RESETDONE0_OUT       (b2b_gtpresetdone_i[0])
             ,   .TILE0_RESETDONE1_OUT       (b2b_gtpresetdone_i[1])
@@ -450,15 +436,9 @@ gtp_x0_y0_i ( // TILE0 (X0_Y0)
             ,   .TILE0_RXNOTINTABLE0_OUT    () // Unused
             ,   .TILE0_RXNOTINTABLE1_OUT    () // Unused
                 // Receive Ports - Clock Correction
-            ,   .TILE0_RXCLKCORCNT0_OUT     (rxclkcorcnt_i[0][0])
-            ,   .TILE0_RXCLKCORCNT1_OUT     (rxclkcorcnt_i[0][1])
+            ,   .TILE0_RXCLKCORCNT0_OUT     () // Unused
+            ,   .TILE0_RXCLKCORCNT1_OUT     () // Unused
                 // Receive Ports - Comma Detection and Alignment
-            ,   .TILE0_RXBYTEISALIGNED0_OUT () // Unused
-            ,   .TILE0_RXBYTEISALIGNED1_OUT () // Unused
-            ,   .TILE0_RXBYTEREALIGN0_OUT   () // Unused
-            ,   .TILE0_RXBYTEREALIGN1_OUT   () // Unused
-            ,   .TILE0_RXCOMMADET0_OUT      () // Unused
-            ,   .TILE0_RXCOMMADET1_OUT      () // Unused
             ,   .TILE0_RXENMCOMMAALIGN0_IN  (1'b1) // Always realign
             ,   .TILE0_RXENMCOMMAALIGN1_IN  (1'b1) // Always realign
             ,   .TILE0_RXENPCOMMAALIGN0_IN  (1'b1) // Always realign
@@ -471,16 +451,10 @@ gtp_x0_y0_i ( // TILE0 (X0_Y0)
             ,   .TILE0_RXUSRCLK20_IN        (b2b_usrclk2_i)
             ,   .TILE0_RXUSRCLK21_IN        (b2b_usrclk2_i)
                 // Receive Ports - RX Driver,OOB signalling,Coupling and Eq.,CDR
-            ,   .TILE0_GATERXELECIDLE0_IN   (1'b0)
-            ,   .TILE0_GATERXELECIDLE1_IN   (1'b0)
-            ,   .TILE0_IGNORESIGDET0_IN     (1'b0)
-            ,   .TILE0_IGNORESIGDET1_IN     (1'b0)
-            ,   .TILE0_RXELECIDLE0_OUT      () // Unused
-            ,   .TILE0_RXELECIDLE1_OUT      () // Unused
-            ,   .TILE0_RXN0_IN              (RXN_IN[0])
-            ,   .TILE0_RXN1_IN              (RXN_IN[1])
-            ,   .TILE0_RXP0_IN              (RXP_IN[0])
-            ,   .TILE0_RXP1_IN              (RXP_IN[1])
+            ,   .TILE0_RXN0_IN              (HSS_RXN_IN[0])
+            ,   .TILE0_RXN1_IN              (HSS_RXN_IN[1])
+            ,   .TILE0_RXP0_IN              (HSS_RXP_IN[0])
+            ,   .TILE0_RXP1_IN              (HSS_RXP_IN[1])
                 // Receive Ports - RX Loss-of-sync State Machine
             ,   .TILE0_RXLOSSOFSYNC0_OUT    (b2b_rxlossofsync_i[0])
             ,   .TILE0_RXLOSSOFSYNC1_OUT    (b2b_rxlossofsync_i[1])
@@ -498,10 +472,23 @@ gtp_x0_y0_i ( // TILE0 (X0_Y0)
             ,   .TILE0_TXUSRCLK20_IN        (b2b_usrclk2_i)
             ,   .TILE0_TXUSRCLK21_IN        (b2b_usrclk2_i)
                 // Transmit Ports - TX Driver and OOB signalling
-            ,   .TILE0_TXN0_OUT             (TXN_OUT[0])
-            ,   .TILE0_TXN1_OUT             (TXN_OUT[1])
-            ,   .TILE0_TXP0_OUT             (TXP_OUT[0])
-            ,   .TILE0_TXP1_OUT             (TXP_OUT[1])
+            ,   .TILE0_TXN0_OUT             (HSS_TXN_OUT[0])
+            ,   .TILE0_TXN1_OUT             (HSS_TXN_OUT[1])
+            ,   .TILE0_TXP0_OUT             (HSS_TXP_OUT[0])
+            ,   .TILE0_TXP1_OUT             (HSS_TXP_OUT[1])
+                // Receive Ports - Channel Bonding (Unused)
+            ,   .TILE0_RXCHANBONDSEQ0_OUT   () // Unused
+            ,   .TILE0_RXCHANBONDSEQ1_OUT   () // Unused
+            ,   .TILE0_RXCHANISALIGNED0_OUT () // Unused
+            ,   .TILE0_RXCHANISALIGNED1_OUT () // Unused
+            ,   .TILE0_RXCHANREALIGN0_OUT   () // Unused
+            ,   .TILE0_RXCHANREALIGN1_OUT   () // Unused
+            ,   .TILE0_RXCHBONDMASTER0_IN   (1'b0) // Unused
+            ,   .TILE0_RXCHBONDMASTER1_IN   (1'b0) // Unused
+            ,   .TILE0_RXCHBONDSLAVE0_IN    (1'b0) // Unused
+            ,   .TILE0_RXCHBONDSLAVE1_IN    (1'b0) // Unused
+            ,   .TILE0_RXENCHANSYNC0_IN     (1'b0) // Unused
+            ,   .TILE0_RXENCHANSYNC1_IN     (1'b0) // Unused
             );
 
 // X1Y0: Peripheral links and the ring network
@@ -515,8 +502,8 @@ gtp_x1_y0_i ( // TILE0 (X0_Y0)
                 // PLL Ports
             ,   .TILE0_CLK00_IN             (gtpclkin_i)
             ,   .TILE0_CLK01_IN             (1'b0) // Uses the first block's clock, just tie-off
-            ,   .TILE0_GTPRESET0_IN         (reset_i)
-            ,   .TILE0_GTPRESET1_IN         (reset_i)
+            ,   .TILE0_GTPRESET0_IN         (gtp_reset_i)
+            ,   .TILE0_GTPRESET1_IN         (gtp_reset_i)
             ,   .TILE0_PLLLKDET0_OUT        () // RESETDONE* implies this
             ,   .TILE0_RESETDONE0_OUT       (periph_gtpresetdone_i)
             ,   .TILE0_RESETDONE1_OUT       (  ring_gtpresetdone_i)
@@ -530,15 +517,9 @@ gtp_x1_y0_i ( // TILE0 (X0_Y0)
             ,   .TILE0_RXNOTINTABLE0_OUT    () // Unused
             ,   .TILE0_RXNOTINTABLE1_OUT    () // Unused
                 // Receive Ports - Clock Correction
-            ,   .TILE0_RXCLKCORCNT0_OUT     (rxclkcorcnt_i[1][0])
-            ,   .TILE0_RXCLKCORCNT1_OUT     (rxclkcorcnt_i[1][1])
+            ,   .TILE0_RXCLKCORCNT0_OUT     () // Unused
+            ,   .TILE0_RXCLKCORCNT1_OUT     () // Unused
                 // Receive Ports - Comma Detection and Alignment
-            ,   .TILE0_RXBYTEISALIGNED0_OUT () // Unused
-            ,   .TILE0_RXBYTEISALIGNED1_OUT () // Unused
-            ,   .TILE0_RXBYTEREALIGN0_OUT   () // Unused
-            ,   .TILE0_RXBYTEREALIGN1_OUT   () // Unused
-            ,   .TILE0_RXCOMMADET0_OUT      () // Unused
-            ,   .TILE0_RXCOMMADET1_OUT      () // Unused
             ,   .TILE0_RXENMCOMMAALIGN0_IN  (1'b1) // Always realign
             ,   .TILE0_RXENMCOMMAALIGN1_IN  (1'b1) // Always realign
             ,   .TILE0_RXENPCOMMAALIGN0_IN  (1'b1) // Always realign
@@ -551,16 +532,10 @@ gtp_x1_y0_i ( // TILE0 (X0_Y0)
             ,   .TILE0_RXUSRCLK20_IN        (periph_usrclk2_i)
             ,   .TILE0_RXUSRCLK21_IN        (  ring_usrclk2_i)
                 // Receive Ports - RX Driver,OOB signalling,Coupling and Eq.,CDR
-            ,   .TILE0_GATERXELECIDLE0_IN   (1'b0)
-            ,   .TILE0_GATERXELECIDLE1_IN   (1'b0)
-            ,   .TILE0_IGNORESIGDET0_IN     (1'b0)
-            ,   .TILE0_IGNORESIGDET1_IN     (1'b0)
-            ,   .TILE0_RXELECIDLE0_OUT      () // Unused
-            ,   .TILE0_RXELECIDLE1_OUT      () // Unused
-            ,   .TILE0_RXN0_IN              (RXN_IN[2])
-            ,   .TILE0_RXN1_IN              (RXN_IN[3])
-            ,   .TILE0_RXP0_IN              (RXP_IN[2])
-            ,   .TILE0_RXP1_IN              (RXP_IN[3])
+            ,   .TILE0_RXN0_IN              (HSS_RXN_IN[2])
+            ,   .TILE0_RXN1_IN              (HSS_RXN_IN[3])
+            ,   .TILE0_RXP0_IN              (HSS_RXP_IN[2])
+            ,   .TILE0_RXP1_IN              (HSS_RXP_IN[3])
                 // Receive Ports - RX Loss-of-sync State Machine
             ,   .TILE0_RXLOSSOFSYNC0_OUT    (periph_rxlossofsync_i)
             ,   .TILE0_RXLOSSOFSYNC1_OUT    (  ring_rxlossofsync_i)
@@ -578,10 +553,23 @@ gtp_x1_y0_i ( // TILE0 (X0_Y0)
             ,   .TILE0_TXUSRCLK20_IN        (periph_usrclk2_i)
             ,   .TILE0_TXUSRCLK21_IN        (  ring_usrclk2_i)
                 // Transmit Ports - TX Driver and OOB signalling
-            ,   .TILE0_TXN0_OUT             (TXN_OUT[2])
-            ,   .TILE0_TXN1_OUT             (TXN_OUT[3])
-            ,   .TILE0_TXP0_OUT             (TXP_OUT[2])
-            ,   .TILE0_TXP1_OUT             (TXP_OUT[3])
+            ,   .TILE0_TXN0_OUT             (HSS_TXN_OUT[2])
+            ,   .TILE0_TXN1_OUT             (HSS_TXN_OUT[3])
+            ,   .TILE0_TXP0_OUT             (HSS_TXP_OUT[2])
+            ,   .TILE0_TXP1_OUT             (HSS_TXP_OUT[3])
+                // Receive Ports - Channel Bonding (Unused)
+            ,   .TILE0_RXCHANBONDSEQ0_OUT   () // Unused
+            ,   .TILE0_RXCHANBONDSEQ1_OUT   () // Unused
+            ,   .TILE0_RXCHANISALIGNED0_OUT () // Unused
+            ,   .TILE0_RXCHANISALIGNED1_OUT () // Unused
+            ,   .TILE0_RXCHANREALIGN0_OUT   () // Unused
+            ,   .TILE0_RXCHANREALIGN1_OUT   () // Unused
+            ,   .TILE0_RXCHBONDMASTER0_IN   (1'b0) // Unused
+            ,   .TILE0_RXCHBONDMASTER1_IN   (1'b0) // Unused
+            ,   .TILE0_RXCHBONDSLAVE0_IN    (1'b0) // Unused
+            ,   .TILE0_RXCHBONDSLAVE1_IN    (1'b0) // Unused
+            ,   .TILE0_RXENCHANSYNC0_IN     (1'b0) // Unused
+            ,   .TILE0_RXENCHANSYNC1_IN     (1'b0) // Unused
             );
 
 
@@ -768,8 +756,9 @@ generate for (i = 0; i < 16; i = i + 1)
 		                            , .PKT_VLD_IN       (sl_pkt_txvld_i[i])
 		                            , .PKT_RDY_OUT      (sl_pkt_txrdy_i[i])
 		                            // SpiNNaker link asynchronous interface
-		                            , .SL_DATA_2OF7_OUT (sl_out_data_i)
+		                            , .SL_DATA_2OF7_OUT (sl_out_data_i[i])
 		                            , .SL_ACK_IN        (synced_sl_out_ack_i)
+		                            );
 		
 		// SpiNNaker -> FPGA
 		spio_spinnaker_link_receiver
@@ -779,7 +768,7 @@ generate for (i = 0; i < 16; i = i + 1)
 		                              , .COUNT_PACKET_OUT () // Unused
 		                              // SpiNNaker link asynchronous interface
 		                              , .SL_DATA_2OF7_IN  (synced_sl_in_data_i)
-		                              , .SL_ACK_OUT       (sl_in_ack_i)
+		                              , .SL_ACK_OUT       (sl_in_ack_i[i])
 		                                // Synchronous packet interface
 		                              , .PKT_DATA_OUT     (sl_pkt_rxdata_i[i])
 		                              , .PKT_VLD_OUT      (sl_pkt_rxvld_i[i])
@@ -788,16 +777,16 @@ generate for (i = 0; i < 16; i = i + 1)
 		
 		// Synchronisers
 		spio_spinnaker_link_sync#(.SIZE(1))
-		spio_spinnaker_link_sync_i( .CLK (spinnaker_link_clk1_i)
-		                          , .IN  (sl_out_ack_i)
-		                          , .OUT (synced_sl_out_ack_i)
+		spio_spinnaker_link_sync_i( .CLK_IN (spinnaker_link_clk1_i)
+		                          , .IN     (sl_out_ack_i[i])
+		                          , .OUT    (synced_sl_out_ack_i)
 		                          );
 		
 		spio_spinnaker_link_sync2#(.SIZE(7))
-		spio_spinnaker_link_sync2_i( .CLK0 (spinnaker_link_clk0_i)
-		                           ( .CLK1 (spinnaker_link_clk1_i)
-		                           , .IN   (sl_in_data_i)
-		                           , .OUT  (synced_sl_in_data_i)
+		spio_spinnaker_link_sync2_i( .CLK0_IN (spinnaker_link_clk0_i)
+		                           , .CLK1_IN (spinnaker_link_clk1_i)
+		                           , .IN      (sl_in_data_i[i])
+		                           , .OUT     (synced_sl_in_data_i)
 		                           );
 		
 	end
@@ -814,11 +803,11 @@ generate for (i = 0; i < `NUM_CHANS; i = i + 1)
 	begin : xxx_spinnaker_rx_links
 		assign b2b_pkt_txdata_i[0][i] = sl_pkt_rxdata_i[i];
 		assign b2b_pkt_txvld_i[0][i]  = sl_pkt_rxvld_i[i];
-		assign b2b_pkt_txrdy_i[0][i]  = sl_pkt_rxrdy_i[i];
+		assign sl_pkt_rxrdy_i[i]      = b2b_pkt_txrdy_i[0][i];
 		
-		assign b2b_pkt_txdata_i[1][i] = sl_pkt_rxdata_i[8 + i];
-		assign b2b_pkt_txvld_i[1][i]  = sl_pkt_rxvld_i[8 + i];
-		assign b2b_pkt_txrdy_i[1][i]  = sl_pkt_rxrdy_i[8 + i];
+		assign b2b_pkt_txdata_i[1][i] = sl_pkt_rxdata_i[i+8];
+		assign b2b_pkt_txvld_i[1][i]  = sl_pkt_rxvld_i[i+8];
+		assign sl_pkt_rxrdy_i[i+8]    = b2b_pkt_txrdy_i[0][i];
 	end
 endgenerate
 
@@ -830,13 +819,13 @@ endgenerate
 // XXX: Temporarily connect spinnaker links straight to board-to-board links
 generate for (i = 0; i < `NUM_CHANS; i = i + 1)
 	begin : xxx_spinnaker_tx_links
-		assign b2b_pkt_rxdata_i[0][i] = sl_pkt_txdata_i[i];
-		assign b2b_pkt_rxvld_i[0][i]  = sl_pkt_txvld_i[i];
-		assign b2b_pkt_rxrdy_i[0][i]  = sl_pkt_txrdy_i[i];
+		assign sl_pkt_txdata_i[i]    = b2b_pkt_rxdata_i[0][i];
+		assign sl_pkt_txvld_i[i]     = b2b_pkt_rxvld_i[0][i];
+		assign b2b_pkt_rxrdy_i[0][i] = sl_pkt_txrdy_i[i];
 		
-		assign b2b_pkt_rxdata_i[1][i] = sl_pkt_txdata_i[8 + i];
-		assign b2b_pkt_rxvld_i[1][i]  = sl_pkt_txvld_i[8 + i];
-		assign b2b_pkt_rxrdy_i[1][i]  = sl_pkt_txrdy_i[8 + i];
+		assign sl_pkt_txdata_i[i+8]    = b2b_pkt_rxdata_i[1][i];
+		assign sl_pkt_txvld_i[i+8]     = b2b_pkt_rxvld_i[1][i];
+		assign b2b_pkt_rxrdy_i[1][i] = sl_pkt_txrdy_i[i+8];
 	end
 endgenerate
 
