@@ -2,6 +2,8 @@
  * A testbench for the SpiNNaker FPGA design.
  */
 
+`timescale 1ns / 1ps
+
 `include "../../modules/spinnaker_link/spio_spinnaker_link.h"
 
 `include "../../modules/hss_multiplexer/spio_hss_multiplexer_common.h"
@@ -95,10 +97,10 @@ assign hss_rxn_i[1] = hss_txn_i[0];
 assign hss_rxp_i[1] = hss_txp_i[0];
 
 // Loop-back the peripheral link and ring link
-assign hss_rxn_i[0] = hss_txn_i[0];
-assign hss_rxp_i[0] = hss_txp_i[0];
-assign hss_rxn_i[1] = hss_txn_i[1];
-assign hss_rxp_i[1] = hss_txp_i[1];
+assign hss_rxn_i[2] = hss_txn_i[2];
+assign hss_rxp_i[2] = hss_txp_i[2];
+assign hss_rxn_i[3] = hss_txn_i[3];
+assign hss_rxp_i[3] = hss_txp_i[3];
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -107,7 +109,7 @@ assign hss_rxp_i[1] = hss_txp_i[1];
 
 spinnaker_fpgas_top #( // Enable simulation mode for GTP tile
                        .SIMULATION(1)
-                     , .SIMULATION_GTPRESET_SPEEDUP(0)
+                     , .SIMULATION_GTPRESET_SPEEDUP(1)
                        // The interval at which clock correction sequences should
                        // be inserted (in cycles).
                      ,    .B2B_CLOCK_CORRECTION_INTERVAL(1000)

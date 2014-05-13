@@ -132,6 +132,9 @@ wire gtpclkin_i;
 wire [1:0] unbuffered_gtpclkout_i;
 wire gtpclkout_i;
 
+// GTP tile PLL stability signal
+wire plllkdet_i;
+
 // GTP tile reset completion signals
 wire    b2b_gtpresetdone_i [1:0];
 wire periph_gtpresetdone_i;
@@ -237,18 +240,18 @@ IBUF reset_buf (.I (RESET_IN), .O (reset_i));
 
 assign gtp_reset_i = reset_i;
 
-assign clk_reset_i = reset_i;
+assign clk_reset_i = reset_i | !plllkdet_i;
 
 // HSS blocks are connected to the GTP blocks and so must wait until they have
 // completely reset.
-assign    b2b_hss_reset_i[0] =    !b2b_gtpresetdone_i[0] & usrclks_stable_i;
-assign    b2b_hss_reset_i[1] =    !b2b_gtpresetdone_i[1] & usrclks_stable_i;
-assign periph_hss_reset_i    = !periph_gtpresetdone_i    & usrclks_stable_i;
-//assign   ring_hss_reset_i    =   !ring_gtpresetdone_i    & usrclks_stable_i;
+assign    b2b_hss_reset_i[0] =    !b2b_gtpresetdone_i[0] & !usrclks_stable_i;
+assign    b2b_hss_reset_i[1] =    !b2b_gtpresetdone_i[1] & !usrclks_stable_i;
+assign periph_hss_reset_i    = !periph_gtpresetdone_i    & !usrclks_stable_i;
+//assign   ring_hss_reset_i    =   !ring_gtpresetdone_i    & !usrclks_stable_i;
 
-assign spinnaker_link_reset_i = usrclks_stable_i;
+assign spinnaker_link_reset_i = !usrclks_stable_i;
 
-assign led_reset_i = usrclks_stable_i;
+assign led_reset_i = !usrclks_stable_i;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -423,7 +426,7 @@ gtp_x0_y0_i ( // TILE0 (X0_Y0)
             ,   .TILE0_CLK01_IN             (1'b0) // Uses the first block's clock, just tie-off
             ,   .TILE0_GTPRESET0_IN         (gtp_reset_i)
             ,   .TILE0_GTPRESET1_IN         (gtp_reset_i)
-            ,   .TILE0_PLLLKDET0_OUT        () // RESETDONE* implies this
+            ,   .TILE0_PLLLKDET0_OUT        (plllkdet_i)
             ,   .TILE0_RESETDONE0_OUT       (b2b_gtpresetdone_i[0])
             ,   .TILE0_RESETDONE1_OUT       (b2b_gtpresetdone_i[1])
                 // Receive Ports - 8b10b Decoder
@@ -504,7 +507,7 @@ gtp_x1_y0_i ( // TILE0 (X0_Y0)
             ,   .TILE0_CLK01_IN             (1'b0) // Uses the first block's clock, just tie-off
             ,   .TILE0_GTPRESET0_IN         (gtp_reset_i)
             ,   .TILE0_GTPRESET1_IN         (gtp_reset_i)
-            ,   .TILE0_PLLLKDET0_OUT        () // RESETDONE* implies this
+            ,   .TILE0_PLLLKDET0_OUT        ()
             ,   .TILE0_RESETDONE0_OUT       (periph_gtpresetdone_i)
             ,   .TILE0_RESETDONE1_OUT       (  ring_gtpresetdone_i)
                 // Receive Ports - 8b10b Decoder
