@@ -95,6 +95,19 @@ localparam    B2B_GTP_LOOPBACK = 3'b000;
 localparam PERIPH_GTP_LOOPBACK = 3'b000;
 localparam   RING_GTP_LOOPBACK = 3'b000;
 
+// GTP Analog signal generation settings (either found via IBERT or left as zeros)
+localparam    B2B_RXEQMIX = 2'b10;   // 5.4 dB
+localparam PERIPH_RXEQMIX = 2'b00;   // Default
+localparam   RING_RXEQMIX = 2'b00;   // Default
+
+localparam    B2B_TXDIFFCTRL = 4'b0010; // 495 mV
+localparam PERIPH_TXDIFFCTRL = 4'b0000; // Default
+localparam   RING_TXDIFFCTRL = 4'b0000; // Default
+
+localparam    B2B_TXPREEMPHASIS = 3'b010;  // 1.7 dB
+localparam PERIPH_TXPREEMPHASIS = 3'b000;  // Default
+localparam   RING_TXPREEMPHASIS = 3'b000;  // Default
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // Internal signals
@@ -120,6 +133,7 @@ wire spinnaker_link_reset_i;
 // Reset for LED control
 wire led_reset_i;
 
+// LED signals
 wire red_led_i;
 wire grn_led_i;
 
@@ -140,7 +154,7 @@ wire    b2b_gtpresetdone_i [1:0];
 wire periph_gtpresetdone_i;
 wire   ring_gtpresetdone_i;
 
-// User clocks [tile][block], all of these are positive-edge aligned.
+// User clocks, all of these are positive-edge aligned.
 wire    b2b_usrclk_i;
 wire periph_usrclk_i;
 wire   ring_usrclk_i;
@@ -152,6 +166,9 @@ wire   ring_usrclk2_i;
 // SpiNNaker link interface clocks
 wire spinnaker_link_clk0_i;
 wire spinnaker_link_clk1_i;
+
+// LED flasher clock
+wire led_clk_i;
 
 // Are the user clocks stable?
 wire usrclks_stable_i;
@@ -271,9 +288,47 @@ assign led_reset_i = !usrclks_stable_i;
 OBUFT red_led_buf_i (.I (1'b0), .O (RED_LED_OUT), .T(~red_led_i));
 OBUFT grn_led_buf_i (.I (1'b0), .O (GRN_LED_OUT), .T(~grn_led_i));
 
-// TODO: Flash the LEDs to indicate status
-assign red_led_i = !led_reset_i;
-assign grn_led_i = !led_reset_i;
+wire animation_repeat_i;
+
+wire [3:0] device_led_states_i;
+
+assign red_led_i = device_led_states_i[0];
+assign grn_led_i = device_led_states_i[1];
+
+// Generate a LED status for each serial link
+spio_status_led_generator #( // The number of devices (and thus LEDs)
+                             .NUM_DEVICES(4)
+                             // Animation period in clock cycles
+                           , .ANIMATION_PERIOD_BITS(SIMULATION ? 10 : 27)
+                             // Duration of brief pulses (cycles)
+                           , .PULSE_DURATION(SIMULATION ? 2 : 7500000)
+                             // Which bit of the period counter should be
+                             // used to produce the activity blink
+                           , .ACTIVITY_BLINK_BIT(SIMULATION ? 5 : 23)
+                             // Number of bits PWM resolution
+                           , .PWM_BITS(7)
+                             // Timeout for non-activity before
+                             // deasserting the activity status.
+                           , .ACTIVITY_TIMEOUT(SIMULATION ? 2048 : 37500000)
+                           , .ACTIVITY_TIMEOUT_BITS(26)
+                           )
+spio_status_led_generator_i( .CLK_IN               (led_clk_i)
+                           , .RESET_IN             (led_reset_i)
+                           , .ERROR_IN             ({   ring_version_mismatch_i
+                                                    , periph_version_mismatch_i
+                                                    ,    b2b_version_mismatch_i[1]
+                                                    ,    b2b_version_mismatch_i[0]
+                                                    })
+                           , .CONNECTED_IN         ({   ring_handshake_complete_i
+                                                    , periph_handshake_complete_i
+                                                    ,    b2b_handshake_complete_i[1]
+                                                    ,    b2b_handshake_complete_i[0]
+                                                    })
+                           , .ACTIVITY_IN          (4'b0000) // TODO: Add activity signal
+                           , .LED_OUT              (device_led_states_i)
+                           , .ANIMATION_REPEAT_OUT () // Unused
+                           );
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -400,6 +455,8 @@ assign   ring_usrclk2_i = clk_75_i;
 assign spinnaker_link_clk0_i = clk_150_i;
 assign spinnaker_link_clk1_i = b2b_usrclk2_i;
 
+assign led_clk_i = clk_75_i;
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // GTP Block
@@ -487,6 +544,13 @@ gtp_x0_y0_i ( // TILE0 (X0_Y0)
             ,   .TILE0_RXCHBONDSLAVE1_IN    (1'b0) // Unused
             ,   .TILE0_RXENCHANSYNC0_IN     (1'b0) // Unused
             ,   .TILE0_RXENCHANSYNC1_IN     (1'b0) // Unused
+                // Analog signal generation settings
+            ,   .TILE0_RXEQMIX0_IN              (B2B_RXEQMIX)
+            ,   .TILE0_RXEQMIX1_IN              (B2B_RXEQMIX)
+            ,   .TILE0_TXDIFFCTRL0_IN           (B2B_TXDIFFCTRL)
+            ,   .TILE0_TXDIFFCTRL1_IN           (B2B_TXDIFFCTRL)
+            ,   .TILE0_TXPREEMPHASIS0_IN        (B2B_TXPREEMPHASIS)
+            ,   .TILE0_TXPREEMPHASIS1_IN        (B2B_TXPREEMPHASIS)
             );
 
 // X1Y0: Peripheral links and the ring network
@@ -568,6 +632,13 @@ gtp_x1_y0_i ( // TILE0 (X0_Y0)
             ,   .TILE0_RXCHBONDSLAVE1_IN    (1'b0) // Unused
             ,   .TILE0_RXENCHANSYNC0_IN     (1'b0) // Unused
             ,   .TILE0_RXENCHANSYNC1_IN     (1'b0) // Unused
+                // Analog signal generation settings
+            ,   .TILE0_RXEQMIX0_IN              (PERIPH_RXEQMIX)
+            ,   .TILE0_RXEQMIX1_IN              (  RING_RXEQMIX)
+            ,   .TILE0_TXDIFFCTRL0_IN           (PERIPH_TXDIFFCTRL)
+            ,   .TILE0_TXDIFFCTRL1_IN           (  RING_TXDIFFCTRL)
+            ,   .TILE0_TXPREEMPHASIS0_IN        (PERIPH_TXPREEMPHASIS)
+            ,   .TILE0_TXPREEMPHASIS1_IN        (  RING_TXPREEMPHASIS)
             );
 
 

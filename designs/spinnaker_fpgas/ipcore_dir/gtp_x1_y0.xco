@@ -1,7 +1,7 @@
 ##############################################################
 #
 # Xilinx Core Generator version 14.5
-# Date: Mon May 12 19:15:49 2014
+# Date: Tue May 13 17:02:35 2014
 #
 ##############################################################
 #
@@ -126,7 +126,7 @@ CSET gtp0_dec_pcomma_detect=true
 CSET gtp0_dec_valid_comma_only=true
 CSET gtp0_decoding=8B/10B
 CSET gtp0_disable_ac_coupling=true
-CSET gtp0_driver_swing=0000
+CSET gtp0_driver_swing=Use_TXDIFFCTRL_Port
 CSET gtp0_en_idle_reset_buf=false
 CSET gtp0_en_mode_reset_buf=false
 CSET gtp0_en_rate_reset_buf=false
@@ -146,7 +146,7 @@ CSET gtp0_pma_cdr_scan=false
 CSET gtp0_pma_rx_cfg=0DCE089
 CSET gtp0_pma_tx_cfg=0DCE089
 CSET gtp0_ppm_offset=upto_+/-_500
-CSET gtp0_preemphasis_level=000
+CSET gtp0_preemphasis_level=Use_TXPREEMPHASIS_Port
 CSET gtp0_protocol_file=Start_from_scratch
 CSET gtp0_refclk_x0_y0=REFCLK0_X0Y0
 CSET gtp0_refclk_x0_y1=REFCLK0_X0Y1
@@ -242,7 +242,7 @@ CSET gtp0_use_rx_oob=false
 CSET gtp0_use_rxbuffer=true
 CSET gtp0_use_two_cc_sequences=false
 CSET gtp0_use_txbuffer=true
-CSET gtp0_wideband_highpass_mix=00
+CSET gtp0_wideband_highpass_mix=Use_RXEQMIX_Port
 CSET gtp1_bytes_to_reduce_error=8
 CSET gtp1_cb2_inh_cc_period=8
 CSET gtp1_cc_keep_one_idle=false
@@ -291,7 +291,7 @@ CSET gtp1_dec_pcomma_detect=true
 CSET gtp1_dec_valid_comma_only=true
 CSET gtp1_decoding=8B/10B
 CSET gtp1_disable_ac_coupling=true
-CSET gtp1_driver_swing=0000
+CSET gtp1_driver_swing=Use_TXDIFFCTRL_Port
 CSET gtp1_en_idle_reset_buf=false
 CSET gtp1_en_mode_reset_buf=false
 CSET gtp1_en_rate_reset_buf=false
@@ -311,7 +311,7 @@ CSET gtp1_pma_cdr_scan=false
 CSET gtp1_pma_rx_cfg=0DCE089
 CSET gtp1_pma_tx_cfg=0DCE089
 CSET gtp1_ppm_offset=upto_+/-_500
-CSET gtp1_preemphasis_level=000
+CSET gtp1_preemphasis_level=Use_TXPREEMPHASIS_Port
 CSET gtp1_protocol_file=Start_from_scratch
 CSET gtp1_refclk_x0_y0=Use_GTP0_PLL
 CSET gtp1_refclk_x0_y1=Use_GTP0_PLL
@@ -407,7 +407,7 @@ CSET gtp1_use_rx_oob=false
 CSET gtp1_use_rxbuffer=true
 CSET gtp1_use_two_cc_sequences=false
 CSET gtp1_use_txbuffer=true
-CSET gtp1_wideband_highpass_mix=00
+CSET gtp1_wideband_highpass_mix=Use_RXEQMIX_Port
 CSET refclk_ac_coupling_x0_y0=false
 CSET refclk_ac_coupling_x0_y1=false
 CSET refclk_ac_coupling_x1_y0=false
@@ -426,4 +426,4 @@ CSET use_two_cb_sequences=false
 MISC pkg_timestamp=2011-04-06T10:16:39Z
 # END Extra information
 GENERATE
-# CRC: 27459f08
+# CRC: be96ffb1

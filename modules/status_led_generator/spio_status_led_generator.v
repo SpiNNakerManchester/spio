@@ -4,7 +4,7 @@
  */
 
 module spio_status_led_generator #( // The number of devices (and thus LEDs)
-                                    parameter NUM_DEVICES = 4
+                                    parameter NUM_DEVICES = 1
                                     // Animation period in clock cycles
                                   , parameter ANIMATION_PERIOD_BITS = 27
                                     // Duration of brief pulses (cycles)
@@ -138,12 +138,12 @@ endgenerate
 
 generate for (i = 0; i < NUM_DEVICES; i = i + 1)
 	begin : animation_selection
-		always @ (*)
+		always @ (posedge CLK_IN)
 			casex ({ERROR_IN[i], CONNECTED_IN[i], activity_i[i]})
-				3'b1xx:  pwm_value_i[i] = ~animation_pulse_i;
-				3'b011:  pwm_value_i[i] = animation_blink_i;
-				3'b010:  pwm_value_i[i] = animation_throb_i;
-				default: pwm_value_i[i] = animation_pulse_i;
+				3'b1xx:  pwm_value_i[i] <= ~animation_pulse_i;
+				3'b011:  pwm_value_i[i] <= animation_blink_i;
+				3'b010:  pwm_value_i[i] <= animation_throb_i;
+				default: pwm_value_i[i] <= animation_pulse_i;
 			endcase
 	end
 endgenerate
