@@ -169,6 +169,8 @@ always @ (posedge CLK_IN, posedge RESET_IN)
 	else
 		if (is_handshake_i)
 			VERSION_MISMATCH_OUT <= handshake_version_in_i != `VERSION;
+		else
+			VERSION_MISMATCH_OUT <= 1'b0;
 
 
 // Keep track of the last handshake phase received. If we've gone backwards then

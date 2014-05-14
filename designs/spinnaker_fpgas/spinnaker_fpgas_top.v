@@ -309,7 +309,7 @@ spio_status_led_generator #( // The number of devices (and thus LEDs)
                              // Animation period in clock cycles
                            , .ANIMATION_PERIOD_BITS(SIMULATION ? 10 : 27)
                              // Duration of brief pulses (cycles)
-                           , .PULSE_DURATION(SIMULATION ? 2 : 3750000)
+                           , .PULSE_DURATION(SIMULATION ? 2 : 7500000)
                              // Which bit of the period counter should be
                              // used to produce the activity blink
                            , .ACTIVITY_BLINK_BIT(SIMULATION ? 5 : 22)

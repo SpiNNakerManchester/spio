@@ -8,7 +8,7 @@ module spio_status_led_generator #( // The number of devices (and thus LEDs)
                                     // Animation period in clock cycles
                                   , parameter ANIMATION_PERIOD_BITS = 27
                                     // Duration of brief pulses (cycles)
-                                  , parameter PULSE_DURATION = 3750000
+                                  , parameter PULSE_DURATION = 7500000
                                     // Which bit of the period counter should be
                                     // used to produce the activity blink
                                   , parameter ACTIVITY_BLINK_BIT =  22
