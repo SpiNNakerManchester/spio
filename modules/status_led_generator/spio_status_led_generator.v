@@ -88,9 +88,12 @@ always @ (posedge CLK_IN)
 	ANIMATION_REPEAT_OUT <= period_i == 0;
 
 
-// Brief pulsing animation
+// Brief pulsing animation (with the pulse in the middle of the animation)
 always @ (posedge CLK_IN)
-	animation_pulse_i <= {PWM_BITS{period_i < PULSE_DURATION}};
+	animation_pulse_i <= {PWM_BITS { (period_i-{1'b1, {ANIMATION_PERIOD_BITS-1{1'b0}}})
+	                                 < PULSE_DURATION
+	                               }
+	                     };
 
 // Activity blinking animation
 always @ (posedge CLK_IN)
