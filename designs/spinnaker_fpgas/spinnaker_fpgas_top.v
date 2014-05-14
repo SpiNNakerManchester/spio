@@ -309,16 +309,16 @@ spio_status_led_generator #( // The number of devices (and thus LEDs)
                              // Animation period in clock cycles
                            , .ANIMATION_PERIOD_BITS(SIMULATION ? 10 : 27)
                              // Duration of brief pulses (cycles)
-                           , .PULSE_DURATION(SIMULATION ? 2 : 7500000)
+                           , .PULSE_DURATION(SIMULATION ? 2 : 3750000)
                              // Which bit of the period counter should be
                              // used to produce the activity blink
-                           , .ACTIVITY_BLINK_BIT(SIMULATION ? 5 : 23)
+                           , .ACTIVITY_BLINK_BIT(SIMULATION ? 5 : 22)
                              // Number of bits PWM resolution
                            , .PWM_BITS(7)
                              // Timeout for non-activity before
                              // deasserting the activity status.
-                           , .ACTIVITY_TIMEOUT(SIMULATION ? 2048 : 37500000)
-                           , .ACTIVITY_TIMEOUT_BITS(26)
+                           , .ACTIVITY_TIMEOUT(SIMULATION ? 2048 : 18750000)
+                           , .ACTIVITY_TIMEOUT_BITS(25)
                            )
 spio_status_led_generator_i( .CLK_IN               (led_clk_i)
                            , .RESET_IN             (led_reset_i)

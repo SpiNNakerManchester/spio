@@ -8,16 +8,16 @@ module spio_status_led_generator #( // The number of devices (and thus LEDs)
                                     // Animation period in clock cycles
                                   , parameter ANIMATION_PERIOD_BITS = 27
                                     // Duration of brief pulses (cycles)
-                                  , parameter PULSE_DURATION = 7500000
+                                  , parameter PULSE_DURATION = 3750000
                                     // Which bit of the period counter should be
                                     // used to produce the activity blink
-                                  , parameter ACTIVITY_BLINK_BIT =  23
+                                  , parameter ACTIVITY_BLINK_BIT =  22
                                     // Number of bits PWM resolution
                                   , parameter PWM_BITS = 7
                                     // Timeout for non-activity before
                                     // deasserting the activity status.
-                                  , parameter ACTIVITY_TIMEOUT = 37500000
-                                  , parameter ACTIVITY_TIMEOUT_BITS = 26
+                                  , parameter ACTIVITY_TIMEOUT = 18750000
+                                  , parameter ACTIVITY_TIMEOUT_BITS = 25
                                   )
                                   ( input wire CLK_IN
                                   , input wire RESET_IN
