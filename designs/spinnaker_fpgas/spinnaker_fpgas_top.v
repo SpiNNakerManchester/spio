@@ -225,6 +225,7 @@ wire                 b2b_pkt_txrdy_i  [1:0][`NUM_CHANS-1:0];
 wire [`PKT_BITS-1:0] b2b_pkt_rxdata_i [1:0][`NUM_CHANS-1:0];
 wire                 b2b_pkt_rxvld_i  [1:0][`NUM_CHANS-1:0];
 wire                 b2b_pkt_rxrdy_i  [1:0][`NUM_CHANS-1:0];
+wire b2b_pkt_txactivity_i;
 
 // Peripheral HSS multiplexer packet interfaces
 wire [`PKT_BITS-1:0] periph_pkt_txdata_i [`NUM_CHANS-1:0];
@@ -242,6 +243,12 @@ wire                 sl_pkt_txrdy_i  [15:0];
 wire [`PKT_BITS-1:0] sl_pkt_rxdata_i [15:0];
 wire                 sl_pkt_rxvld_i  [15:0];
 wire                 sl_pkt_rxrdy_i  [15:0];
+
+// A signal asserted whenever at least one packet link transfers a packet (used
+// for status indication)
+wire    b2b_activity_i [1:0];
+wire periph_activity_i;
+wire   ring_activity_i;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -292,6 +299,7 @@ wire animation_repeat_i;
 
 wire [3:0] device_led_states_i;
 
+// XXX: TODO: Somehow share these two LEDs between all the status indicatorS
 assign red_led_i = device_led_states_i[0];
 assign grn_led_i = device_led_states_i[1];
 
@@ -324,10 +332,56 @@ spio_status_led_generator_i( .CLK_IN               (led_clk_i)
                                                     ,    b2b_handshake_complete_i[1]
                                                     ,    b2b_handshake_complete_i[0]
                                                     })
-                           , .ACTIVITY_IN          (4'b0000) // TODO: Add activity signal
+                           , .ACTIVITY_IN          ({   ring_activity_i
+                                                    , periph_activity_i
+                                                    ,    b2b_activity_i[1]
+                                                    ,    b2b_activity_i[0]
+                                                    })
                            , .LED_OUT              (device_led_states_i)
                            , .ANIMATION_REPEAT_OUT () // Unused
                            );
+
+
+// Generate the link activity signal for each link.
+generate for (i = 0; i < 2; i = i + 1)
+	begin : b2b_activity_signal
+		assign b2b_activity_i[i] = (b2b_pkt_rxvld_i[i][0] & b2b_pkt_rxrdy_i[i][0])
+		                         | (b2b_pkt_rxvld_i[i][1] & b2b_pkt_rxrdy_i[i][1])
+		                         | (b2b_pkt_rxvld_i[i][2] & b2b_pkt_rxrdy_i[i][2])
+		                         | (b2b_pkt_rxvld_i[i][3] & b2b_pkt_rxrdy_i[i][3])
+		                         | (b2b_pkt_rxvld_i[i][4] & b2b_pkt_rxrdy_i[i][4])
+		                         | (b2b_pkt_rxvld_i[i][5] & b2b_pkt_rxrdy_i[i][5])
+		                         | (b2b_pkt_rxvld_i[i][6] & b2b_pkt_rxrdy_i[i][6])
+		                         | (b2b_pkt_rxvld_i[i][7] & b2b_pkt_rxrdy_i[i][7])
+		                         | (b2b_pkt_txvld_i[i][0] & b2b_pkt_txrdy_i[i][0])
+		                         | (b2b_pkt_txvld_i[i][1] & b2b_pkt_txrdy_i[i][1])
+		                         | (b2b_pkt_txvld_i[i][2] & b2b_pkt_txrdy_i[i][2])
+		                         | (b2b_pkt_txvld_i[i][3] & b2b_pkt_txrdy_i[i][3])
+		                         | (b2b_pkt_txvld_i[i][4] & b2b_pkt_txrdy_i[i][4])
+		                         | (b2b_pkt_txvld_i[i][5] & b2b_pkt_txrdy_i[i][5])
+		                         | (b2b_pkt_txvld_i[i][6] & b2b_pkt_txrdy_i[i][6])
+		                         | (b2b_pkt_txvld_i[i][7] & b2b_pkt_txrdy_i[i][7])
+		                         ;
+	end
+endgenerate
+assign periph_activity_i = (periph_pkt_rxvld_i[0] & periph_pkt_rxrdy_i[0])
+                         | (periph_pkt_rxvld_i[1] & periph_pkt_rxrdy_i[1])
+                         | (periph_pkt_rxvld_i[2] & periph_pkt_rxrdy_i[2])
+                         | (periph_pkt_rxvld_i[3] & periph_pkt_rxrdy_i[3])
+                         | (periph_pkt_rxvld_i[4] & periph_pkt_rxrdy_i[4])
+                         | (periph_pkt_rxvld_i[5] & periph_pkt_rxrdy_i[5])
+                         | (periph_pkt_rxvld_i[6] & periph_pkt_rxrdy_i[6])
+                         | (periph_pkt_rxvld_i[7] & periph_pkt_rxrdy_i[7])
+                         | (periph_pkt_txvld_i[0] & periph_pkt_txrdy_i[0])
+                         | (periph_pkt_txvld_i[1] & periph_pkt_txrdy_i[1])
+                         | (periph_pkt_txvld_i[2] & periph_pkt_txrdy_i[2])
+                         | (periph_pkt_txvld_i[3] & periph_pkt_txrdy_i[3])
+                         | (periph_pkt_txvld_i[4] & periph_pkt_txrdy_i[4])
+                         | (periph_pkt_txvld_i[5] & periph_pkt_txrdy_i[5])
+                         | (periph_pkt_txvld_i[6] & periph_pkt_txrdy_i[6])
+                         | (periph_pkt_txvld_i[7] & periph_pkt_txrdy_i[7])
+                         ;
+assign ring_pkt_activity_i = 1'b0;
 
 
 
