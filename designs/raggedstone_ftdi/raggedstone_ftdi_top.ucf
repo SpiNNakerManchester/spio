@@ -27,6 +27,13 @@ NET "LEDS_OUT[4]" LOC = "Y22" | IOSTANDARD = LVTTL | SLEW = SLOW ;
 NET "LEDS_OUT[5]" LOC = "Y21" | IOSTANDARD = LVTTL | SLEW = SLOW ;
 
 
+########################################################################
+# Buttons
+########################################################################
+NET "NRESET_IN"  LOC = "W4" | IOSTANDARD = LVCMOS15  | PULLUP;
+NET "NBUTTON_IN" LOC = "R7" | IOSTANDARD = LVCMOS15  | PULLUP;
+
+
 ################################################################################
 # GTP Tile Positions
 ################################################################################
