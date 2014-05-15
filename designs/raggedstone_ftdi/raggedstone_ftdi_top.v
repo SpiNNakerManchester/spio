@@ -23,8 +23,11 @@ module raggedstone_ftdi_top #( // Enable simulation mode for GTP tile
                                // Number of bits required for the above counters.
                              , parameter NUM_HANDSHAKES_BITS = 7
                              )
-                             ( // Reset signal (only used during simulation)
-                               input wire RESET_IN
+                             ( // Active-low Reset signal (Top FPGA button, SW2)
+                               input wire NRESET_IN
+                               
+                               // Another button input (Bottom FPGA button, SW1)
+                             , input wire NBUTTON_IN
                                
                                // Status LEDs
                              , output wire [5:2] LEDS_OUT
@@ -58,6 +61,7 @@ localparam TXPREEMPHASIS =  3'b000; // Default
 ////////////////////////////////////////////////////////////////////////////////
 
 // External reset signal
+wire nreset_i;
 wire reset_i;
 
 // Reset GTP blocks
@@ -74,6 +78,10 @@ wire led_reset_i;
 
 // LED signals
 wire [5:2] leds_i;
+
+// Button signals (including an active-high version)
+wire nbutton_i;
+wire button_i;
 
 // Input clock to the GTP modules from the external clock
 wire gtpclkin_i;
@@ -118,7 +126,7 @@ wire version_mismatch_i;
 
 // HSS multiplexer packet interfaces [port]
 wire [`PKT_BITS-1:0] pkt_txdata_i [`NUM_CHANS-1:0];
-wire                 pkt_txvld_i  [`NUM_CHANS-1:0];
+reg                  pkt_txvld_i  [`NUM_CHANS-1:0];
 wire                 pkt_txrdy_i  [`NUM_CHANS-1:0];
 wire [`PKT_BITS-1:0] pkt_rxdata_i [`NUM_CHANS-1:0];
 wire                 pkt_rxvld_i  [`NUM_CHANS-1:0];
@@ -131,10 +139,24 @@ wire activity_i;
 
 
 ////////////////////////////////////////////////////////////////////////////////
+// Buttons
+////////////////////////////////////////////////////////////////////////////////
+
+// Buffer the button signals
+IBUF nbuttons_buf_i (.I(NBUTTON_IN), .O(nbutton_i));
+
+// Convert to active high
+assign button_i = ~nbutton_i;
+
+
+
+////////////////////////////////////////////////////////////////////////////////
 // Reset
 ////////////////////////////////////////////////////////////////////////////////
 
-IBUF reset_buf (.I (RESET_IN), .O (reset_i));
+// Active-low button, invert to get active-high reset signal.
+IBUF reset_buf (.I (NRESET_IN), .O (nreset_i));
+assign reset_i = ~nreset_i;
 
 assign gtp_reset_i = reset_i;
 
@@ -421,8 +443,24 @@ periph_hss_multiplexer_i( .CLK_IN                         (usrclk2_i)
 // XXX: Temporarily just send nothing
 generate for (i = 0; i < `NUM_CHANS; i = i + 1)
 	begin : xxx_spinnaker_rx_links
-		assign pkt_txdata_i[i] = {`PKT_BITS{1'bX}};
-		assign pkt_txvld_i[i]  = 1'b0;
+		assign pkt_txdata_i[i] = { 32'hF0A0F030 // Payload
+		                         , 32'h0000AAAA // Routing key
+		                         , 2'b00  // MC packet
+		                         , 2'b00  // Non-emergency-routed state
+		                         , 2'b00  // Timestamp
+		                         , 1'b1   // With-Payload
+		                         , 1'b0   // Parity bit (Note: whole packet must have odd parity)
+		                         };
+		
+		// Send packet while button is pressed
+		always @ (posedge usrclk2_i, posedge reset_i)
+			if (reset_i)
+				pkt_txvld_i[i] <= 1'b0;
+			else
+				if (button_i)
+					pkt_txvld_i[i] <= 1'b1;
+				else if (pkt_txrdy_i[i] == 1)
+					pkt_txvld_i[i] <= 1'b0;
 	end
 endgenerate
 

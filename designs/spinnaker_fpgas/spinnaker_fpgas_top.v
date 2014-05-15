@@ -130,6 +130,9 @@ wire periph_hss_reset_i;
 // Reset for SpiNNaker link blocks
 wire spinnaker_link_reset_i;
 
+// Reset for packet arbitration blocks
+wire arbiter_reset_i;
+
 // Reset for LED control
 wire led_reset_i;
 
@@ -269,6 +272,8 @@ assign periph_hss_reset_i    = !periph_gtpresetdone_i    & !usrclks_stable_i;
 //assign   ring_hss_reset_i    =   !ring_gtpresetdone_i    & !usrclks_stable_i;
 
 assign spinnaker_link_reset_i = !usrclks_stable_i;
+
+assign arbiter_reset_i = !usrclks_stable_i;
 
 assign led_reset_i = !usrclks_stable_i;
 
@@ -938,14 +943,46 @@ endgenerate
 // Arbitration of packets for SpiNNaker chip outputs
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO
-// XXX: Temporarily connect spinnaker links straight to board-to-board links
 generate for (i = 0; i < `NUM_CHANS; i = i + 1)
-	begin : xxx_spinnaker_tx_links
-		assign sl_pkt_txdata_i[i]    = b2b_pkt_rxdata_i[0][i];
-		assign sl_pkt_txvld_i[i]     = b2b_pkt_rxvld_i[0][i];
-		assign b2b_pkt_rxrdy_i[0][i] = sl_pkt_txrdy_i[i];
+	begin : spinnaker_tx_link_arbitration
+		// Add an interface between the 37.5 MHz peripheral links and 75 MHz
+		// board-to-board links
+		wire [`PKT_BITS-1:0] fast_periph_pkt_rxdata_i;
+		wire                 fast_periph_pkt_rxvld_i;
+		wire                 fast_periph_pkt_rxrdy_i;
+		spio_link_speed_doubler #( .PKT_BITS(`PKT_BITS))
+		spio_link_speed_doubler_i( .RESET_IN(arbiter_reset_i)
+		                         , .SCLK_IN(periph_usrclk2_i)
+		                         , .FCLK_IN(   b2b_usrclk2_i)
+		                           // Incoming signals (on CLK_IN)
+		                         , .DATA_IN(periph_pkt_rxdata_i[i])
+		                         , .VLD_IN( periph_pkt_rxvld_i[i])
+		                         , .RDY_OUT(periph_pkt_rxrdy_i[i])
+		                           // Outgoing signals (on CLK2_IN)
+		                         , .DATA_OUT(fast_periph_pkt_rxdata_i)
+		                         , .VLD_OUT( fast_periph_pkt_rxvld_i)
+		                         , .RDY_IN(  fast_periph_pkt_rxrdy_i)
+		                         );
 		
+		// Arbitrate the first board-to-board link with the peripheral link
+		spio_rr_arbiter #( .PKT_BITS(`PKT_BITS))
+		spio_rr_arbiter_i( .CLK_IN(b2b_usrclk2_i)
+		                 , .RESET_IN(arbiter_reset_i)
+		                   // Input ports
+		                 , .DATA0_IN(   b2b_pkt_rxdata_i[0][i])
+		                 , .VLD0_IN(    b2b_pkt_rxvld_i[0][i])
+		                 , .RDY0_OUT(   b2b_pkt_rxrdy_i[0][i])
+		                 , .DATA1_IN(fast_periph_pkt_rxdata_i)
+		                 , .VLD1_IN( fast_periph_pkt_rxvld_i)
+		                 , .RDY1_OUT(fast_periph_pkt_rxrdy_i)
+		                   // Output port where the merged stream will be sent
+		                 , .DATA_OUT(sl_pkt_txdata_i[i])
+		                 , .VLD_OUT(sl_pkt_txvld_i[i])
+		                 , .RDY_IN(sl_pkt_txrdy_i[i])
+		                 );
+		
+		// The second board-to-board connection worth of links should be directly
+		// connected since there is currently no contention for these link.
 		assign sl_pkt_txdata_i[i+8]    = b2b_pkt_rxdata_i[1][i];
 		assign sl_pkt_txvld_i[i+8]     = b2b_pkt_rxvld_i[1][i];
 		assign b2b_pkt_rxrdy_i[1][i] = sl_pkt_txrdy_i[i+8];
