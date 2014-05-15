@@ -11,10 +11,10 @@ module spio_rr_arbiter#( // The size of individual packets.
                          // Input ports
                        , input  wire [PKT_BITS-1:0] DATA0_IN
                        , input  wire                VLD0_IN
-                       , output reg                 RDY0_OUT
+                       , output wire                RDY0_OUT
                        , input  wire [PKT_BITS-1:0] DATA1_IN
                        , input  wire                VLD1_IN
-                       , output reg                 RDY1_OUT
+                       , output wire                RDY1_OUT
                          // Output port where the merged stream will be sent
                        , output reg  [PKT_BITS-1:0] DATA_OUT
                        , output reg                 VLD_OUT
@@ -39,10 +39,10 @@ module spio_rr_arbiter#( // The size of individual packets.
 //    VLD0_IN  -------------------|0|                      |
 //                                |/                       |
 //                                 '--- parked0_i          | selected1_i
-//                    ,---,                                |    |
-//   RDY0_OUT  -------|Q D|--                              |    |
-//                    |>  |                                |    | cansend_i
-//                    '---'                                |   |\   | ,---,
+//                                                         |    |
+//   RDY0_OUT  --------------                              |    |
+//                                                         |    | cansend_i
+//                                                         |   |\   | ,---,
 //                                                         '---|0|  '-|En |
 //   - - - - - - - - - - - - - - - - - - - - - - - -           | |----|D Q|---- DATA_OUT
 //                                                         ,---|1|    |>  |
@@ -62,10 +62,8 @@ module spio_rr_arbiter#( // The size of individual packets.
 //    VLD1_IN  -------------------|0|
 //                                |/
 //                                 '--- parked1_i
-//                    ,---,
-//   RDY1_OUT  -------|Q D|--
-//                    |>  |
-//                    '---'
+//
+//   RDY1_OUT  --------------
 //
 
 // State values for input parked FSMs
@@ -82,8 +80,8 @@ localparam P1 = 1'b1;
 reg rrstate_i;
 
 // Parking registers
-reg [PKT_BITS:0] parkreg0_i;
-reg [PKT_BITS:0] parkreg1_i;
+reg [PKT_BITS-1:0] parkreg0_i;
+reg [PKT_BITS-1:0] parkreg1_i;
 
 // Signal indicating that a new value may be sent to the output port (e.g. if it
 // is idle or is ready)
@@ -100,8 +98,8 @@ wire vld1_i = (inputstate1_i == PARKED) ? 1'b1 : VLD1_IN;
 
 // The data to be transferred from each input. This is either the incoming data
 // or the parked data if present.
-wire [PKT_BITS:0] data0_i = (inputstate0_i == PARKED) ? parkreg0_i : DATA0_IN;
-wire [PKT_BITS:0] data1_i = (inputstate1_i == PARKED) ? parkreg1_i : DATA1_IN;
+wire [PKT_BITS-1:0] data0_i = (inputstate0_i == PARKED) ? parkreg0_i : DATA0_IN;
+wire [PKT_BITS-1:0] data1_i = (inputstate1_i == PARKED) ? parkreg1_i : DATA1_IN;
 
 // Signals indicating if a given input was selected by the arbiter. If the
 // output port isn't blocked then this input's value will be sent in the next
@@ -132,17 +130,8 @@ wire go1_i = !wait1_i;
 // the parked state: if their output is free, the packet will be forwarded
 // immediately, if not the parking register will be used.
 
-always @ (posedge CLK_IN, posedge RESET_IN)
-	if (RESET_IN)
-		RDY0_OUT <= 1'b0;
-	else
-		RDY0_OUT <= inputstate0_i == RUN;
-
-always @ (posedge CLK_IN, posedge RESET_IN)
-	if (RESET_IN)
-		RDY1_OUT <= 1'b0;
-	else
-		RDY1_OUT <= inputstate1_i == RUN;
+assign RDY0_OUT = inputstate0_i == RUN;
+assign RDY1_OUT = inputstate1_i == RUN;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -173,12 +162,12 @@ always @ (posedge CLK_IN, posedge RESET_IN)
 	else
 		if (cansend_i)
 			begin
-				if (selected0_i && vld0_i)
+				if (selected0_i && vld0_i && (RDY0_OUT || inputstate0_i == PARKED))
 					begin
 						DATA_OUT <= data0_i;
 						VLD_OUT  <= vld0_i;
 					end
-				else if (selected1_i && vld1_i)
+				else if (selected1_i && vld1_i && (RDY1_OUT || inputstate1_i == PARKED))
 					begin
 						DATA_OUT <= data1_i;
 						VLD_OUT  <= vld1_i;
