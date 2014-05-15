@@ -203,7 +203,8 @@ Clocking Wizard IP CORE
 -----------------------
 
 To generate the clocks for use by the GTP tile's FPGA logic interface, the
-'Clocking Wizard' IP CORE can be used.
+'Clocking Wizard' IP CORE can be used. This is known to work with version 3.6 of
+the wizard.
 
 The tile requires two positive-edge aligned clock sources in addition to its
 external clock source: `TXUSRCLK` and `TXUSRCLK2`.  `TXUSRCLK2` should tick
