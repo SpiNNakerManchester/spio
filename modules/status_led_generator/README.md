@@ -1,8 +1,8 @@
 Status LED Signal Generator
 ===========================
 
-This module attempts to suggest a standard LED status driver such that designs
-interacting with SpiNNaker can use a consistent encoding of link state.
+This module attempts to suggest a standard LED status representation such that
+designs interacting with SpiNNaker can use a consistent encoding for link state.
 
 Patterns
 --------
@@ -10,7 +10,7 @@ Patterns
 The following patterns are used (in order of priority)
 
 
-### Error (e.g. protocol version mismatch): Frequent, brief off-pulses
+### Error (e.g. protocol version mismatch): Brief, Inrequent brief off-pulses
 
 	___________,,_________________________,,_________________________,,_______
 	           ||                         ||                         ||
