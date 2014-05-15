@@ -42,7 +42,6 @@
 *.twr
 *.twx
 *.txt
-*.ucf
 *.unroutes
 *.ut
 *.veo
@@ -61,8 +60,9 @@
 **/xst/
 **/xlnx_auto_*_xdb/
 
-# Don't care about the generated verliog for IP cores
+# Don't care about the generated verliog/UCF for IP cores
 **/ipcore_dir/*.v
+**/ipcore_dir/*.ucf
 
 # Don't care about generated example projects and other junk generated for IP
 # cores.
