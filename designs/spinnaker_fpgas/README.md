@@ -29,6 +29,7 @@ Dependencies
 This design makes use of the following modules from the spI/O module collection:
 * `hss_multiplexer/*`
 * `spinnaker_link/*`
+* `status_led_generator/*`
 
 
 Target Platform
