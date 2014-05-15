@@ -3,7 +3,7 @@
  */
 
 
-module tb_spio_rr_arbiter;
+module spio_rr_arbiter_tb;
 
 localparam PKT_BITS = 72;
 

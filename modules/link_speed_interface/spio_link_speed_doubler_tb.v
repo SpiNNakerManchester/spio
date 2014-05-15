@@ -3,7 +3,7 @@
  */
 
 
-module tb_spio_link_speed_doubler;
+module spio_link_speed_doubler_tb;
 
 localparam PKT_BITS = 16;
 

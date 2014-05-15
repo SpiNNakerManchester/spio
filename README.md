@@ -4,21 +4,16 @@ spI/O
 A library of FPGA designs and re-usable modules for I/O (and internal
 connectivity) in SpiNNaker systems.
 
-Authors
--------
+The `designs` directory contains ready-to-synthesise FPGA designs based on the
+modules in the library, for example, the SpiNNaker SpiNN-5 board FPGA design.
+See `designs/README.md` for general advice on how to build these designs.
 
-The designs in this repository are largely the work of:
+The `modules` directory contains a selection of reusable Verilog modules which
+all share the common interface described below. See the `README.md` included
+with each module for general information or see the module itself for a concrete
+interface description.
 
-* Luis Plana
-* Jeff Pepper
-* Jonathan Heathcote
-
-
-Copyright
----------
-
-For the moment, all the designs are copyright of the University of Manchester,
-all rights reserved. This will hopefuly change in the near future.
+Test benches are included with some designs and are denoted by the suffix `_tb`.
 
 
 Common Interface
@@ -65,3 +60,19 @@ has gone high (i.e. until the value is transferred). Simillarly, `rdy` must also
 not be deasserted once asserted until `vld` goes high (i.e. a value is
 transferred).
 
+
+Authors
+-------
+
+The designs in this repository are largely the work of:
+
+* Luis Plana
+* Jeff Pepper
+* Jonathan Heathcote
+
+
+Copyright
+---------
+
+For the moment, all the designs are copyright of the University of Manchester,
+all rights reserved. This will hopefuly change in the near future.

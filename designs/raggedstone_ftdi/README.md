@@ -5,6 +5,8 @@ A minimal design for the Raggedstone 2 development board which provides a
 proof-of-concept SpiNNaker-to-host USB interface via the onboard FTDI based
 USB "serial" port.
 
+The top button (SW2) resets the design.
+
 
 Authors
 -------
