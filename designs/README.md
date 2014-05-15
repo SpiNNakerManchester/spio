@@ -26,7 +26,8 @@ your own Xilinx project and include the relevant files yourself as follows:
    (`ipcore_dir/*.xco`) for the design.
 7. Add any other files mentioned by the `README.md` in the same way, for example
    modules.
-8. At this point you should have a working project which synthesises and
+8. See the design's `README.md` for any further notes.
+9. At this point you should have a working project which synthesises and
    simulates.
 
 You may safely ignore any import errors relating to included files since these

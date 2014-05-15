@@ -40,3 +40,13 @@ This design is for a Xilinx Spartan-6 XC6SLX45T FPGA in a FG(G)484 package with 
 -3, as fitted in the SpiNN-5 PCB.
 
 
+Opening Designs in Xilinx ISE
+-----------------------------
+
+The Core Generator for the GTP tiles frustratingly generates example code
+for the two GTP tiles which it then compiles and complains that they conflict
+with eachother. Deleting these example files will result in warnings about
+missing files however just deleting the contents of them will solve the problem.
+A Bash snippet to be executed from this project's directory is listed below:
+
+	for f in ipcore_dir/gtp_x*_y0/example_design/*; do echo "" > "$f"; done
