@@ -929,6 +929,26 @@ endgenerate
 // XXX: Temporarily connect spinnaker links straight to board-to-board links
 generate for (i = 0; i < `NUM_CHANS; i = i + 1)
 	begin : xxx_spinnaker_rx_links
+		// Add an interface between the 75 MHz board-to-board links and 37.5 MHz
+		// peripheral links 
+		wire [`PKT_BITS-1:0] fast_periph_pkt_txdata_i;
+		wire                 fast_periph_pkt_txvld_i;
+		wire                 fast_periph_pkt_txrdy_i;
+		spio_link_speed_halver #( .PKT_BITS(`PKT_BITS))
+		spio_link_speed_halver_i( .RESET_IN(arbiter_reset_i)
+		                        , .SCLK_IN(periph_usrclk2_i)
+		                        , .FCLK_IN(   b2b_usrclk2_i)
+		                          // Incoming signals (on CLK_IN)
+		                        , .DATA_IN(fast_periph_pkt_txdata_i)
+		                        , .VLD_IN( fast_periph_pkt_txvld_i)
+		                        , .RDY_OUT(fast_periph_pkt_txrdy_i)
+		                          // Outgoing signals (on CLK2_IN)
+		                        , .DATA_OUT(periph_pkt_txdata_i[i])
+		                        , .VLD_OUT( periph_pkt_txvld_i[i])
+		                        , .RDY_IN(  periph_pkt_txrdy_i[i])
+		                        );
+		
+		// TODO add some kind of router...
 		assign b2b_pkt_txdata_i[0][i] = sl_pkt_rxdata_i[i];
 		assign b2b_pkt_txvld_i[0][i]  = sl_pkt_rxvld_i[i];
 		assign sl_pkt_rxrdy_i[i]      = b2b_pkt_txrdy_i[0][i];
