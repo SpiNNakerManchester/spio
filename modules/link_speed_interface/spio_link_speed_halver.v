@@ -26,12 +26,14 @@ module spio_link_speed_halver #( parameter PKT_BITS = 72 )
                                );
 
 ////////////////////////////////////////////////////////////////////////////////
-// Slow-clock positive edge detection
+// Slow-clock recreation
 ////////////////////////////////////////////////////////////////////////////////
 
 // Unfortunately it is not possible to just observe the slow clock value due to
 // Xilinx synthesis constraints so instead we toggle a value on the slow clock
 // and test to see if it changed to detect the positive edge.
+reg sclk_i;
+
 reg sclk_toggler_i;
 reg sclk_started_i;
 always @ (posedge SCLK_IN, posedge RESET_IN)
@@ -55,7 +57,6 @@ always @ (posedge FCLK_IN, posedge RESET_IN)
 
 // We're on the positive edge if the last value and current value are the same
 // (since it is changed on the positive edge).
-reg sclk_i;
 always @ (posedge FCLK_IN, posedge RESET_IN)
 	if (RESET_IN)
 		sclk_i <= 1'b0;
@@ -80,9 +81,32 @@ assign rdy_in_i = sclk_i ? last_rdy_in_i : RDY_IN;
 // Input parking
 ////////////////////////////////////////////////////////////////////////////////
 
+// Since the interface will preemptively accept incoming packets every time an
+// outgoing packet is transferred, if the output becomes blocked we still need
+// to do something with the incoming packet. We use a parking register to hold
+// the packet until it can be sent.
+//               park_i
+//                  | ,---,
+//                  '-|En | parked_data_i
+//               ,----|D Q|----,  |\
+//               |    |>  |    '--|1|
+//               |    '---'       | |------ data_i
+//    DATA_IN  --+----------------|0|
+//                                |/
+//                                 '--- parked_i
+//                            ___
+//                             |  |\
+//                             '--|1|
+//                                | |------ vld_i
+//     VLD_IN  -------------------|0|
+//                                |/
+//                                 '--- parked_i
+
+
 // The incoming value will be forced to be parked if the output is not ready
 // and something is already being sent.
 wire wait_i = VLD_OUT && (!rdy_in_i);
+
 
 // The incoming value must be parked
 wire park_i = VLD_IN && RDY_OUT && wait_i;
@@ -96,8 +120,19 @@ always @ (posedge FCLK_IN, posedge RESET_IN)
 	else if (park_i)
 		parked_data_i <= DATA_IN;
 
+// State machine which indicates if a value is parked. Value is considered
+// unparked once an outgoing transfer has taken place.
+//
+//         ,--,  park_i   ,--,
+//         |  |,-------,  |  |
+//         |  V|       V  |  V
+//        ,-----,     ,--------,
+//   ---> | RUN |     | PARKED |
+//        '-----'     '--------'
+//             ^       |
+//             '-------'
+//         !sclk_i && !wait
 
-// State machine which indicates if a value is parked.
 reg parked_i;
 always @ (posedge FCLK_IN, posedge RESET_IN)
 	if (RESET_IN)
@@ -113,25 +148,30 @@ always @ (posedge FCLK_IN, posedge RESET_IN)
 wire [PKT_BITS-1:0] data_i = (parked_i ? parked_data_i : DATA_IN);
 wire                vld_i  = (parked_i ?          1'b1 : VLD_IN);
 
+
+////////////////////////////////////////////////////////////////////////////////
+// Input readiness control
+////////////////////////////////////////////////////////////////////////////////
+
 // Become non-ready after every incoming transfer and only resume readiness
 // during the second half of an output transfer cycle when there are no parked
 // values.
 always @ (posedge FCLK_IN, posedge RESET_IN)
 	if (RESET_IN)
 		RDY_OUT <= 1'b0;
-	else if (VLD_IN && RDY_OUT)
-		RDY_OUT <= 1'b0;
-	else if (parked_i)
-		RDY_OUT <= 1'b0;
-	else if (sclk_i && rdy_in_i)
-		RDY_OUT <= 1'b1;
+	else
+		if ((VLD_IN && RDY_OUT) || parked_i)
+			RDY_OUT <= 1'b0;
+		else if (sclk_i && rdy_in_i)
+			RDY_OUT <= 1'b1;
 
 
 ////////////////////////////////////////////////////////////////////////////////
 // Output control
 ////////////////////////////////////////////////////////////////////////////////
 
-// Register data to the output every time a value is accepted on the input
+// Register data to the output every time a value is accepted on the input or
+// when a value is parked, whenever an outgoing transfer completes.
 always @ (posedge FCLK_IN, posedge RESET_IN)
 	if (RESET_IN)
 		DATA_OUT <= {PKT_BITS{1'bX}};
@@ -155,9 +195,11 @@ always @ (posedge FCLK_IN, posedge RESET_IN)
 		delayed_transfer_i <= (vld_i && RDY_OUT && sclk_i);
 
 
-// Become valid on the positive slow clock edge when either an incoming transfer
-// has just occurred or one occurred during the first half of the last
-// slow-clock cycle. The valid signal is lowered otherwise.
+// The output is valid when:
+// * Parked (since we definitely have a value to send)
+// * Waiting (since we have an output that is blocked)
+// * Transferring when the input is valid (since that value will be sent next)
+// * When a value arrived half a slow-clock cycle ago
 always @ (posedge FCLK_IN, posedge RESET_IN)
 	if (RESET_IN)
 		VLD_OUT <= 1'b0;
