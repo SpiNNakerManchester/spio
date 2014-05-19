@@ -111,7 +111,7 @@
 `define OOC_KBITS        4'b1000
 `define CFC_KBITS        4'b1000
 
-`define CLKC_KBITS       4'b0001
+`define CLKC_KBITS       4'b1111
 `define ZERO_KBITS       {`KCH_BITS {1'b0}}
 
 // XXX: Clock correction now done by tx_control/rx_control, should eventually be
