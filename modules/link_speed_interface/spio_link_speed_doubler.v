@@ -24,7 +24,7 @@ module spio_link_speed_doubler #( parameter PKT_BITS = 72 )
                                 , input  wire                VLD_IN
                                 , output reg                 RDY_OUT
                                   // Outgoing signals (on FCLK_IN)
-                                , output wire [PKT_BITS-1:0] DATA_OUT
+                                , output reg  [PKT_BITS-1:0] DATA_OUT
                                 , output reg                 VLD_OUT
                                 , input  wire                RDY_IN
                                 );
@@ -36,6 +36,8 @@ module spio_link_speed_doubler #( parameter PKT_BITS = 72 )
 // Unfortunately it is not possible to just observe the slow clock value due to
 // Xilinx synthesis constraints so instead we toggle a value on the slow clock
 // and test to see if it changed to detect the positive edge.
+reg sclk_i;
+
 reg sclk_toggler_i;
 reg sclk_started_i;
 always @ (posedge SCLK_IN, posedge RESET_IN)
@@ -57,65 +59,61 @@ always @ (posedge FCLK_IN, posedge RESET_IN)
 	else
 		last_sclk_toggler_i <= sclk_toggler_i;
 
+
 // We're on the positive edge if the last value and current value are the same
 // (since it is changed on the positive edge).
-reg sclk_posedge_i;
 always @ (posedge FCLK_IN, posedge RESET_IN)
 	if (RESET_IN)
-		sclk_posedge_i <= 1'b0;
+		sclk_i <= 1'b0;
 	else
-		sclk_posedge_i <= sclk_started_i && (last_sclk_toggler_i == sclk_toggler_i);
+		sclk_i <= sclk_started_i && (last_sclk_toggler_i == sclk_toggler_i);
 
+
+// A signal asserted once we've definitely extracted the sclk.
+reg sclk_locked_i;
+always @ (posedge FCLK_IN, posedge RESET_IN)
+	if (RESET_IN)
+		sclk_locked_i <= 1'b0;
+	else if (sclk_i)
+		sclk_locked_i <= 1'b1;
 
 
 ////////////////////////////////////////////////////////////////////////////////
-// Translation state-machine.
+// Output validity/data control
 ////////////////////////////////////////////////////////////////////////////////
 
-assign DATA_OUT = DATA_IN;
-
-// Waiting for a positive slow-clock-edge with valid data and a ready output
-localparam IDLE = 1'b0;
-
-// Deasserting the valid signal for the fast-clock-world but holding the ready
-// for the slow-clock world
-localparam SEND = 1'b1;
-
-reg state_i;
-
+// Forward values from the input during the second-half of the slow-clock cycle,
+// holding them on the output until they are accepted.
 always @ (posedge FCLK_IN, posedge RESET_IN)
 	if (RESET_IN)
 		begin
-			state_i <= IDLE;
-			RDY_OUT <= 1'b0;
-			VLD_OUT <= 1'b0;
+			DATA_OUT <= {PKT_BITS{1'bX}};
+			VLD_OUT  <= 1'b0;
 		end
 	else
-		case (state_i)
-			IDLE:
-				if (sclk_posedge_i)
-					begin
-						RDY_OUT <= RDY_IN;
-						if (VLD_IN && RDY_IN)
-							begin
-								state_i <= SEND;
-								VLD_OUT <= 1'b1;
-							end
-					end
-			
-			SEND:
-				begin
-					VLD_OUT <= 1'b0;
-					state_i <= IDLE;
-				end
-			
-			default:
-				begin
-					state_i <= IDLE;
-					RDY_OUT <= 1'b0;
-					VLD_OUT <= 1'b0;
-				end
-		endcase
+		if (VLD_IN && RDY_OUT && sclk_i)
+			begin
+				DATA_OUT <= DATA_IN;
+				VLD_OUT  <= 1'b1;
+			end
+		else if (VLD_OUT && RDY_IN)
+			begin
+				DATA_OUT <= {PKT_BITS{1'bX}};
+				VLD_OUT  <= 1'b0;
+			end
+
+
+////////////////////////////////////////////////////////////////////////////////
+// Input readiness control
+////////////////////////////////////////////////////////////////////////////////
+
+// Accept new values from the input whenever the output is ready.
+always @ (posedge FCLK_IN, posedge RESET_IN)
+	if (RESET_IN)
+		RDY_OUT <= 1'b0;
+	else
+		if (!sclk_i && sclk_locked_i)
+			RDY_OUT <= RDY_IN;
 
 
 endmodule

@@ -71,7 +71,7 @@ initial
 	
 	
 	$display("Ensure we can block the link at the same time as the stream.");
-	@(posedge fclk_i)
+	@(posedge sclk_i)
 	in_vld_i <= 1'b0;   out_rdy_i <= 1'b0;
 	#200 @(posedge sclk_i)
 	$display("...and resume to a blocked link");
