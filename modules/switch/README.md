@@ -1,21 +1,36 @@
-Switch
-======
+1-to-N Switch
+=============
 
-A module which switches a single rdy/vld input between a set of of N rdy/vld
-outputs. The input may be multicast to a number of outputs or dropped entirely.
-This module is intended to be used either independently as a minimal router or
-integrated into a more fully featured router.
+A module which forwards values from a single rdy/vld input to a set of of N
+rdy/vld outputs (i.e. unicast or multicast) determined by an additional incoming
+signal. This module is intended to be used as part of a
+router, forming part of a crossbar switch. A sketch of the high-level function
+of the block is given below:
 
-An additional signal is provided along with the input data which indicates which
-(if any) of the N outputs the value should be forwarded to.
+	                      ,------------,
+	                      |            |
+	                      |            |--/-> OUT_DATA0
+	                      |            |----> OUT_VLD0
+	                      |            |<---- OUT_RDY0
+	                      |            |
+	         IN_DATA --/->|            |--/-> OUT_DATA1
+	IN_OUTPUT_SELECT --/->|   1-to-n   |----> OUT_VLD1
+	          IN_VLD ---->|   switch   |<---- OUT_RDY1
+	          IN_RDY <----|            |
+	                      |            |      ....
+	                      |            |
+	                      |            |--/-> OUT_DATAN
+	                      |            |----> OUT_VLDN
+	                      |            |<---- OUT_RDYN
+	                      '------------'
 
-The module produces signals to indicate when it is blocked (and on what ports)
-to allow an external timeout mechanism to be implemented. This mechanism can
-generate a one-clock pulse which will force the module to drop the current
-packet.
+Blocked Outputs & Packet Dropping
+---------------------------------
 
-Blocked Outputs
----------------
+The module produces signals to indicate when some outputs are blocking the
+progress of a packet (and on what ports) to allow an external timeout mechanism
+to be implemented. This mechanism can generate a one-clock pulse which will
+force the module to drop the current packet.
 
 Note that since the rdy/vld protocol does not allow `vld' to be deasserted, an
 output is only considered blocked when it is already valid but a new value
