@@ -61,40 +61,42 @@ module spio_switch#( // The size of individual packets.
 genvar i;
 
 
-
-
 // Since the ready signal on the input necessarily lags one cycle behind the
 // output readiness signals, the below data path is used to 'park' incoming
 // values when a desired output is blocked.
 //
-//                         park_i
-//                            | ,---,
-//                            '-|En | parked_data_i
-//                         ,----|D Q|----,  |\
-//                         |    |>  |    '--|1|       data_i
-//                         |    '---'       | |--------------
-//           IN_DATA_IN  --+----------------|0|
-//                                          |/
-//                                           '--- parked_i
-//
-//                         park_i
-//                            | ,---,
-//                            '-|En | parked_output_select_i
-//                         ,----|D Q|----,  |\
-//                         |    |>  |    '--|1|  output_select_i
-//                         |    '---'       | |--------------
-//  IN_OUTPUT_SELECT_IN  --+----------------|0|
-//                                          |/
-//                                           '--- parked_i
-//                              --+--
+//                         park_i             parked_i
+//                            |                  |
+//                            | ,---,            |
+//                            +-|En |        ,---+
+//                         ,--(-|D Q|----,  |\   |
+//                         |  | |>  |    '--|1|  |
+//                         |  | '---'       | |--)--- data_i
+//           IN_DATA_IN  --+--(-------------|0|  |
+//                            |             |/   |
+//                            | ,---,            |
+//                            '-|En |        ,---+
+//                         ,----|D Q|----,  |\   |
+//                         |    |>  |    '--|1|  |
+//                         |    '---'       | |--)--- output_select_i
+//  IN_OUTPUT_SELECT_IN  --+----------------|0|  |
+//                                          |/   |
+//                               -+-         ,---'
 //                                |         |\
 //                                '---------|1|
-//                                          | |-- vld_i
+//                                          | |------ vld_i
 //            IN_VLD_IN  -------------------|0|
 //                                          |/
-//                                           '--- parked_i
 //
-//           IN_RDY_OUT  --------------
+//           IN_RDY_OUT  -------------- (inputstate_i == RUN)
+//
+// The output ports and packet dropping port but not sketched here since they
+// are straight forward.
+
+
+////////////////////////////////////////////////////////////////////////////////
+// Control
+////////////////////////////////////////////////////////////////////////////////
 
 // Input parking FSM states and state register
 localparam RUN    = 1'b0;
@@ -253,7 +255,7 @@ always @ (posedge CLK_IN, posedge RESET_IN)
 		if (DROP_IN || (output_select_i == {NUM_PORTS{1'b0}} && vld_i))
 			begin
 				DROPPED_DATA_OUT    <= data_i;
-				DROPPED_OUTPUTS_OUT <= wait_i & ~accepted_outputs_i & output_select_i ;
+				DROPPED_OUTPUTS_OUT <= wait_i & ~accepted_outputs_i & output_select_i;
 				DROPPED_VLD_OUT     <= 1'b1;
 			end
 		else
