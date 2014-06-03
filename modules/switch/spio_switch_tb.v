@@ -110,7 +110,11 @@ assign in_data_i = { {(PKT_BITS-4-CNTR_WIDTH-4-1){1'b0}}
 `define SHDRP should_drop_i
 `define TODRP outputs_to_drop_i
 
-`define TICK #100 @(posedge clk_i)
+// Run for a single cycle
+`define TICK @(posedge clk_i)
+
+// Run for a number of cycles
+`define MTICK #100 @(posedge clk_i)
 
 // Event triggered just before the simulation terminates.
 event stimulus_ended;
@@ -120,42 +124,83 @@ initial
 	// Initially make sure nothing happens when the input isn't valid
 	`OSEL<=4'b0000; `VLD<=1'b0; `RDY<=4'b1111; `DRP<=1'b0; `SHDRP<=1'b0; `TODRP<=4'b0000;
 	@(negedge reset_i)
-	`TICK;
+	`MTICK;
 	
 	// Unicast packets to unblocked outputs
-	`OSEL<=4'b0001; `VLD<=1'b1; `RDY<=4'b1111; `DRP<=1'b0; `SHDRP<=1'b0; `TODRP<=4'b0000;`TICK;
-	`OSEL<=4'b0010;                                                                      `TICK;
-	`OSEL<=4'b0100;                                                                      `TICK;
-	`OSEL<=4'b1000;                                                                      `TICK;
+	`OSEL<=4'b0001; `VLD<=1'b1; `RDY<=4'b1111; `DRP<=1'b0; `SHDRP<=1'b0; `TODRP<=4'b0000;`MTICK;
+	`OSEL<=4'b0010;                                                                      `MTICK;
+	`OSEL<=4'b0100;                                                                      `MTICK;
+	`OSEL<=4'b1000;                                                                      `MTICK;
 	
-	// Immediately drop packets with no destinations.
-	`OSEL<=4'b0000; `VLD<=1'b1; `RDY<=4'b1111; `DRP<=1'b0; `SHDRP<=1'b1; `TODRP<=4'b0000;`TICK;
+	// Immediately drop packets with no destinations, even with blocked outputs
+	`OSEL<=4'b0000; `VLD<=1'b1; `RDY<=4'b1111; `DRP<=1'b0; `SHDRP<=1'b1; `TODRP<=4'b0000;`MTICK;
+	`OSEL<=4'b0000; `VLD<=1'b1; `RDY<=4'b0000; `DRP<=1'b0; `SHDRP<=1'b1; `TODRP<=4'b0000;`MTICK;
 	
 	// Multicast packets to unblocked outputs
-	`OSEL<=4'b0001; `VLD<=1'b1; `RDY<=4'b1111; `DRP<=1'b0; `SHDRP<=1'b0; `TODRP<=4'b0000;`TICK;
-	`OSEL<=4'b0011;                                                                      `TICK;
-	`OSEL<=4'b0111;                                                                      `TICK;
-	`OSEL<=4'b1111;                                                                      `TICK;
-	`OSEL<=4'b1110;                                                                      `TICK;
-	`OSEL<=4'b1100;                                                                      `TICK;
-	`OSEL<=4'b1000;                                                                      `TICK;
+	`OSEL<=4'b0001; `VLD<=1'b1; `RDY<=4'b1111; `DRP<=1'b0; `SHDRP<=1'b0; `TODRP<=4'b0000;`MTICK;
+	`OSEL<=4'b0011;                                                                      `MTICK;
+	`OSEL<=4'b0111;                                                                      `MTICK;
+	`OSEL<=4'b1111;                                                                      `MTICK;
+	`OSEL<=4'b1110;                                                                      `MTICK;
+	`OSEL<=4'b1100;                                                                      `MTICK;
+	`OSEL<=4'b1000;                                                                      `MTICK;
 	
 	// Unicast packets with blocking
-	`OSEL<=4'b0001; `VLD<=1'b1; `RDY<=4'b0001; `DRP<=1'b0; `SHDRP<=1'b0; `TODRP<=4'b0000;`TICK;
-	                            `RDY<=4'b0000;                                           `TICK;
-	                            `RDY<=4'b0001;                                           `TICK;
-	`OSEL<=4'b0010;             `RDY<=4'b0010;                                           `TICK;
-	                            `RDY<=4'b0000;                                           `TICK;
-	                            `RDY<=4'b0010;                                           `TICK;
-	`OSEL<=4'b0100;             `RDY<=4'b0100;                                           `TICK;
-	                            `RDY<=4'b0000;                                           `TICK;
-	                            `RDY<=4'b0100;                                           `TICK;
-	`OSEL<=4'b1000;             `RDY<=4'b1000;                                           `TICK;
-	                            `RDY<=4'b0000;                                           `TICK;
-	                            `RDY<=4'b1000;                                           `TICK;
+	`OSEL<=4'b0001; `VLD<=1'b1; `RDY<=4'b0001; `DRP<=1'b0; `SHDRP<=1'b0; `TODRP<=4'b0000;`MTICK;
+	                            `RDY<=4'b0000;                                           `MTICK;
+	                            `RDY<=4'b0001;                                           `MTICK;
+	`OSEL<=4'b0010;             `RDY<=4'b0010;                                           `MTICK;
+	                            `RDY<=4'b0000;                                           `MTICK;
+	                            `RDY<=4'b0010;                                           `MTICK;
+	`OSEL<=4'b0100;             `RDY<=4'b0100;                                           `MTICK;
+	                            `RDY<=4'b0000;                                           `MTICK;
+	                            `RDY<=4'b0100;                                           `MTICK;
+	`OSEL<=4'b1000;             `RDY<=4'b1000;                                           `MTICK;
+	                            `RDY<=4'b0000;                                           `MTICK;
+	                            `RDY<=4'b1000;                                           `MTICK;
 	
-	// Let the network drain
-	`OSEL<=4'b0000; `VLD<=1'b0; `RDY<=4'b1111; `DRP<=1'b0; `SHDRP<=1'b0; `TODRP<=4'b0000;`TICK;
+	// Multicast packets with blocking of all ports
+	`OSEL<=4'b1111; `VLD<=1'b1; `RDY<=4'b1111; `DRP<=1'b0; `SHDRP<=1'b0; `TODRP<=4'b0000;`MTICK;
+	                            `RDY<=4'b0000;                                           `MTICK;
+	                            `RDY<=4'b1111;                                           `MTICK;
+	
+	// Multicast packets with blocking of single ports
+	`OSEL<=4'b1111; `VLD<=1'b1; `RDY<=4'b1111; `DRP<=1'b0; `SHDRP<=1'b0; `TODRP<=4'b0000;`MTICK;
+	                            `RDY<=4'b1110;                                           `MTICK;
+	                            `RDY<=4'b1111;                                           `MTICK;
+	`OSEL<=4'b1111;             `RDY<=4'b1111;                                           `MTICK;
+	                            `RDY<=4'b1101;                                           `MTICK;
+	                            `RDY<=4'b1111;                                           `MTICK;
+	`OSEL<=4'b1111;             `RDY<=4'b1111;                                           `MTICK;
+	                            `RDY<=4'b1011;                                           `MTICK;
+	                            `RDY<=4'b1111;                                           `MTICK;
+	`OSEL<=4'b1111;             `RDY<=4'b1111;                                           `MTICK;
+	                            `RDY<=4'b0111;                                           `MTICK;
+	                            `RDY<=4'b1111;                                           `MTICK;
+	
+	// Dropping a blocking unicast packet: drain then inject a pair of packets into
+	// a blocked network. The first packet should eventually get through (once
+	// unblocked) but the second packet should be dropped.
+	`OSEL<=4'b0000; `VLD<=1'b0; `RDY<=4'b1111; `DRP<=1'b0; `SHDRP<=1'b0; `TODRP<=4'b0000;`MTICK;
+	`OSEL<=4'b0001; `VLD<=1'b1; `RDY<=4'b0000; `DRP<=1'b0; `SHDRP<=1'b0; `TODRP<=4'b0000; `TICK;
+	`OSEL<=4'b0001; `VLD<=1'b1; `RDY<=4'b0000; `DRP<=1'b0; `SHDRP<=1'b1; `TODRP<=4'b0001; `TICK;
+	`OSEL<=4'b0000; `VLD<=1'b0; `RDY<=4'b0000; `DRP<=1'b1; `SHDRP<=1'b0; `TODRP<=4'b0000; `TICK;
+	`OSEL<=4'b0000; `VLD<=1'b0; `RDY<=4'b0000; `DRP<=1'b0; `SHDRP<=1'b0; `TODRP<=4'b0000; `TICK;
+	`OSEL<=4'b0000; `VLD<=1'b0; `RDY<=4'b1111; `DRP<=1'b0; `SHDRP<=1'b0; `TODRP<=4'b0000; `TICK;
+	
+	// Dropping a partly-blocking unicast packet: drain then inject a pair of
+	// packets into a blocked network. The first packet should eventually get
+	// through, along with part of the second multicast packet (once unblocked)
+	// but at least one output of the multicast packet will be dropped.
+	`OSEL<=4'b0000; `VLD<=1'b0; `RDY<=4'b1111; `DRP<=1'b0; `SHDRP<=1'b0; `TODRP<=4'b0000;`MTICK;
+	`OSEL<=4'b0001; `VLD<=1'b1; `RDY<=4'b0000; `DRP<=1'b0; `SHDRP<=1'b0; `TODRP<=4'b0000; `TICK;
+	`OSEL<=4'b1111; `VLD<=1'b1; `RDY<=4'b0000; `DRP<=1'b0; `SHDRP<=1'b1; `TODRP<=4'b0001; `TICK;
+	`OSEL<=4'b0000; `VLD<=1'b0; `RDY<=4'b0000; `DRP<=1'b1; `SHDRP<=1'b0; `TODRP<=4'b0000; `TICK;
+	`OSEL<=4'b0000; `VLD<=1'b0; `RDY<=4'b0000; `DRP<=1'b0; `SHDRP<=1'b0; `TODRP<=4'b0000; `TICK;
+	`OSEL<=4'b0000; `VLD<=1'b0; `RDY<=4'b1111; `DRP<=1'b0; `SHDRP<=1'b0; `TODRP<=4'b0000; `TICK;
+	
+	// Drain the network
+	`OSEL<=4'b0000; `VLD<=1'b0; `RDY<=4'b1111; `DRP<=1'b0; `SHDRP<=1'b0; `TODRP<=4'b0000;`MTICK;
 	
 	// Job done!
 	->stimulus_ended;
@@ -228,7 +273,7 @@ generate for (i = 0; i < 4; i = i + 1)
 		always @ (posedge clk_i, posedge reset_i)
 			if (!reset_i && in_vld_i && in_rdy_i && ( in_output_select_i[i]
 			                                        & !outputs_to_drop_i[i]
-			                                        & !should_drop_i
+			                                        & !(should_drop_i && outputs_to_drop_i == 4'h0)
 			                                        ))
 				packet_expected[i][input_counter_i] <= 1'b1;
 		
