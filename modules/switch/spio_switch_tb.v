@@ -76,8 +76,10 @@ spio_switch_i( .CLK_IN              (clk_i)
 // Input Stimulus
 ////////////////////////////////////////////////////////////////////////////////
 
+localparam CNTR_WIDTH = 16;
+
 // The incrementing counter which gives the packet number
-reg [31:0] input_counter_i;
+reg [CNTR_WIDTH-1:0] input_counter_i;
 
 // Increment the counter automatically whenever a packet is accepted
 always @ (posedge clk_i, posedge reset_i)
@@ -93,7 +95,7 @@ reg [3:0] outputs_to_drop_i;
 
 // Produce packets which contain the packet number, selected outputs and
 // where it is expected to be dropped.
-assign in_data_i = { {(PKT_BITS-4-32-4-1){1'b0}}
+assign in_data_i = { {(PKT_BITS-4-CNTR_WIDTH-4-1){1'b0}}
                    , should_drop_i
                    , outputs_to_drop_i
                    , input_counter_i
@@ -108,45 +110,56 @@ assign in_data_i = { {(PKT_BITS-4-32-4-1){1'b0}}
 `define SHDRP should_drop_i
 `define TODRP outputs_to_drop_i
 
+`define TICK #100 @(posedge clk_i)
+
+// Event triggered just before the simulation terminates.
+event stimulus_ended;
+
 initial
 	begin
 	// Initially make sure nothing happens when the input isn't valid
 	`OSEL<=4'b0000; `VLD<=1'b0; `RDY<=4'b1111; `DRP<=1'b0; `SHDRP<=1'b0; `TODRP<=4'b0000;
 	@(negedge reset_i)
-	#100 @(posedge clk_i)
+	`TICK;
 	
 	// Unicast packets to unblocked outputs
-	`OSEL<=4'b0001; `VLD<=1'b1; `RDY<=4'b1111; `DRP<=1'b0; `SHDRP<=1'b0; `TODRP<=4'b0000;
-	#100 @(posedge clk_i)
-	`OSEL<=4'b0010; `VLD<=1'b1; `RDY<=4'b1111; `DRP<=1'b0; `SHDRP<=1'b0; `TODRP<=4'b0000;
-	#100 @(posedge clk_i)
-	`OSEL<=4'b0100; `VLD<=1'b1; `RDY<=4'b1111; `DRP<=1'b0; `SHDRP<=1'b0; `TODRP<=4'b0000;
-	#100 @(posedge clk_i)
-	`OSEL<=4'b1000; `VLD<=1'b1; `RDY<=4'b1111; `DRP<=1'b0; `SHDRP<=1'b0; `TODRP<=4'b0000;
-	#100 @(posedge clk_i)
+	`OSEL<=4'b0001; `VLD<=1'b1; `RDY<=4'b1111; `DRP<=1'b0; `SHDRP<=1'b0; `TODRP<=4'b0000;`TICK;
+	`OSEL<=4'b0010;                                                                      `TICK;
+	`OSEL<=4'b0100;                                                                      `TICK;
+	`OSEL<=4'b1000;                                                                      `TICK;
 	
 	// Immediately drop packets with no destinations.
-	`OSEL<=4'b0000; `VLD<=1'b1; `RDY<=4'b1111; `DRP<=1'b0; `SHDRP<=1'b1; `TODRP<=4'b0000;
-	#100 @(posedge clk_i)
+	`OSEL<=4'b0000; `VLD<=1'b1; `RDY<=4'b1111; `DRP<=1'b0; `SHDRP<=1'b1; `TODRP<=4'b0000;`TICK;
 	
 	// Multicast packets to unblocked outputs
-	`OSEL<=4'b0001; `VLD<=1'b1; `RDY<=4'b1111; `DRP<=1'b0; `SHDRP<=1'b0; `TODRP<=4'b0000;
-	#100 @(posedge clk_i)
-	`OSEL<=4'b0011; `VLD<=1'b1; `RDY<=4'b1111; `DRP<=1'b0; `SHDRP<=1'b0; `TODRP<=4'b0000;
-	#100 @(posedge clk_i)
-	`OSEL<=4'b0111; `VLD<=1'b1; `RDY<=4'b1111; `DRP<=1'b0; `SHDRP<=1'b0; `TODRP<=4'b0000;
-	#100 @(posedge clk_i)
-	`OSEL<=4'b1111; `VLD<=1'b1; `RDY<=4'b1111; `DRP<=1'b0; `SHDRP<=1'b0; `TODRP<=4'b0000;
-	#100 @(posedge clk_i)
-	`OSEL<=4'b1110; `VLD<=1'b1; `RDY<=4'b1111; `DRP<=1'b0; `SHDRP<=1'b0; `TODRP<=4'b0000;
-	#100 @(posedge clk_i)
-	`OSEL<=4'b1100; `VLD<=1'b1; `RDY<=4'b1111; `DRP<=1'b0; `SHDRP<=1'b0; `TODRP<=4'b0000;
-	#100 @(posedge clk_i)
-	`OSEL<=4'b1000; `VLD<=1'b1; `RDY<=4'b1111; `DRP<=1'b0; `SHDRP<=1'b0; `TODRP<=4'b0000;
-	#100 @(posedge clk_i)
+	`OSEL<=4'b0001; `VLD<=1'b1; `RDY<=4'b1111; `DRP<=1'b0; `SHDRP<=1'b0; `TODRP<=4'b0000;`TICK;
+	`OSEL<=4'b0011;                                                                      `TICK;
+	`OSEL<=4'b0111;                                                                      `TICK;
+	`OSEL<=4'b1111;                                                                      `TICK;
+	`OSEL<=4'b1110;                                                                      `TICK;
+	`OSEL<=4'b1100;                                                                      `TICK;
+	`OSEL<=4'b1000;                                                                      `TICK;
 	
+	// Unicast packets with blocking
+	`OSEL<=4'b0001; `VLD<=1'b1; `RDY<=4'b0001; `DRP<=1'b0; `SHDRP<=1'b0; `TODRP<=4'b0000;`TICK;
+	                            `RDY<=4'b0000;                                           `TICK;
+	                            `RDY<=4'b0001;                                           `TICK;
+	`OSEL<=4'b0010;             `RDY<=4'b0010;                                           `TICK;
+	                            `RDY<=4'b0000;                                           `TICK;
+	                            `RDY<=4'b0010;                                           `TICK;
+	`OSEL<=4'b0100;             `RDY<=4'b0100;                                           `TICK;
+	                            `RDY<=4'b0000;                                           `TICK;
+	                            `RDY<=4'b0100;                                           `TICK;
+	`OSEL<=4'b1000;             `RDY<=4'b1000;                                           `TICK;
+	                            `RDY<=4'b0000;                                           `TICK;
+	                            `RDY<=4'b1000;                                           `TICK;
+	
+	// Let the network drain
+	`OSEL<=4'b0000; `VLD<=1'b0; `RDY<=4'b1111; `DRP<=1'b0; `SHDRP<=1'b0; `TODRP<=4'b0000;`TICK;
 	
 	// Job done!
+	->stimulus_ended;
+	#0
 	$finish;
 	end
 
@@ -154,11 +167,72 @@ initial
 // Output checking
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO Validate that no packets go missing
+// Validate that no packets go missing: This memory holds a bit for each output
+// port which is set to 1 if a packet with the value at that address is
+// expected.
+reg packet_expected [3:0][(1<<CNTR_WIDTH)-1:0];
+
+// Validate that all expected packets are dropped exactly once. A lookup from
+// packet number to 5'b10000 if expecting to drop a destination-less packet, and
+// 5'b0____ for a packet expecting to be dropped from certain outputs.
+reg [4:0] drop_expected [(1<<CNTR_WIDTH)-1:0];
+
+// Initialise with 0 for every bit
+initial
+	begin : packet_expected_init
+		integer j; integer k;
+		
+		// Output expected lookup
+		for (k = 0; k < 4; k = k + 1)
+			for (j = 0; j < (1<<CNTR_WIDTH); j = j + 1)
+				packet_expected[k][j] = 0;
+		
+		// Drop expected lookup
+		for (j = 0; j < (1<<CNTR_WIDTH); j = j + 1)
+			drop_expected[j] = 0;
+		
+		
+	end
+
+// Check every packet arrived at the end of the simulation
+initial
+	begin : packet_expected_final_check
+		integer j; integer k;
+		
+		@(stimulus_ended);
+		
+		// Output expected lookup
+		for (k = 0; k < 4; k = k + 1)
+			for (j = 0; j < (1<<CNTR_WIDTH); j = j + 1)
+				if (packet_expected[k][j] != 0)
+					$display( "Time=%08d: ERROR: Packet with number %x was never delivered to output %x."
+					        , $time, j, k);
+		
+		// Drop expected lookup
+		for (j = 0; j < (1<<CNTR_WIDTH); j = j + 1)
+			drop_expected[j] = 0;
+			if (drop_expected[j][4] != 0)
+				$display( "Time=%08d: ERROR: Packet with number %x was never dropped from output %x."
+				        , $time, j, drop_expected[j][3:0]);
+			else if (drop_expected[j][3:0] != 0)
+				$display( "Time=%08d: ERROR: Packet with number %x was never dropped from some outputs %x."
+				        , $time, j, drop_expected[j][3:0]);
+		
+		
+	end
 
 // Check the output port values
 generate for (i = 0; i < 4; i = i + 1)
 	begin : output_checker
+		// Record packet IDs that are sent to this port
+		always @ (posedge clk_i, posedge reset_i)
+			if (!reset_i && in_vld_i && in_rdy_i && ( in_output_select_i[i]
+			                                        & !outputs_to_drop_i[i]
+			                                        & !should_drop_i
+			                                        ))
+				packet_expected[i][input_counter_i] <= 1'b1;
+		
+		// Check packets arriving at the output
 		always @ (posedge clk_i, posedge reset_i)
 			if (!reset_i && out_vld_i[i] && out_rdy_i[i])
 				begin
@@ -171,25 +245,39 @@ generate for (i = 0; i < 4; i = i + 1)
 						        );
 					
 					// Check that packet wasn't supposed to be dropped
-					if (out_data_i[i][i+32+4] == 1'b1)
+					if (out_data_i[i][i+CNTR_WIDTH+4] == 1'b1)
 						$display( "Time=%08d: ERROR: Packet %018x at output %x should have been dropped."
 						        , $time
 						        , out_data_i[i]
 						        , i
 						        );
 					
-					// TODO: Check that every packet arrives
+					// Check that packet was expected to arrive here
+					if (packet_expected[i][out_data_i[i][4+:CNTR_WIDTH]] != 1'b1)
+						$display( "Time=%08d: ERROR: Unexpected packet %018x with number %x at output %x."
+						        , $time
+						        , out_data_i[i]
+						        , out_data_i[i][4+:CNTR_WIDTH]
+						        , i
+						        );
+					
+					// Clear the flag that the packet was due to arrive
+					packet_expected[i][out_data_i[i][4+:CNTR_WIDTH]] <= 1'b0;
 				end
 	end
 endgenerate
 
+// Record packet IDs that are due to be dropped
+always @ (posedge clk_i, posedge reset_i)
+	if (!reset_i && in_vld_i && in_rdy_i && should_drop_i)
+		drop_expected[input_counter_i] <= outputs_to_drop_i ? outputs_to_drop_i : 5'b10000;
 
 // Check the dropping port values
 always @ (posedge clk_i, posedge reset_i)
 	if (!reset_i && drop_vld_i)
 		begin
 			// Check that the packet was supposed to be dropped
-			if (drop_data_i[4+32+4] != 1'b1)
+			if (drop_data_i[4+CNTR_WIDTH+4] != 1'b1)
 				$display( "Time=%08d: ERROR: Packet %018x should not have been dropped."
 				        , $time
 				        , drop_data_i
@@ -197,15 +285,30 @@ always @ (posedge clk_i, posedge reset_i)
 			
 			// Check that the packet was dropped due to the right outputs being
 			// blocked.
-			if (drop_data_i[32+4+:4] != drop_outputs_i)
+			if (drop_data_i[CNTR_WIDTH+4+:4] != drop_outputs_i)
 				$display( "Time=%08d: ERROR: Packet %018x dropped due to outputs %x, should have been %x."
 				        , $time
 				        , drop_data_i
 				        , drop_outputs_i
-				        , drop_data_i[32+4+:4]
+				        , drop_data_i[CNTR_WIDTH+4+:4]
 				        );
 			
-			// TODO: Check sequence number
+			// Check that a dropped packet has the expected ID
+			if (!( ( (drop_expected[drop_data_i[4+:CNTR_WIDTH]] == 5'b10000)
+			         && drop_outputs_i == 4'h0)
+			     ||( (drop_expected[drop_data_i[4+:CNTR_WIDTH]][3:0] == drop_outputs_i)
+			         && drop_outputs_i != 4'h0)
+			     ))
+				$display( "Time=%08d: ERROR: Unexpected packet dropped %018x with number %x."
+				        , $time
+				        , drop_data_i
+				        , drop_data_i[4+:CNTR_WIDTH]
+				        );
+			
+			// Clear the flag that the packet was due to be dropped
+			drop_expected[drop_data_i[4+:CNTR_WIDTH]][4] <= 1'b0;
+			drop_expected[drop_data_i[4+:CNTR_WIDTH]][3:0] <=
+				drop_expected[drop_data_i[4+:CNTR_WIDTH]][3:0] & ~drop_outputs_i;
 		end
 
 
