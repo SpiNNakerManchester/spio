@@ -177,6 +177,19 @@ always @ (posedge CLK_IN, posedge RESET_IN)
 		endcase
 
 
+always @ (posedge CLK_IN, posedge RESET_IN)
+	if (RESET_IN)
+		begin
+			parked_data_i          <= {PKT_BITS{1'bX}};
+			parked_output_select_i <= {NUM_PORTS{1'bX}};
+		end
+	else if (park_i)
+		begin
+			parked_data_i          <= IN_DATA_IN;
+			parked_output_select_i <= IN_OUTPUT_SELECT_IN;
+		end
+
+
 ////////////////////////////////////////////////////////////////////////////////
 // Accumulate output ports which have accepted the current packet.
 ////////////////////////////////////////////////////////////////////////////////
@@ -215,7 +228,7 @@ generate for (i = 0; i < NUM_PORTS; i = i + 1)
 						OUT_DATA_OUT[PKT_BITS*i+:PKT_BITS] <= data_i;
 						OUT_VLD_OUT[i] <= 1'b1;
 					end
-				else
+				else if (transfer_i[i])
 					begin
 						OUT_DATA_OUT[PKT_BITS*i+:PKT_BITS] <= {PKT_BITS{1'bX}};
 						OUT_VLD_OUT[i] <= 1'b0;
@@ -240,7 +253,7 @@ always @ (posedge CLK_IN, posedge RESET_IN)
 		if (DROP_IN || (output_select_i == {NUM_PORTS{1'b0}} && vld_i))
 			begin
 				DROPPED_DATA_OUT    <= data_i;
-				DROPPED_OUTPUTS_OUT <= wait_i & output_select_i;
+				DROPPED_OUTPUTS_OUT <= wait_i & ~accepted_outputs_i & output_select_i ;
 				DROPPED_VLD_OUT     <= 1'b1;
 			end
 		else

@@ -1,5 +1,7 @@
 /**
  * Simple testbench for the switch.
+ *
+ * If everything is working, no errors should be printed out in the console.
  */
 
 
