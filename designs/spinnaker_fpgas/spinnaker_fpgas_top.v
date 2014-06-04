@@ -22,6 +22,9 @@ module spinnaker_fpgas_top #( // Enable simulation mode for GTP tile
                               parameter SIMULATION = 0
                               // Speed up simulated reset of GTP tile
                             , parameter SIMULATION_GTPRESET_SPEEDUP = 0
+                              // Enable chip-scope Virtual I/O interface (e.g.
+                              // to access HSS multiplexer debug register banks)
+                            , parameter DEBUG_CHIPSCOPE_VIO = 1
                               // The interval at which clock correction sequences should
                               // be inserted (in cycles).
                             , parameter    B2B_CLOCK_CORRECTION_INTERVAL = 1000
@@ -40,6 +43,10 @@ module spinnaker_fpgas_top #( // Enable simulation mode for GTP tile
                             , parameter    B2B_NUM_HANDSHAKES_BITS = 7
                             , parameter PERIPH_NUM_HANDSHAKES_BITS = 7
                             , parameter   RING_NUM_HANDSHAKES_BITS = 7
+                              // Mask and key to select MC packets to forward to
+                              // a connected peripheral.
+                            , parameter PERIPH_MC_MASK = 32'hFFFF0000
+                            , parameter PERIPH_MC_KEY  = 32'hFFFE0000
                             )
                             ( // Reset signal (only used during simulation)
                               input wire RESET_IN
@@ -130,7 +137,7 @@ wire periph_hss_reset_i;
 // Reset for SpiNNaker link blocks
 wire spinnaker_link_reset_i;
 
-// Reset for packet arbitration blocks
+// Reset for packet arbitration/routing blocks
 wire arbiter_reset_i;
 
 // Reset for LED control
@@ -252,6 +259,23 @@ wire                 sl_pkt_rxrdy_i  [15:0];
 wire    b2b_activity_i [1:0];
 wire periph_activity_i;
 wire   ring_activity_i;
+
+// HSS Multiplexer debug registers (for access by chipscope)
+wire [`REGA_BITS-1:0]    b2b_reg_addr_i [1:0];
+wire [`REGA_BITS-1:0] periph_reg_addr_i;
+wire [`REGA_BITS-1:0]   ring_reg_addr_i;
+wire [`REGD_BITS-1:0]    b2b_reg_data_i [1:0];
+wire [`REGD_BITS-1:0] periph_reg_data_i;
+wire [`REGD_BITS-1:0]   ring_reg_data_i;
+
+// Routing (spio_switch) status signals
+wire [1:0] switch_blocked_outputs_i  [`NUM_CHANS-1:0];
+wire [1:0] switch_selected_outputs_i [`NUM_CHANS-1:0];
+
+// Routing (spio_switch) packet dropping port
+wire [`PKT_BITS-1:0]  switch_dropped_data_i    [`NUM_CHANS-1:0];
+wire [1:0]            switch_dropped_outputs_i [`NUM_CHANS-1:0];
+wire                  switch_dropped_vld_i     [`NUM_CHANS-1:0];
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -774,9 +798,9 @@ generate for (i = 0; i < 2; i = i + 1)
 		                     , .RX_PKT7_DATA_OUT               (b2b_pkt_rxdata_i[i][7])
 		                     , .RX_PKT7_VLD_OUT                (b2b_pkt_rxvld_i[i][7])
 		                     , .RX_PKT7_RDY_IN                 (b2b_pkt_rxrdy_i[i][7])
-		                       // High-level protocol performance counters (unused)
-		                     , .REG_ADDR_IN                    (`VERS_REG)
-		                     , .REG_DATA_OUT                   () // Ignored
+		                       // High-level protocol performance counters
+		                     , .REG_ADDR_IN                    (b2b_reg_addr_i[i])
+		                     , .REG_DATA_OUT                   (b2b_reg_data_i[i])
 		                     );
 	end
 endgenerate
@@ -848,9 +872,9 @@ periph_hss_multiplexer_i( .CLK_IN                         (periph_usrclk2_i)
                         , .RX_PKT7_DATA_OUT               (periph_pkt_rxdata_i[7])
                         , .RX_PKT7_VLD_OUT                (periph_pkt_rxvld_i[7])
                         , .RX_PKT7_RDY_IN                 (periph_pkt_rxrdy_i[7])
-                          // High-level protocol performance counters (unused)
-                        , .REG_ADDR_IN                    (`VERS_REG)
-                        , .REG_DATA_OUT                   () // Ignored
+                          // High-level protocol performance counters
+                        , .REG_ADDR_IN                    (periph_reg_addr_i[i])
+                        , .REG_DATA_OUT                   (periph_reg_data_i[i])
                         );
 
 
@@ -925,10 +949,10 @@ endgenerate
 // Routing of SpiNNaker packets from SpiNNaker chips
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO
-// XXX: Temporarily connect spinnaker links straight to board-to-board links
+// Route all packets from chips to the first board-to-board link rather than
+// peripheral except those with a certain key when a peripheral is connected.
 generate for (i = 0; i < `NUM_CHANS; i = i + 1)
-	begin : xxx_spinnaker_rx_links
+	begin : spinnaker_rx_link_routing
 		// Add an interface between the 75 MHz board-to-board links and 37.5 MHz
 		// peripheral links 
 		wire [`PKT_BITS-1:0] fast_periph_pkt_txdata_i;
@@ -948,16 +972,64 @@ generate for (i = 0; i < `NUM_CHANS; i = i + 1)
 		                        , .RDY_IN(  periph_pkt_txrdy_i[i])
 		                        );
 		
-		// TODO add some kind of router...
-		assign b2b_pkt_txdata_i[0][i] = sl_pkt_rxdata_i[i];
-		assign b2b_pkt_txvld_i[0][i]  = sl_pkt_rxvld_i[i];
-		assign sl_pkt_rxrdy_i[i]      = b2b_pkt_txrdy_i[0][i];
+		// Only match non-emergency routed multicast packets
+		wire is_mc_packet_i = (sl_pkt_rxdata_i[i][0+:8]  & 8'b11110000) == 8'b00000000;
+		wire key_matches_i  = (sl_pkt_rxdata_i[i][8+:32] & PERIPH_MC_MASK) == PERIPH_MC_KEY;
 		
+		// The output ports from the switch (which must be broken onto their various
+		// buses)
+		wire [(`PKT_BITS*2)-1:0] switch_out_data_i;
+		wire [1:0]               switch_out_vld_i;
+		wire [1:0]               switch_out_rdy_i;
+		
+		// Route packets arriving from the first bank of spinnaker chips.
+		spio_switch #( .PKT_BITS(`PKT_BITS)
+		             , .NUM_PORTS(2)
+		             )
+		spio_switch_i( .CLK_IN(b2b_usrclk2_i)
+		             , .RESET_IN(arbiter_reset_i)
+		             // Input port (from SpiNNaker chips)
+		             , .IN_DATA_IN           (sl_pkt_rxdata_i[i])
+		             , .IN_OUTPUT_SELECT_IN  ( ( is_mc_packet_i
+		                                       & key_matches_i
+		                                       & periph_handshake_complete_i
+		                                       ) ? 2'b10 : 2'b01 
+		                                     )
+		             , .IN_VLD_IN            (sl_pkt_rxvld_i[i])
+		             , .IN_RDY_OUT           (sl_pkt_rxrdy_i[i])
+		             // Output ports (to b2b and periph links)
+		             , .OUT_DATA_OUT         (switch_out_data_i)
+		             , .OUT_VLD_OUT          (switch_out_vld_i)
+		             , .OUT_RDY_IN           (switch_out_rdy_i)
+		             // Output blocking status
+		             , .BLOCKED_OUTPUTS_OUT  (switch_blocked_outputs_i[i])
+		             , .SELECTED_OUTPUTS_OUT (switch_selected_outputs_i[i])
+		             // Force packet drop (disabled, for now)
+		             , .DROP_IN              (1'b0)
+		             // Dropped packet port
+		             , .DROPPED_DATA_OUT     (switch_dropped_data_i[i])
+		             , .DROPPED_OUTPUTS_OUT  (switch_dropped_outputs_i[i])
+		             , .DROPPED_VLD_OUT      (switch_dropped_vld_i[i])
+		             );
+		
+		// Connect switch's first output port to b2b link
+		assign b2b_pkt_txdata_i[0][i] = switch_out_data_i[0*`PKT_BITS+:`PKT_BITS];
+		assign b2b_pkt_txvld_i[0][i]  = switch_out_vld_i[0];
+		assign switch_out_rdy_i[0]    = b2b_pkt_txrdy_i[0][i];
+		
+		// Connect switch's second output port to peripheral link
+		assign fast_periph_pkt_txdata_i = switch_out_data_i[1*`PKT_BITS+:`PKT_BITS];
+		assign fast_periph_pkt_txvld_i  = switch_out_vld_i[1];
+		assign switch_out_rdy_i[1]      = fast_periph_pkt_txrdy_i;
+		
+		// Connect the second bank of spinnaker chips to straight back to the
+		// second board-to-board link.
 		assign b2b_pkt_txdata_i[1][i] = sl_pkt_rxdata_i[i+8];
 		assign b2b_pkt_txvld_i[1][i]  = sl_pkt_rxvld_i[i+8];
 		assign sl_pkt_rxrdy_i[i+8]    = b2b_pkt_txrdy_i[0][i];
 	end
 endgenerate
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // Arbitration of packets for SpiNNaker chip outputs
@@ -1009,5 +1081,124 @@ generate for (i = 0; i < `NUM_CHANS; i = i + 1)
 	end
 endgenerate
 
+
+////////////////////////////////////////////////////////////////////////////////
+// Chipscope virtual I/O
+////////////////////////////////////////////////////////////////////////////////
+
+// Virtual I/O connections to allow observation of useful values
+
+generate if (DEBUG_CHIPSCOPE_VIO)
+	begin : chipscope_enabled
+		
+		wire [35:0] chipscope_control_i;
+		
+		wire [191:0] chipscope_sync_in_i;
+		wire [19:0]  chipscope_sync_out_i;
+		
+		// Chipscope Integrated CONtroller (ICON)
+		chipscope_icon chipscope_icon_i (.CONTROL0 (chipscope_control_i));
+		
+		// Chipscope Virtual I/O (VIO) Port
+		chipscope_vio chipscope_vio_i ( .CONTROL (chipscope_control_i)
+		                              , .CLK     (b2b_usrclk2_i)
+		                              , .SYNC_IN (chipscope_sync_in_i)
+		                              , .SYNC_OUT(chipscope_sync_out_i)
+		                              );
+		
+		// HSS Multiplexer debug registers
+		assign    b2b_reg_addr_i[0] = chipscope_sync_out_i[0*`REGA_BITS+:`REGA_BITS];
+		assign    b2b_reg_addr_i[1] = chipscope_sync_out_i[1*`REGA_BITS+:`REGA_BITS];
+		assign periph_reg_addr_i    = chipscope_sync_out_i[2*`REGA_BITS+:`REGA_BITS];
+		assign   ring_reg_addr_i    = chipscope_sync_out_i[3*`REGA_BITS+:`REGA_BITS];
+		assign chipscope_sync_in_i[0*`REGD_BITS+:`REGD_BITS] =     b2b_reg_data_i[0];
+		assign chipscope_sync_in_i[1*`REGD_BITS+:`REGD_BITS] =     b2b_reg_data_i[1];
+		assign chipscope_sync_in_i[2*`REGD_BITS+:`REGD_BITS] = periph_reg_data_i;
+		assign chipscope_sync_in_i[3*`REGD_BITS+:`REGD_BITS] =   ring_reg_data_i;
+		
+		// SpiNNaker link RX ready/vld
+		assign chipscope_sync_in_i[4*`REGD_BITS+0 +:16] = { sl_pkt_rxrdy_i[15]
+		                                                  , sl_pkt_rxrdy_i[14]
+		                                                  , sl_pkt_rxrdy_i[13]
+		                                                  , sl_pkt_rxrdy_i[12]
+		                                                  , sl_pkt_rxrdy_i[11]
+		                                                  , sl_pkt_rxrdy_i[10]
+		                                                  , sl_pkt_rxrdy_i[9]
+		                                                  , sl_pkt_rxrdy_i[8]
+		                                                  , sl_pkt_rxrdy_i[7]
+		                                                  , sl_pkt_rxrdy_i[6]
+		                                                  , sl_pkt_rxrdy_i[5]
+		                                                  , sl_pkt_rxrdy_i[4]
+		                                                  , sl_pkt_rxrdy_i[3]
+		                                                  , sl_pkt_rxrdy_i[2]
+		                                                  , sl_pkt_rxrdy_i[1]
+		                                                  , sl_pkt_rxrdy_i[0]
+		                                                  };
+		assign chipscope_sync_in_i[4*`REGD_BITS+16+:16] = { sl_pkt_rxvld_i[15]
+		                                                  , sl_pkt_rxvld_i[14]
+		                                                  , sl_pkt_rxvld_i[13]
+		                                                  , sl_pkt_rxvld_i[12]
+		                                                  , sl_pkt_rxvld_i[11]
+		                                                  , sl_pkt_rxvld_i[10]
+		                                                  , sl_pkt_rxvld_i[9]
+		                                                  , sl_pkt_rxvld_i[8]
+		                                                  , sl_pkt_rxvld_i[7]
+		                                                  , sl_pkt_rxvld_i[6]
+		                                                  , sl_pkt_rxvld_i[5]
+		                                                  , sl_pkt_rxvld_i[4]
+		                                                  , sl_pkt_rxvld_i[3]
+		                                                  , sl_pkt_rxvld_i[2]
+		                                                  , sl_pkt_rxvld_i[1]
+		                                                  , sl_pkt_rxvld_i[0]
+		                                                  };
+		// SpiNNaker link TX ready/vld
+		assign chipscope_sync_in_i[4*`REGD_BITS+32+:16] = { sl_pkt_txrdy_i[15]
+		                                                  , sl_pkt_txrdy_i[14]
+		                                                  , sl_pkt_txrdy_i[13]
+		                                                  , sl_pkt_txrdy_i[12]
+		                                                  , sl_pkt_txrdy_i[11]
+		                                                  , sl_pkt_txrdy_i[10]
+		                                                  , sl_pkt_txrdy_i[9]
+		                                                  , sl_pkt_txrdy_i[8]
+		                                                  , sl_pkt_txrdy_i[7]
+		                                                  , sl_pkt_txrdy_i[6]
+		                                                  , sl_pkt_txrdy_i[5]
+		                                                  , sl_pkt_txrdy_i[4]
+		                                                  , sl_pkt_txrdy_i[3]
+		                                                  , sl_pkt_txrdy_i[2]
+		                                                  , sl_pkt_txrdy_i[1]
+		                                                  , sl_pkt_txrdy_i[0]
+		                                                  };
+		assign chipscope_sync_in_i[4*`REGD_BITS+48+:16] = { sl_pkt_txvld_i[15]
+		                                                  , sl_pkt_txvld_i[14]
+		                                                  , sl_pkt_txvld_i[13]
+		                                                  , sl_pkt_txvld_i[12]
+		                                                  , sl_pkt_txvld_i[11]
+		                                                  , sl_pkt_txvld_i[10]
+		                                                  , sl_pkt_txvld_i[9]
+		                                                  , sl_pkt_txvld_i[8]
+		                                                  , sl_pkt_txvld_i[7]
+		                                                  , sl_pkt_txvld_i[6]
+		                                                  , sl_pkt_txvld_i[5]
+		                                                  , sl_pkt_txvld_i[4]
+		                                                  , sl_pkt_txvld_i[3]
+		                                                  , sl_pkt_txvld_i[2]
+		                                                  , sl_pkt_txvld_i[1]
+		                                                  , sl_pkt_txvld_i[0]
+		                                                  };
+		
+		
+	end
+else
+	begin : chipscope_disabled
+		
+		// Tie off register addresses to an arbitrary register
+		assign    b2b_reg_addr_i[0] = `VERS_REG;
+		assign    b2b_reg_addr_i[1] = `VERS_REG;
+		assign periph_reg_addr_i    = `VERS_REG;
+		assign   ring_reg_addr_i    = `VERS_REG;
+		
+	end
+endgenerate
 
 endmodule

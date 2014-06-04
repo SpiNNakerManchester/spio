@@ -110,6 +110,8 @@ assign hss_rxp_i[3] = hss_txp_i[3];
 spinnaker_fpgas_top #( // Enable simulation mode for GTP tile
                        .SIMULATION(1)
                      , .SIMULATION_GTPRESET_SPEEDUP(1)
+                       // Disable (redundant) chipscope regbank interface during simulation
+                     , .DEBUG_CHIPSCOPE_VIO(0)
                        // The interval at which clock correction sequences should
                        // be inserted (in cycles).
                      ,    .B2B_CLOCK_CORRECTION_INTERVAL(1000)

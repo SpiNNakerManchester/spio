@@ -31,6 +31,7 @@ This design makes use of the following modules from the spI/O module collection:
 * `spinnaker_link/*`
 * `status_led_generator/*`
 * `rr_arbiter/*`
+* `switch/*`
 
 
 Target Platform
@@ -50,3 +51,11 @@ missing files however just deleting the contents of them will solve the problem.
 A Bash snippet to be executed from this project's directory is listed below:
 
 	for f in ipcore_dir/gtp_x*_y0/example_design/*; do echo "" > "$f"; done
+
+
+Chipscope VIO
+-------------
+
+A chipscope virtual I/O port can be added to aid in debugging allowing access to
+both the HSS multiplexers' debug register banks and also various internal
+signals.
