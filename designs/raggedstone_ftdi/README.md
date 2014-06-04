@@ -29,3 +29,9 @@ This design is for a Xilinx Spartan-6 XC6SLX45T FPGA in a FG(G)484 package with 
 -2, as fitted in the Raggedstone 2 board.
 
 
+Chipscope VIO
+-------------
+
+A chipscope virtual I/O port can be added to aid in debugging allowing access to
+both the HSS multiplexer's debug register banks and also various internal
+signals.

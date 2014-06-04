@@ -12,6 +12,9 @@ module raggedstone_ftdi_top #( // Enable simulation mode for GTP tile
                                parameter SIMULATION = 0
                                // Speed up simulated reset of GTP tile
                              , parameter SIMULATION_GTPRESET_SPEEDUP = 0
+                               // Enable chip-scope Virtual I/O interface (e.g.
+                               // to access the HSS multiplexer debug register bank)
+                             , parameter DEBUG_CHIPSCOPE_VIO = 1
                                // The interval at which clock correction sequences should
                                // be inserted (in cycles).
                              , parameter CLOCK_CORRECTION_INTERVAL = 1000
@@ -137,6 +140,14 @@ wire                 pkt_rxrdy_i  [`NUM_CHANS-1:0];
 // for status indication)
 wire activity_i;
 
+// HSS Multiplexer debug registers (for access by chipscope)
+wire [`REGA_BITS-1:0] reg_addr_i;
+wire [`REGD_BITS-1:0] reg_data_i;
+
+// Tempoarily a signal which indicates the last polarity of a packet arriving on
+// the zeroth channel.
+reg xxx_last_packet_parity_i;
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // Buttons
@@ -203,8 +214,12 @@ spio_status_led_generator_i( .CLK_IN               (led_clk_i)
                            , .ANIMATION_REPEAT_OUT () // Unused
                            );
 
+// Set the last LED to the parity of the last packet received on the zeroth
+// channel.
+assign leds_i[3] = xxx_last_packet_parity_i;
+
 // Just turn off the other LEDs
-assign leds_i[5:3] = 3'b000;
+assign leds_i[5:4] = 2'b00;
 
 
 // Generate the link activity signal for the link.
@@ -429,9 +444,9 @@ periph_hss_multiplexer_i( .CLK_IN                         (usrclk2_i)
                         , .RX_PKT7_DATA_OUT               (pkt_rxdata_i[7])
                         , .RX_PKT7_VLD_OUT                (pkt_rxvld_i[7])
                         , .RX_PKT7_RDY_IN                 (pkt_rxrdy_i[7])
-                          // High-level protocol performance counters (unused)
-                        , .REG_ADDR_IN                    (`VERS_REG)
-                        , .REG_DATA_OUT                   () // Ignored
+                          // High-level protocol performance counters
+                        , .REG_ADDR_IN                    (reg_addr_i)
+                        , .REG_DATA_OUT                   (reg_data_i)
                         );
 
 
@@ -440,7 +455,6 @@ periph_hss_multiplexer_i( .CLK_IN                         (usrclk2_i)
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO
-// XXX: Temporarily just send nothing
 generate for (i = 0; i < `NUM_CHANS; i = i + 1)
 	begin : xxx_spinnaker_rx_links
 		assign pkt_txdata_i[i] = { 32'hF0A0F030 // Payload
@@ -464,15 +478,106 @@ generate for (i = 0; i < `NUM_CHANS; i = i + 1)
 	end
 endgenerate
 
+
 ////////////////////////////////////////////////////////////////////////////////
 // Handle incoming packets from SpiNNaker
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO
-// XXX: Temporarily just ignore all incoming packets
+// XXX: Temporarily just accept (and mostly ignore) all incoming packets
 generate for (i = 0; i < `NUM_CHANS; i = i + 1)
 	begin : xxx_spinnaker_tx_links
 		assign pkt_rxrdy_i[i] = 1'b1;
+	end
+endgenerate
+
+
+// TODO:
+// XXX: Tempoarily set the last LED based on the parity of the last packet which
+// arrived on the zeroth channel.
+always @ (posedge usrclk2_i, posedge reset_i)
+	if (reset_i)
+		xxx_last_packet_parity_i <= 1'b0;
+	else
+		if (pkt_rxvld_i[0] && pkt_rxrdy_i[0])
+			xxx_last_packet_parity_i <= pkt_rxdata_i[0][0];
+
+
+////////////////////////////////////////////////////////////////////////////////
+// Chipscope virtual I/O
+////////////////////////////////////////////////////////////////////////////////
+
+// Virtual I/O connections to allow observation of useful values
+
+generate if (DEBUG_CHIPSCOPE_VIO)
+	begin : chipscope_enabled
+		
+		wire [35:0] chipscope_control_i;
+		
+		wire [63:0] chipscope_sync_in_i;
+		wire [4:0]  chipscope_sync_out_i;
+		
+		// Chipscope Integrated CONtroller (ICON)
+		chipscope_icon chipscope_icon_i (.CONTROL0 (chipscope_control_i));
+		
+		// Chipscope Virtual I/O (VIO) Port
+		chipscope_vio chipscope_vio_i ( .CONTROL (chipscope_control_i)
+		                              , .CLK     (usrclk2_i)
+		                              , .SYNC_IN (chipscope_sync_in_i)
+		                              , .SYNC_OUT(chipscope_sync_out_i)
+		                              );
+		
+		// HSS Multiplexer debug registers
+		assign reg_addr_i                         = chipscope_sync_out_i[0+:`REGA_BITS];
+		assign chipscope_sync_in_i[0+:`REGD_BITS] = reg_data_i;
+		
+		// HSS mux port RX ready/vld
+		assign chipscope_sync_in_i[`REGD_BITS+0 +:8] = { pkt_rxrdy_i[7]
+		                                               , pkt_rxrdy_i[6]
+		                                               , pkt_rxrdy_i[5]
+		                                               , pkt_rxrdy_i[4]
+		                                               , pkt_rxrdy_i[3]
+		                                               , pkt_rxrdy_i[2]
+		                                               , pkt_rxrdy_i[1]
+		                                               , pkt_rxrdy_i[0]
+		                                               };
+		assign chipscope_sync_in_i[`REGD_BITS+8 +:8] = { pkt_rxvld_i[7]
+		                                               , pkt_rxvld_i[6]
+		                                               , pkt_rxvld_i[5]
+		                                               , pkt_rxvld_i[4]
+		                                               , pkt_rxvld_i[3]
+		                                               , pkt_rxvld_i[2]
+		                                               , pkt_rxvld_i[1]
+		                                               , pkt_rxvld_i[0]
+		                                               };
+		// HSS mux port TX ready/vld
+		assign chipscope_sync_in_i[`REGD_BITS+16+:8] = { pkt_txrdy_i[7]
+		                                               , pkt_txrdy_i[6]
+		                                               , pkt_txrdy_i[5]
+		                                               , pkt_txrdy_i[4]
+		                                               , pkt_txrdy_i[3]
+		                                               , pkt_txrdy_i[2]
+		                                               , pkt_txrdy_i[1]
+		                                               , pkt_txrdy_i[0]
+		                                               };
+		assign chipscope_sync_in_i[`REGD_BITS+24+:8] = { pkt_txvld_i[7]
+		                                               , pkt_txvld_i[6]
+		                                               , pkt_txvld_i[5]
+		                                               , pkt_txvld_i[4]
+		                                               , pkt_txvld_i[3]
+		                                               , pkt_txvld_i[2]
+		                                               , pkt_txvld_i[1]
+		                                               , pkt_txvld_i[0]
+		                                               };
+		
+		
+	end
+else
+	begin : chipscope_disabled
+		
+		// Tie off register addresses to an arbitrary register
+		assign reg_addr_i    = `VERS_REG;
+		
 	end
 endgenerate
 
