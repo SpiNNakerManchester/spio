@@ -873,8 +873,8 @@ periph_hss_multiplexer_i( .CLK_IN                         (periph_usrclk2_i)
                         , .RX_PKT7_VLD_OUT                (periph_pkt_rxvld_i[7])
                         , .RX_PKT7_RDY_IN                 (periph_pkt_rxrdy_i[7])
                           // High-level protocol performance counters
-                        , .REG_ADDR_IN                    (periph_reg_addr_i[i])
-                        , .REG_DATA_OUT                   (periph_reg_data_i[i])
+                        , .REG_ADDR_IN                    (periph_reg_addr_i)
+                        , .REG_DATA_OUT                   (periph_reg_data_i)
                         );
 
 
