@@ -24,6 +24,7 @@
 `define KCH_COMMA 8'hBC
 
 `define CLKC              8'h1c   // K28.0
+`define SYNC              8'h5c   // K28.2
 `define COMMA             8'hbc   // K28.5
 
 `define KCH_DATA          `COMMA
