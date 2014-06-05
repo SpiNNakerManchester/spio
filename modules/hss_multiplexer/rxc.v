@@ -258,8 +258,8 @@ module rxc(
                   && (rx_aligned_data[15:8] == `SYNC);
 
   always @ (*)
-      is_clkc = (rx_aligned_kchr == 4'b0001)
-                  && (rx_aligned_data[7:0] == `CLKC);
+      is_clkc = (rx_aligned_kchr == `CLKC_KBITS)
+                  && (rx_aligned_data == `CLKC_FRM);
   //---------------------------------------------------------------
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 

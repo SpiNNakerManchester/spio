@@ -87,8 +87,8 @@ module txc
           end
 	  else
           begin
-            gtp_data <= {`CLKC, `CLKC, `CLKC, `CLKC};
-            gtp_kchr <= 4'b0001;
+            gtp_data <= `CLKC_FRM;
+            gtp_kchr <= `CLKC_KBITS;
           end
 
         2'b01:
@@ -99,8 +99,8 @@ module txc
           end
           else
           begin
-            gtp_data <= {`CLKC, `CLKC, `CLKC, `CLKC};
-            gtp_kchr <= 4'b0001;
+            gtp_data <= `CLKC_FRM;
+            gtp_kchr <= `CLKC_KBITS;
           end
 
         2'b10:
@@ -111,8 +111,8 @@ module txc
           end
           else
           begin
-            gtp_data <= {`CLKC, `CLKC, `CLKC, `CLKC};
-            gtp_kchr <= 4'b0001;
+            gtp_data <= `CLKC_FRM;
+            gtp_kchr <= `CLKC_KBITS;
           end
 
         default:
