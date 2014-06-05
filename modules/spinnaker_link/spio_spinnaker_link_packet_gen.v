@@ -34,8 +34,8 @@ reg [15:0] cnt;
 initial     gen_state = 0;
 initial     data_2of7 = 0;
 //#parameter   gen_data = 'h76543210;
-parameter   gen_data = 32'hf5000000;
-parameter   gen_header = 8'hb0;
+parameter   gen_data = 32'hFFFE0000;
+parameter   gen_header = 8'h00;
 
 always @(posedge clk or posedge reset)
  begin
