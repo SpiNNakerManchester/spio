@@ -1,5 +1,5 @@
 /**
- * A UART baud rate generator which produces a single-cycle pulse at a regular
+ * A UART baud clock generator which produces a single-cycle pulse at a regular
  * interval (i.e. a timer). Also produces a second signal which pulses at a
  * approximately eight times this rate for the purpose of subsampling an
  * incoming signal at the given baudrate.

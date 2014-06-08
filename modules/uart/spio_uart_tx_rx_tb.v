@@ -89,8 +89,7 @@ spio_uart_sync_tx_data_i( .CLK_IN   (rx_clk_i)
                         );
 
 // UART Receiver
-spio_uart_rx #( .BUFFER_ADDR_BITS   (0)
-              )
+spio_uart_rx
 spio_uart_rx_i( .CLK_IN             (rx_clk_i)
               , .RESET_IN           (rx_reset_i)
               , .RX_IN              (tx_data_synced_i)

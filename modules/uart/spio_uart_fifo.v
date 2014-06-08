@@ -11,7 +11,7 @@
 
 module spio_uart_fifo#( // The number of bits required to address the specified
                         // buffer size (i.e. the buffer will have size
-                        // 1<<BUFFER_ADDR_BITS).
+                        // (1<<BUFFER_ADDR_BITS)-1).
                         parameter BUFFER_ADDR_BITS = 4
                         // The number of bits in a word in the buffer.
                       , parameter WORD_SIZE = 8
