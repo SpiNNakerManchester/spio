@@ -1,7 +1,5 @@
 /**
- * Simple testbench for the UART TX/RX (with the RX in buffered mode) modules.
- * Simply connects a TX to an RX and uses CTS signal to enable transmission in
- * the TX.
+ * Simple testbench for the UART TX/RX modules: connect a TX to an RX.
  */
 
 module spio_uart_tx_rx_tb;
@@ -11,10 +9,6 @@ localparam TX_BAUD_RATE =   115200; // Hz
 
 localparam RX_CLK_FREQ  = 37500005; // Hz
 localparam RX_BAUD_RATE =   115205; // Hz
-
-localparam BUFFER_ADDR_BITS = 4;
-localparam BUFFER_SIZE      = 1<<BUFFER_ADDR_BITS;
-localparam HIGH_WATER_MARK  = (1<<BUFFER_ADDR_BITS)/2;
 
 genvar i;
 
@@ -32,7 +26,6 @@ wire       in_rdy_i;
 // Byte output stream
 wire [7:0] out_data_i;
 wire       out_vld_i;
-reg        out_rdy_i;
 
 
 // Baudrate generator signals
@@ -43,12 +36,6 @@ wire rx_subsample_pulse_i;
 wire tx_data_i;
 wire tx_data_synced_i;
 
-// CTS signal (from RX and after syncing)
-wire cts_i;
-wire cts_synced_i;
-
-// Byte dropped signal
-wire byte_dropped_i;
 
 ////////////////////////////////////////////////////////////////////////////////
 // TX Devices under test
@@ -64,22 +51,11 @@ spio_uart_baud_gen_tx_i( .CLK_IN              (tx_clk_i)
                        , .SUBSAMPLE_PULSE_OUT () // Unused
                        );
 
-// Synchroniser for the CTS signal
-spio_uart_sync     #( .NUM_BITS      (1)
-                    , .NUM_STAGES    (2)
-                    , .INITIAL_VALUE (1'b0)
-                    )
-spio_uart_sync_cts_i( .CLK_IN   (tx_clk_i)
-                    , .RESET_IN (tx_reset_i)
-                    , .DATA_IN  (cts_i)
-                    , .DATA_OUT (cts_synced_i)
-                    );
-
 // UART Transmitter
 spio_uart_tx spio_uart_tx_i ( .CLK_IN        (tx_clk_i)
                             , .RESET_IN      (tx_reset_i)
                             , .DATA_IN       (in_data_i)
-                            , .VLD_IN        (in_vld_i & cts_synced_i)
+                            , .VLD_IN        (in_vld_i)
                             , .RDY_OUT       (in_rdy_i)
                             , .BAUD_PULSE_IN (tx_baud_pulse_i)
                             , .TX_OUT        (tx_data_i)
@@ -113,17 +89,13 @@ spio_uart_sync_tx_data_i( .CLK_IN   (rx_clk_i)
                         );
 
 // UART Receiver
-spio_uart_rx #( .BUFFER_ADDR_BITS   (BUFFER_ADDR_BITS)
-              , .HIGH_WATER_MARK    (HIGH_WATER_MARK)
+spio_uart_rx #( .BUFFER_ADDR_BITS   (0)
               )
 spio_uart_rx_i( .CLK_IN             (rx_clk_i)
               , .RESET_IN           (rx_reset_i)
               , .RX_IN              (tx_data_synced_i)
-              , .CTS_OUT            (cts_i)
               , .DATA_OUT           (out_data_i)
               , .VLD_OUT            (out_vld_i)
-              , .RDY_IN             (out_rdy_i)
-              , .BYTE_DROPPED_OUT   (byte_dropped_i)
               , .SUBSAMPLE_PULSE_IN (rx_subsample_pulse_i)
               );
 
@@ -143,45 +115,23 @@ localparam RX_WAIT_TIME = (1000000000/RX_CLK_FREQ)*(RX_CLK_FREQ/RX_BAUD_RATE)*10
 initial
 	begin
 	// Check nothing arrives while both input invalid and output not ready
-	in_vld_i <= 1'b0;   out_rdy_i <= 1'b0; @(negedge rx_reset_i)
+	in_vld_i <= 1'b0; @(negedge rx_reset_i)
 	
 	`MRXTICK;
 	// Check nothing arrives while output ready
-	in_vld_i <= 1'b0;   out_rdy_i <= 1'b1;
+	in_vld_i <= 1'b0;
 	
 	`MTXTICK;
 	// Check single bytes can be sent
-	in_vld_i <= 1'b1;   out_rdy_i <= 1'b1;
+	in_vld_i <= 1'b1;
 	`TXTICK;
-	in_vld_i <= 1'b0;   out_rdy_i <= 1'b1;
+	in_vld_i <= 1'b0;
 	
 	`MTXTICK;
 	// Check bytes flow freely and can be stopped
-	in_vld_i <= 1'b1;   out_rdy_i <= 1'b1;
+	in_vld_i <= 1'b1;
 	`MTXTICK;
-	in_vld_i <= 1'b0;   out_rdy_i <= 1'b1;
-	
-	`MTXTICK;
-	// Check bytes can be blocked and the CTS stops them being sent before the
-	// FIFO fills up, check everything can resume.
-	in_vld_i <= 1'b1;   out_rdy_i <= 1'b1;
-	`MRXTICK;
-	in_vld_i <= 1'b1;   out_rdy_i <= 1'b0;
-	`MRXTICK;
-	in_vld_i <= 1'b1;   out_rdy_i <= 1'b1;
-	`MTXTICK
-	in_vld_i <= 1'b0;   out_rdy_i <= 1'b1;
-	
-	`MTXTICK;
-	// Check bytes can be blocked and the CTS stops them being sent before the
-	// FIFO fills up, check everything can drain.
-	in_vld_i <= 1'b1;   out_rdy_i <= 1'b1;
-	`MRXTICK;
-	in_vld_i <= 1'b1;   out_rdy_i <= 1'b0;
-	`MTXTICK
-	in_vld_i <= 1'b0;   out_rdy_i <= 1'b0;
-	`MRXTICK
-	in_vld_i <= 1'b0;   out_rdy_i <= 1'b1;
+	in_vld_i <= 1'b0;
 	
 	`MRXTICK
 	// Job done! Check everything sent also arrived.
@@ -201,7 +151,7 @@ always @ (posedge tx_clk_i, posedge tx_reset_i)
 	if (tx_reset_i)
 		in_data_i <= 8'h55;
 	else
-		if (in_vld_i && cts_synced_i && in_rdy_i)
+		if (in_vld_i && in_rdy_i)
 			in_data_i <= in_data_i + 1;
 
 
@@ -215,7 +165,7 @@ always @ (posedge rx_clk_i, posedge rx_reset_i)
 	if (rx_reset_i)
 		next_arrival_i <= 8'h55;
 	else
-		if (out_vld_i && out_rdy_i)
+		if (out_vld_i)
 			begin
 			if (out_data_i != next_arrival_i)
 				$display( "Time %d: ERROR: Value out of sequence: got %x, expected %x."
@@ -225,12 +175,6 @@ always @ (posedge rx_clk_i, posedge rx_reset_i)
 				        );
 				next_arrival_i <= out_data_i + 1;
 			end
-
-// Check no packets are reported dropped
-always @ (posedge rx_clk_i, posedge rx_reset_i)
-	if (!rx_reset_i)
-		if (byte_dropped_i)
-			$display( "Time %d: ERROR: receiver dropped a packet (i.e. FIFO full)", $time);
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -266,4 +210,5 @@ initial
 
 
 endmodule
+
 

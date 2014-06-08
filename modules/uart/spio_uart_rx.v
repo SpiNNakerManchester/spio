@@ -4,16 +4,7 @@
 
 `include "spio_uart_common.h"
 
-module spio_uart_rx#( // The number of bits required to address the specified
-                      // buffer size (i.e. the buffer will have size
-                      // 1<<BUFFER_ADDR_BITS). If set to zero, no buffer will be
-                      // used.
-                      parameter BUFFER_ADDR_BITS = 4
-                      // The high water mark for buffer occupancy beyond which
-                      // the clear-to-send signal is deasserted.
-                    , parameter HIGH_WATER_MARK = 8
-                    )
-                    ( // Common clock for synchronous signals
+module spio_uart_rx ( // Common clock for synchronous signals
                       input wire CLK_IN
                       // Asynchronous active-high reset
                     , input wire RESET_IN
@@ -21,21 +12,11 @@ module spio_uart_rx#( // The number of bits required to address the specified
                       // externally synchronised)
                         // Incoming serial stream
                     ,   input  wire RX_IN
-                        // Clear to send signal (asserted when the internal FIFO
-                        // passes the high water mark).
-                    ,   output wire CTS_OUT
                       // Synchronous signals
-                        // Incoming 'bytes' using a rdy/vld protocol. If the
-                        // BUFFER_ADDR_BITS has been set to 0, the rdy signal is
-                        // ignored and data and vld will appear for one cycle
-                        // whenever a byte is received.
-                    ,   output wire [7:0] DATA_OUT
+                        // Incoming 'bytes', no rdy signal: vld will appear for
+                        // one cycle whenever a byte is received.
+                    ,   output reg  [7:0] DATA_OUT
                     ,   output wire       VLD_OUT
-                    ,   input  wire       RDY_IN
-                        // This signal pulses for one clock cycle whenever a
-                        // byte is dropped due to the FIFO being full. This
-                        // signal is always 0 when BUFFER_ADDR_BITS is 0.
-                    ,   output wire BYTE_DROPPED_OUT
                         // Single-cycle pulse from the baud generator 8 times
                         // per bit
                     ,   input wire SUBSAMPLE_PULSE_IN
@@ -130,21 +111,18 @@ always @ (posedge CLK_IN, posedge RESET_IN)
 // Shift register
 ////////////////////////////////////////////////////////////////////////////////
 
-// Shift register into which data will be received
-reg [7:0] data_i;
-
 always @ (posedge CLK_IN, posedge RESET_IN)
 	if (RESET_IN)
-		data_i <= 8'hXX;
+		DATA_OUT <= 8'hXX;
 	else
 		if (SUBSAMPLE_PULSE_IN && bit_time_i == counter_i)
 			case (state_i)
 				STATE_BIT0, STATE_BIT1, STATE_BIT2, STATE_BIT3,
 				STATE_BIT4, STATE_BIT5, STATE_BIT6, STATE_BIT7:
-					data_i <= {RX_IN, data_i[7:1]};
+					DATA_OUT <= {RX_IN, DATA_OUT[7:1]};
 				
 				default:
-					data_i <= data_i;
+					DATA_OUT <= DATA_OUT;
 			endcase
 
 
@@ -152,46 +130,9 @@ always @ (posedge CLK_IN, posedge RESET_IN)
 // Output
 ////////////////////////////////////////////////////////////////////////////////
 
-generate if (BUFFER_ADDR_BITS == 0)
-	begin : unbuffered_output
-		// The data is fully shifted into the register while the stop bit is being
-		// received.
-		assign DATA_OUT         = data_i;
-		assign VLD_OUT          = state_i == STATE_STOP && sample_now_i;
-		assign CTS_OUT          = !RESET_IN;
-		assign BYTE_DROPPED_OUT = 1'b0;
-	end
-else
-	begin : buffered_output
-		// Bytes are placed in the FIFO as soon as it arrives. If the FIFO is not
-		// ready (i.e. it is full) the byte is dropped.
-		wire data_vld_i = state_i == STATE_STOP && sample_now_i;
-		wire data_rdy_i;
-		
-		// Bytes are dropped whenever a byte is available but the FIFO is full.
-		assign BYTE_DROPPED_OUT = data_vld_i && !data_rdy_i;
-		
-		// Drop CTS if the occupancy rises above the specified high-water mark.
-		wire [BUFFER_ADDR_BITS-1:0] fifo_occupancy_i;
-		assign CTS_OUT = !RESET_IN && fifo_occupancy_i < HIGH_WATER_MARK;
-		
-		// The FIFO to store the incoming bytes
-		spio_uart_fifo #( .BUFFER_ADDR_BITS(BUFFER_ADDR_BITS)
-		                , .WORD_SIZE(8)
-		                )
-		spio_uart_fifo_i( .CLK_IN       (CLK_IN)
-		                , .RESET_IN     (RESET_IN)
-		                , .OCCUPANCY_OUT(fifo_occupancy_i)
-		                , .IN_DATA_IN   (data_i)
-		                , .IN_VLD_IN    (data_vld_i)
-		                , .IN_RDY_OUT   (data_rdy_i)
-		                , .OUT_DATA_OUT (DATA_OUT)
-		                , .OUT_VLD_OUT  (VLD_OUT)
-		                , .OUT_RDY_IN   (RDY_IN)
-		                );
-		
-	end
-endgenerate
+// The data is fully shifted into the register while the stop bit is being
+// received.
+assign VLD_OUT          = state_i == STATE_STOP && sample_now_i;
 
 endmodule
 
