@@ -1,6 +1,8 @@
 /**
  * A transmitter/receiver module which sends and receives SpiNNaker packets over
  * a UART link.
+ *
+ * XXX: Note: This module may deassert RDY at times other than after a transfer.
  */
 
 `include "spio_uart_common.h"
@@ -31,7 +33,7 @@ module spio_uart#( // 1 if device is master, 0 if slave.
                  ,   input  wire RX_IN
                      // Clear to send signal from the remote device. When low,
                      // only synchronisation sequences will be sent.
-                 ,   output wire CTS_IN
+                 ,   input  wire CTS_IN
                      // Outgoing serial stream
                  ,   output wire TX_OUT
                      // Clear to send signal (asserted when the internal packet
