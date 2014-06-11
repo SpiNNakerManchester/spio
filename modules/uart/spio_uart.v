@@ -1,6 +1,6 @@
 /**
- * A UART transmitter/receiver module which sends and receives SpiNNaker
- * packets.
+ * A transmitter/receiver module which sends and receives SpiNNaker packets over
+ * a UART link.
  */
 
 `include "spio_uart_common.h"
@@ -44,9 +44,9 @@ module spio_uart#( // 1 if device is master, 0 if slave.
                      // buffering is used), the RX_RDY_IN signal is ignored and
                      // RX_DATA_OUT and RX_VLD_OUT will appear for one cycle
                      // whenever a byte is received.
-                 ,   output wire [`PKT_LEN:0] RX_DATA_OUT
-                 ,   output wire              RX_VLD_OUT
-                 ,   input  wire              RX_RDY_IN
+                 ,   output wire [`PKT_LEN-1:0] RX_DATA_OUT
+                 ,   output wire                RX_VLD_OUT
+                 ,   input  wire                RX_RDY_IN
                      // This signal pulses for one clock cycle whenever a byte
                      // is dropped due to the internal packet FIFO being full.
                      // This signal is always 0 when BUFFER_ADDR_BITS is 0.
@@ -54,9 +54,9 @@ module spio_uart#( // 1 if device is master, 0 if slave.
                    // Synchronous transmit-side signals
                      // SpiNNaker packet stream to send to the remote device
                      // using the usual rdy/vld protocol.
-                 ,   input  wire [`PKT_LEN:0] TX_DATA_IN
-                 ,   input  wire              TX_VLD_IN
-                 ,   output wire              TX_RDY_OUT
+                 ,   input  wire [`PKT_LEN-1:0] TX_DATA_IN
+                 ,   input  wire                TX_VLD_IN
+                 ,   output wire                TX_RDY_OUT
                      // This signal pulses for one clock cycle whenever the last packet
                      // arriving on TX_DATA_IN had a parity error and was
                      // dropped (i.e. won't be sent).
@@ -74,7 +74,7 @@ module spio_uart#( // 1 if device is master, 0 if slave.
                      // sequence from a master. Note that for masters, this
                      // signal may tempoarily falsely report synchronisation
                      // completion too early due to previous data arriving.
-                 ,   output reg SYNCHRONISING_OUT
+                 ,   output wire SYNCHRONISING_OUT
                  );
 
 
@@ -164,15 +164,15 @@ spio_uart_tx_control_i ( .CLK_IN            (CLK_IN)
                        );
 
 // Prevent packets being consumed while blocked
-assign tx_control_pkt_vld_i = TX_VLD_IN            && tx_block_i;
-assign TX_RDY_OUT           = tx_control_pkt_rdy_i && tx_block_i;
+assign tx_control_pkt_vld_i = TX_VLD_IN            && !tx_block_i;
+assign TX_RDY_OUT           = tx_control_pkt_rdy_i && !tx_block_i;
 
 ////////////////////////////////////////////////////////////////////////////////
 // RX Side
 ////////////////////////////////////////////////////////////////////////////////
 
 // UART byte receiver
-spio_uart_rx #
+spio_uart_rx
 spio_uart_rx_i( .CLK_IN             (CLK_IN)
               , .RESET_IN           (RESET_IN)
                 // Incoming serial stream
@@ -201,7 +201,7 @@ spio_uart_rx_control_i( .CLK_IN            (CLK_IN)
 
 // FIFO to hold incoming packets
 spio_uart_fifo #( .BUFFER_ADDR_BITS (RX_BUFFER_ADDR_BITS)
-                , .WORD_SIZE        (PKT_LEN)
+                , .WORD_SIZE        (`PKT_LEN)
                 )
 spio_uart_fifo_i( .CLK_IN           (CLK_IN)
                 , .RESET_IN         (RESET_IN)
@@ -234,7 +234,8 @@ generate if (IS_MASTER)
 		assign tx_sync_trigger_i = SYNC_TRIGGER_IN;
 		
 		// Only block when CTS isn't high
-		assign tx_block_i = CTS_IN;
+		// XXX: Will deassert ready when not transferring!
+		assign tx_block_i = !CTS_IN;
 		
 		assign SYNCHRONISING_OUT = rx_synchronising_i || tx_synchronising_i;
 	end
@@ -257,7 +258,11 @@ else
 		assign tx_sync_trigger_i = SYNC_TRIGGER_IN || rx_just_synced_i;
 		
 		// Slaves must not transmit until synchronised (or when CTS isn't high).
-		assign tx_block_i = (!rx_synchronising_i || tx_sync_trigger_i) && CTS_IN;
+		// XXX: Will deassert ready when not transferring!
+		assign tx_block_i = rx_synchronising_i || tx_sync_trigger_i || !CTS_IN;
+		
+		assign SYNCHRONISING_OUT =  rx_synchronising_i || tx_sync_trigger_i
+		                         || tx_synchronising_i;
 	end
 endgenerate
 

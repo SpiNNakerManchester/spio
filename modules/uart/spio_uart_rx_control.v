@@ -49,9 +49,12 @@ reg [3:0] state_i;
 // The register into which the incoming packet will be accumulated
 reg [`PKT_LEN-1:0] pkt_i;
 
+// The length of the incoming packet
+wire is_long_packet_i = pkt_i[1] == 1'b1;
+
 // Is the incoming packet's parity correct
-wire parity_correct_i = (pkt_i[1] ? (^pkt_i[ `PKT_LEN-1:0])
-                                  : (^pkt_i[`SPKT_LEN-1:0])
+wire parity_correct_i = (is_long_packet_i ? (^pkt_i[ `PKT_LEN-1:0])
+                                          : (^pkt_i[`SPKT_LEN-1:0])
                         ) == 1'b1;
 
 // Indicate when synchronisation is taking place

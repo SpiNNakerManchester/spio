@@ -19,11 +19,11 @@ module spio_uart_tx_control ( // Common clock for synchronous signals
                               // Incoming packet stream
                             , input  wire [`PKT_LEN-1:0] PKT_DATA_IN
                             , input  wire                PKT_VLD_IN
-                            , output wire                PKT_RDY_OUT
+                            , output reg                 PKT_RDY_OUT
                               // A one-cycle pulse is produced on this line if
                               // the packet received in the previous cycle had
                               // invalid parity and was dropped.
-                            , output wire PKT_DROPPED_OUT
+                            , output reg  PKT_DROPPED_OUT
                               // Outgoing byte stream
                             , output wire [7:0] BYTE_DATA_OUT
                             , output wire       BYTE_VLD_OUT
@@ -33,27 +33,30 @@ module spio_uart_tx_control ( // Common clock for synchronous signals
 // The number of NULLs to insert when sending the synchronisation sequence.
 localparam NULLS_TO_SEND = 4'd13;
 
+// The transmitter is just starting up
+localparam STATE_RESET = 0;
+
 // The transmitter is not producing any bytes
-localparam STATE_IDLE = 0;
+localparam STATE_IDLE = 1;
 
 // Transmitting various parts of a SpiNNaker packet
-localparam STATE_HEAD  = 1;
-localparam STATE_BODY0 = 2;
-localparam STATE_BODY1 = 3;
-localparam STATE_BODY2 = 4;
-localparam STATE_BODY3 = 5;
-localparam STATE_BODY4 = 6; // Optional
-localparam STATE_BODY5 = 7; // Optional
-localparam STATE_BODY6 = 8; // Optional
-localparam STATE_BODY7 = 9; // Optional
+localparam STATE_HEAD  = 2;
+localparam STATE_BODY0 = 3;
+localparam STATE_BODY1 = 4;
+localparam STATE_BODY2 = 5;
+localparam STATE_BODY3 = 6;
+localparam STATE_BODY4 = 7; // Optional
+localparam STATE_BODY5 = 8; // Optional
+localparam STATE_BODY6 = 9; // Optional
+localparam STATE_BODY7 = 10; // Optional
 
 // Transmitting null bytes for synchronisation
-localparam STATE_SYNC0 = 10;
+localparam STATE_SYNC0 = 11;
 // Transmitting an all-ones byte for synchronisation
-localparam STATE_SYNC1 = 11;
+localparam STATE_SYNC1 = 12;
 
 // The packet to be transmitted (a byte-wise shift register)
-reg [`PKT_BITS-1:0] pkt_i;
+reg [`PKT_LEN-1:0] pkt_i;
 
 // The main state machine state
 reg [3:0] state_i;
@@ -77,15 +80,21 @@ wire pkt_available_i = !PKT_RDY_OUT || (PKT_VLD_IN && pkt_data_parity_correct_i)
 reg is_long_packet_i;
 
 // Synchronisation status
-assign SYNCHRONISING_OUT = (state_i == STATE_SYNC0) || (state_i == STATE_SYNC1);
+assign SYNCHRONISING_OUT =  sync_trigger_i
+                         || (state_i == STATE_SYNC0)
+                         || (state_i == STATE_SYNC1);
 
 // Byte Output
-assign BYTE_DATA_OUT = pkt_i[7:0];
+assign BYTE_DATA_OUT = (state_i == STATE_SYNC0) ? 8'h00
+                     : (state_i == STATE_SYNC1) ? 8'hFF
+                     : pkt_i[7:0]
+                     ;
 assign BYTE_VLD_OUT  =  (state_i == STATE_HEAD)
                      || (state_i == STATE_BODY0) || (state_i == STATE_BODY1)
                      || (state_i == STATE_BODY2) || (state_i == STATE_BODY3)
                      || (state_i == STATE_BODY4) || (state_i == STATE_BODY5)
                      || (state_i == STATE_BODY6) || (state_i == STATE_BODY7)
+                     || (state_i == STATE_SYNC0) || (state_i == STATE_SYNC1)
                      ;
 
 
@@ -96,9 +105,12 @@ assign BYTE_VLD_OUT  =  (state_i == STATE_HEAD)
 
 always @ (posedge CLK_IN, posedge RESET_IN)
 	if (RESET_IN)
-		state_i <= STATE_IDLE;
+		state_i <= STATE_RESET;
 	else
 		case (state_i)
+			STATE_RESET:
+				state_i <= STATE_IDLE;
+			
 			STATE_IDLE:
 				if (sync_trigger_i)
 					// Priority entry into the sync state when requested.
@@ -129,11 +141,11 @@ always @ (posedge CLK_IN, posedge RESET_IN)
 					state_i <= STATE_SYNC1;
 			
 			STATE_SYNC1:
-				if (BYTE_RDY_IN)
+				if (BYTE_VLD_OUT && BYTE_RDY_IN)
 					state_i <= STATE_IDLE;
 			
 			default:
-				state_i <= STATE_IDLE;
+				state_i <= STATE_RESET;
 		endcase
 
 
@@ -144,7 +156,7 @@ always @ (posedge CLK_IN, posedge RESET_IN)
 // Latch incoming data, shift out bytes
 always @ (posedge CLK_IN, posedge RESET_IN)
 	if (RESET_IN)
-		pkt_i <= {`PKT_BITS{1'bX}};
+		pkt_i <= {`PKT_LEN{1'bX}};
 	else
 		if (PKT_VLD_IN && PKT_RDY_OUT && pkt_data_parity_correct_i)
 			pkt_i <= PKT_DATA_IN;
@@ -183,9 +195,13 @@ always @ (posedge CLK_IN, posedge RESET_IN)
 	if (RESET_IN)
 		PKT_RDY_OUT <= 1'b0;
 	else
-		if (PKT_VLD_IN && PKT_RDY_OUT)
-			PKT_RDY_OUT <= pkt_data_parity_correct_i;
-		else if (state_i == STATE_IDLE)
+		if (state_i == STATE_RESET)
+			PKT_RDY_OUT <= 1'b1;
+		else if (PKT_VLD_IN && PKT_RDY_OUT)
+			PKT_RDY_OUT <= !pkt_data_parity_correct_i;
+		else if (   (state_i == STATE_BODY3 && BYTE_RDY_IN && !is_long_packet_i)
+		         || (state_i == STATE_BODY7 && BYTE_RDY_IN)
+		        )
 			PKT_RDY_OUT <= 1'b1;
 
 
@@ -201,7 +217,8 @@ always @ (posedge CLK_IN, posedge RESET_IN)
 		if (state_i != STATE_SYNC0)
 			remaining_null_counter_i <= NULLS_TO_SEND - 4'd1;
 		else
-			remaining_null_counter_i <= remaining_null_counter_i - 4'd1;
+			if (BYTE_VLD_OUT && BYTE_RDY_IN)
+				remaining_null_counter_i <= remaining_null_counter_i - 4'd1;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -210,7 +227,7 @@ always @ (posedge CLK_IN, posedge RESET_IN)
 
 always @ (posedge CLK_IN, posedge RESET_IN)
 	if (RESET_IN)
-		sync_trigger_i < 1'b0;
+		sync_trigger_i <= 1'b0;
 	else
 		if (SYNC_TRIGGER_IN)
 			sync_trigger_i <= 1'b1;
