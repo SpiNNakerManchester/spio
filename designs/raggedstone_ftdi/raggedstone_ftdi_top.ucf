@@ -38,3 +38,16 @@ NET "NBUTTON_IN" LOC = "R7" | IOSTANDARD = LVCMOS15  | PULLUP;
 # GTP Tile Positions
 ################################################################################
 INST gtp_x0_y0_i/tile0_gtp_x0_y0_i/gtpa1_dual_i LOC=GTPA1_DUAL_X0Y0;
+
+################################################################################
+# FTDI UART Pins
+################################################################################
+
+NET "FTDI_CTS_N_OUT" LOC = L19 | IOSTANDARD = LVTTL;
+NET "FTDI_DCD_N_OUT" LOC = K20 | IOSTANDARD = LVTTL;
+NET "FTDI_DSR_N_OUT" LOC = J19 | IOSTANDARD = LVTTL;
+NET "FTDI_RI_N_OUT"  LOC = J22 | IOSTANDARD = LVTTL;
+NET "FTDI_RTS_N_IN"  LOC = H20 | IOSTANDARD = LVTTL;
+NET "FTDI_DTR_N_IN"  LOC = H22 | IOSTANDARD = LVTTL;
+NET "FTDI_TXD_IN"    LOC = H21 | IOSTANDARD = LVTTL;
+NET "FTDI_RXD_OUT"   LOC = J20 | IOSTANDARD = LVTTL;

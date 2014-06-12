@@ -25,6 +25,15 @@ module raggedstone_ftdi_top #( // Enable simulation mode for GTP tile
                              , parameter NUM_HANDSHAKES = 100
                                // Number of bits required for the above counters.
                              , parameter NUM_HANDSHAKES_BITS = 7
+                               // The number of bits required to address a
+                               // buffer of packets received by the UART (i.e.
+                               // the packet receive buffer will have size
+                               // (1<<BUFFER_ADDR_BITS)-1). If set to zero, no
+                               // buffer will be used.
+                             , parameter UART_RX_BUFFER_ADDR_BITS = 4
+                               // The high water mark for RX packet buffer occupancy beyond
+                               // which the clear-to-send signal is deasserted.
+                             , parameter UART_RX_HIGH_WATER_MARK = 8
                              )
                              ( // Active-low Reset signal (Top FPGA button, SW2)
                                input wire NRESET_IN
@@ -45,7 +54,15 @@ module raggedstone_ftdi_top #( // Enable simulation mode for GTP tile
                              , output wire HSS_TXN_OUT
                              , output wire HSS_TXP_OUT
                                
-                               // TODO: FTDI pins
+                               // FTDI-connected UART pins
+                             , output wire FTDI_CTS_N_OUT
+                             , output wire FTDI_DCD_N_OUT
+                             , output wire FTDI_DSR_N_OUT
+                             , output wire FTDI_RI_N_OUT
+                             , input  wire FTDI_RTS_N_IN
+                             , input  wire FTDI_DTR_N_IN
+                             , input  wire FTDI_TXD_IN
+                             , output wire FTDI_RXD_OUT
                              );
 
 genvar i;
@@ -128,25 +145,39 @@ wire version_mismatch_i;
 
 
 // HSS multiplexer packet interfaces [port]
-wire [`PKT_BITS-1:0] pkt_txdata_i [`NUM_CHANS-1:0];
-reg                  pkt_txvld_i  [`NUM_CHANS-1:0];
-wire                 pkt_txrdy_i  [`NUM_CHANS-1:0];
-wire [`PKT_BITS-1:0] pkt_rxdata_i [`NUM_CHANS-1:0];
-wire                 pkt_rxvld_i  [`NUM_CHANS-1:0];
-wire                 pkt_rxrdy_i  [`NUM_CHANS-1:0];
+wire [`PKT_BITS-1:0] hss_pkt_txdata_i [`NUM_CHANS-1:0];
+wire                 hss_pkt_txvld_i  [`NUM_CHANS-1:0];
+wire                 hss_pkt_txrdy_i  [`NUM_CHANS-1:0];
+wire [`PKT_BITS-1:0] hss_pkt_rxdata_i [`NUM_CHANS-1:0];
+wire                 hss_pkt_rxvld_i  [`NUM_CHANS-1:0];
+wire                 hss_pkt_rxrdy_i  [`NUM_CHANS-1:0];
 
+
+// UART packet interface
+wire [`PKT_BITS-1:0] uart_pkt_txdata_i;
+wire                 uart_pkt_txvld_i;
+wire                 uart_pkt_txrdy_i;
+wire [`PKT_BITS-1:0] uart_pkt_rxdata_i;
+wire                 uart_pkt_rxvld_i;
+wire                 uart_pkt_rxrdy_i;
+
+// UART signals
+wire uart_rx_i;
+wire uart_rx_synced_i;
+wire uart_tx_i;
+wire uart_cts_i;
+
+// UART status signal
+wire uart_synchronising_i;
 
 // A signal asserted whenever at least one packet link transfers a packet (used
 // for status indication)
-wire activity_i;
+wire hss_activity_i;
+wire uart_activity_i;
 
 // HSS Multiplexer debug registers (for access by chipscope)
 wire [`REGA_BITS-1:0] reg_addr_i;
 wire [`REGD_BITS-1:0] reg_data_i;
-
-// Tempoarily a signal which indicates the last polarity of a packet arriving on
-// the zeroth channel.
-reg xxx_last_packet_parity_i;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -188,58 +219,60 @@ assign led_reset_i = !usrclks_stable_i;
 OBUF leds_buf_i [5:2] (.I(leds_i[5:2]), .O(LEDS_OUT[5:2]));
 
 
-// Generate a LED status for each serial link
-spio_status_led_generator #( // The number of devices (and thus LEDs)
-                             .NUM_DEVICES(1)
-                             // Animation period in clock cycles
-                           , .ANIMATION_PERIOD_BITS(SIMULATION ? 10 : 26)
-                             // Duration of brief pulses (cycles)
-                           , .PULSE_DURATION(SIMULATION ? 2 : 3750000)
-                             // Which bit of the period counter should be
-                             // used to produce the activity blink
-                           , .ACTIVITY_BLINK_BIT(SIMULATION ? 5 : 21)
-                             // Number of bits PWM resolution
-                           , .PWM_BITS(7)
-                             // Timeout for non-activity before
-                             // deasserting the activity status.
-                           , .ACTIVITY_TIMEOUT(SIMULATION ? 2048 : 9375000)
-                           , .ACTIVITY_TIMEOUT_BITS(24)
-                           )
-spio_status_led_generator_i( .CLK_IN               (led_clk_i)
-                           , .RESET_IN             (led_reset_i)
-                           , .ERROR_IN             (version_mismatch_i)
-                           , .CONNECTED_IN         (handshake_complete_i)
-                           , .ACTIVITY_IN          (activity_i)
-                           , .LED_OUT              (leds_i[2])
-                           , .ANIMATION_REPEAT_OUT () // Unused
-                           );
-
-// Set the last LED to the parity of the last packet received on the zeroth
-// channel.
-assign leds_i[3] = xxx_last_packet_parity_i;
+// Generate a LED status for the UART and high-speed serial link
+spio_status_led_generator     #( // The number of devices (and thus LEDs)
+                                 .NUM_DEVICES(2)
+                                 // Animation period in clock cycles
+                               , .ANIMATION_PERIOD_BITS(SIMULATION ? 10 : 26)
+                                 // Duration of brief pulses (cycles)
+                               , .PULSE_DURATION(SIMULATION ? 2 : 3750000)
+                                 // Which bit of the period counter should be
+                                 // used to produce the activity blink
+                               , .ACTIVITY_BLINK_BIT(SIMULATION ? 5 : 21)
+                                 // Number of bits PWM resolution
+                               , .PWM_BITS(7)
+                                 // Timeout for non-activity before
+                                 // deasserting the activity status.
+                               , .ACTIVITY_TIMEOUT(SIMULATION ? 2048 : 9375000)
+                               , .ACTIVITY_TIMEOUT_BITS(24)
+                               )
+spio_status_led_generator_hss_i( .CLK_IN               (led_clk_i)
+                               , .RESET_IN             (led_reset_i)
+                               , .ERROR_IN             ({1'b0,                  version_mismatch_i})
+                               , .CONNECTED_IN         ({!uart_synchronising_i, handshake_complete_i})
+                               , .ACTIVITY_IN          ({uart_activity_i,       hss_activity_i})
+                               , .LED_OUT              (leds_i[3:2])
+                               , .ANIMATION_REPEAT_OUT () // Unused
+                               );
 
 // Just turn off the other LEDs
 assign leds_i[5:4] = 2'b00;
 
 
 // Generate the link activity signal for the link.
-assign activity_i = (pkt_rxvld_i[0] & pkt_rxrdy_i[0])
-                  | (pkt_rxvld_i[1] & pkt_rxrdy_i[1])
-                  | (pkt_rxvld_i[2] & pkt_rxrdy_i[2])
-                  | (pkt_rxvld_i[3] & pkt_rxrdy_i[3])
-                  | (pkt_rxvld_i[4] & pkt_rxrdy_i[4])
-                  | (pkt_rxvld_i[5] & pkt_rxrdy_i[5])
-                  | (pkt_rxvld_i[6] & pkt_rxrdy_i[6])
-                  | (pkt_rxvld_i[7] & pkt_rxrdy_i[7])
-                  | (pkt_txvld_i[0] & pkt_txrdy_i[0])
-                  | (pkt_txvld_i[1] & pkt_txrdy_i[1])
-                  | (pkt_txvld_i[2] & pkt_txrdy_i[2])
-                  | (pkt_txvld_i[3] & pkt_txrdy_i[3])
-                  | (pkt_txvld_i[4] & pkt_txrdy_i[4])
-                  | (pkt_txvld_i[5] & pkt_txrdy_i[5])
-                  | (pkt_txvld_i[6] & pkt_txrdy_i[6])
-                  | (pkt_txvld_i[7] & pkt_txrdy_i[7])
-                  ;
+assign hss_activity_i = (hss_pkt_rxvld_i[0] & hss_pkt_rxrdy_i[0])
+                      | (hss_pkt_rxvld_i[1] & hss_pkt_rxrdy_i[1])
+                      | (hss_pkt_rxvld_i[2] & hss_pkt_rxrdy_i[2])
+                      | (hss_pkt_rxvld_i[3] & hss_pkt_rxrdy_i[3])
+                      | (hss_pkt_rxvld_i[4] & hss_pkt_rxrdy_i[4])
+                      | (hss_pkt_rxvld_i[5] & hss_pkt_rxrdy_i[5])
+                      | (hss_pkt_rxvld_i[6] & hss_pkt_rxrdy_i[6])
+                      | (hss_pkt_rxvld_i[7] & hss_pkt_rxrdy_i[7])
+                      | (hss_pkt_txvld_i[0] & hss_pkt_txrdy_i[0])
+                      | (hss_pkt_txvld_i[1] & hss_pkt_txrdy_i[1])
+                      | (hss_pkt_txvld_i[2] & hss_pkt_txrdy_i[2])
+                      | (hss_pkt_txvld_i[3] & hss_pkt_txrdy_i[3])
+                      | (hss_pkt_txvld_i[4] & hss_pkt_txrdy_i[4])
+                      | (hss_pkt_txvld_i[5] & hss_pkt_txrdy_i[5])
+                      | (hss_pkt_txvld_i[6] & hss_pkt_txrdy_i[6])
+                      | (hss_pkt_txvld_i[7] & hss_pkt_txrdy_i[7])
+                      ;
+
+
+// Generate the link activity signal for the link.
+assign uart_activity_i = (uart_pkt_rxvld_i & uart_pkt_rxrdy_i)
+                       | (uart_pkt_txvld_i & uart_pkt_txrdy_i)
+                       ;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -396,54 +429,54 @@ periph_hss_multiplexer_i( .CLK_IN                         (usrclk2_i)
                         , .TXDATA_OUT                     (txdata_i)
                         , .TXCHARISK_OUT                  (txcharisk_i)
                           // Packet interface
-                        , .TX_PKT0_DATA_IN                (pkt_txdata_i[0])
-                        , .TX_PKT0_VLD_IN                 (pkt_txvld_i[0])
-                        , .TX_PKT0_RDY_OUT                (pkt_txrdy_i[0])
-                        , .TX_PKT1_DATA_IN                (pkt_txdata_i[1])
-                        , .TX_PKT1_VLD_IN                 (pkt_txvld_i[1])
-                        , .TX_PKT1_RDY_OUT                (pkt_txrdy_i[1])
-                        , .TX_PKT2_DATA_IN                (pkt_txdata_i[2])
-                        , .TX_PKT2_VLD_IN                 (pkt_txvld_i[2])
-                        , .TX_PKT2_RDY_OUT                (pkt_txrdy_i[2])
-                        , .TX_PKT3_DATA_IN                (pkt_txdata_i[3])
-                        , .TX_PKT3_VLD_IN                 (pkt_txvld_i[3])
-                        , .TX_PKT3_RDY_OUT                (pkt_txrdy_i[3])
-                        , .TX_PKT4_DATA_IN                (pkt_txdata_i[4])
-                        , .TX_PKT4_VLD_IN                 (pkt_txvld_i[4])
-                        , .TX_PKT4_RDY_OUT                (pkt_txrdy_i[4])
-                        , .TX_PKT5_DATA_IN                (pkt_txdata_i[5])
-                        , .TX_PKT5_VLD_IN                 (pkt_txvld_i[5])
-                        , .TX_PKT5_RDY_OUT                (pkt_txrdy_i[5])
-                        , .TX_PKT6_DATA_IN                (pkt_txdata_i[6])
-                        , .TX_PKT6_VLD_IN                 (pkt_txvld_i[6])
-                        , .TX_PKT6_RDY_OUT                (pkt_txrdy_i[6])
-                        , .TX_PKT7_DATA_IN                (pkt_txdata_i[7])
-                        , .TX_PKT7_VLD_IN                 (pkt_txvld_i[7])
-                        , .TX_PKT7_RDY_OUT                (pkt_txrdy_i[7])
-                        , .RX_PKT0_DATA_OUT               (pkt_rxdata_i[0])
-                        , .RX_PKT0_VLD_OUT                (pkt_rxvld_i[0])
-                        , .RX_PKT0_RDY_IN                 (pkt_rxrdy_i[0])
-                        , .RX_PKT1_DATA_OUT               (pkt_rxdata_i[1])
-                        , .RX_PKT1_VLD_OUT                (pkt_rxvld_i[1])
-                        , .RX_PKT1_RDY_IN                 (pkt_rxrdy_i[1])
-                        , .RX_PKT2_DATA_OUT               (pkt_rxdata_i[2])
-                        , .RX_PKT2_VLD_OUT                (pkt_rxvld_i[2])
-                        , .RX_PKT2_RDY_IN                 (pkt_rxrdy_i[2])
-                        , .RX_PKT3_DATA_OUT               (pkt_rxdata_i[3])
-                        , .RX_PKT3_VLD_OUT                (pkt_rxvld_i[3])
-                        , .RX_PKT3_RDY_IN                 (pkt_rxrdy_i[3])
-                        , .RX_PKT4_DATA_OUT               (pkt_rxdata_i[4])
-                        , .RX_PKT4_VLD_OUT                (pkt_rxvld_i[4])
-                        , .RX_PKT4_RDY_IN                 (pkt_rxrdy_i[4])
-                        , .RX_PKT5_DATA_OUT               (pkt_rxdata_i[5])
-                        , .RX_PKT5_VLD_OUT                (pkt_rxvld_i[5])
-                        , .RX_PKT5_RDY_IN                 (pkt_rxrdy_i[5])
-                        , .RX_PKT6_DATA_OUT               (pkt_rxdata_i[6])
-                        , .RX_PKT6_VLD_OUT                (pkt_rxvld_i[6])
-                        , .RX_PKT6_RDY_IN                 (pkt_rxrdy_i[6])
-                        , .RX_PKT7_DATA_OUT               (pkt_rxdata_i[7])
-                        , .RX_PKT7_VLD_OUT                (pkt_rxvld_i[7])
-                        , .RX_PKT7_RDY_IN                 (pkt_rxrdy_i[7])
+                        , .TX_PKT0_DATA_IN                (hss_pkt_txdata_i[0])
+                        , .TX_PKT0_VLD_IN                 (hss_pkt_txvld_i[0])
+                        , .TX_PKT0_RDY_OUT                (hss_pkt_txrdy_i[0])
+                        , .TX_PKT1_DATA_IN                (hss_pkt_txdata_i[1])
+                        , .TX_PKT1_VLD_IN                 (hss_pkt_txvld_i[1])
+                        , .TX_PKT1_RDY_OUT                (hss_pkt_txrdy_i[1])
+                        , .TX_PKT2_DATA_IN                (hss_pkt_txdata_i[2])
+                        , .TX_PKT2_VLD_IN                 (hss_pkt_txvld_i[2])
+                        , .TX_PKT2_RDY_OUT                (hss_pkt_txrdy_i[2])
+                        , .TX_PKT3_DATA_IN                (hss_pkt_txdata_i[3])
+                        , .TX_PKT3_VLD_IN                 (hss_pkt_txvld_i[3])
+                        , .TX_PKT3_RDY_OUT                (hss_pkt_txrdy_i[3])
+                        , .TX_PKT4_DATA_IN                (hss_pkt_txdata_i[4])
+                        , .TX_PKT4_VLD_IN                 (hss_pkt_txvld_i[4])
+                        , .TX_PKT4_RDY_OUT                (hss_pkt_txrdy_i[4])
+                        , .TX_PKT5_DATA_IN                (hss_pkt_txdata_i[5])
+                        , .TX_PKT5_VLD_IN                 (hss_pkt_txvld_i[5])
+                        , .TX_PKT5_RDY_OUT                (hss_pkt_txrdy_i[5])
+                        , .TX_PKT6_DATA_IN                (hss_pkt_txdata_i[6])
+                        , .TX_PKT6_VLD_IN                 (hss_pkt_txvld_i[6])
+                        , .TX_PKT6_RDY_OUT                (hss_pkt_txrdy_i[6])
+                        , .TX_PKT7_DATA_IN                (hss_pkt_txdata_i[7])
+                        , .TX_PKT7_VLD_IN                 (hss_pkt_txvld_i[7])
+                        , .TX_PKT7_RDY_OUT                (hss_pkt_txrdy_i[7])
+                        , .RX_PKT0_DATA_OUT               (hss_pkt_rxdata_i[0])
+                        , .RX_PKT0_VLD_OUT                (hss_pkt_rxvld_i[0])
+                        , .RX_PKT0_RDY_IN                 (hss_pkt_rxrdy_i[0])
+                        , .RX_PKT1_DATA_OUT               (hss_pkt_rxdata_i[1])
+                        , .RX_PKT1_VLD_OUT                (hss_pkt_rxvld_i[1])
+                        , .RX_PKT1_RDY_IN                 (hss_pkt_rxrdy_i[1])
+                        , .RX_PKT2_DATA_OUT               (hss_pkt_rxdata_i[2])
+                        , .RX_PKT2_VLD_OUT                (hss_pkt_rxvld_i[2])
+                        , .RX_PKT2_RDY_IN                 (hss_pkt_rxrdy_i[2])
+                        , .RX_PKT3_DATA_OUT               (hss_pkt_rxdata_i[3])
+                        , .RX_PKT3_VLD_OUT                (hss_pkt_rxvld_i[3])
+                        , .RX_PKT3_RDY_IN                 (hss_pkt_rxrdy_i[3])
+                        , .RX_PKT4_DATA_OUT               (hss_pkt_rxdata_i[4])
+                        , .RX_PKT4_VLD_OUT                (hss_pkt_rxvld_i[4])
+                        , .RX_PKT4_RDY_IN                 (hss_pkt_rxrdy_i[4])
+                        , .RX_PKT5_DATA_OUT               (hss_pkt_rxdata_i[5])
+                        , .RX_PKT5_VLD_OUT                (hss_pkt_rxvld_i[5])
+                        , .RX_PKT5_RDY_IN                 (hss_pkt_rxrdy_i[5])
+                        , .RX_PKT6_DATA_OUT               (hss_pkt_rxdata_i[6])
+                        , .RX_PKT6_VLD_OUT                (hss_pkt_rxvld_i[6])
+                        , .RX_PKT6_RDY_IN                 (hss_pkt_rxrdy_i[6])
+                        , .RX_PKT7_DATA_OUT               (hss_pkt_rxdata_i[7])
+                        , .RX_PKT7_VLD_OUT                (hss_pkt_rxvld_i[7])
+                        , .RX_PKT7_RDY_IN                 (hss_pkt_rxrdy_i[7])
                           // High-level protocol performance counters
                         , .REG_ADDR_IN                    (reg_addr_i)
                         , .REG_DATA_OUT                   (reg_data_i)
@@ -451,30 +484,74 @@ periph_hss_multiplexer_i( .CLK_IN                         (usrclk2_i)
 
 
 ////////////////////////////////////////////////////////////////////////////////
+// FTDI UART (PC) Interface
+////////////////////////////////////////////////////////////////////////////////
+
+// Buffering for FTDI signals
+OBUF ftdi_cts_n_buf_i (.I (!uart_cts_i), .O(FTDI_CTS_N_OUT));
+OBUF ftdi_dcd_n_buf_i (.I (1'b1),        .O(FTDI_DCD_N_OUT)); // Unused
+OBUF ftdi_dsr_n_buf_i (.I (1'b1),        .O(FTDI_DSR_N_OUT)); // Unused
+OBUF ftdi_ri_n_buf_i  (.I (1'b1),        .O(FTDI_RI_N_OUT));  // Unused
+IBUF ftdi_rts_n_buf_i (.O (),            .I(FTDI_RTS_N_IN));  // Unused
+IBUF ftdi_dtr_n_buf_i (.O (),            .I(FTDI_DTR_N_IN));  // Unused
+IBUF ftdi_txd_buf_i   (.O (uart_rx_i),   .I(FTDI_TXD_IN));
+OBUF ftdi_rxd_buf_i   (.I (uart_tx_i),   .O(FTDI_RXD_OUT));
+
+
+// Synchroniser for the serial data signal
+spio_uart_sync         #( .NUM_BITS      (1)
+                        , .NUM_STAGES    (2)
+                        , .INITIAL_VALUE (1'b1)
+                        )
+spio_uart_sync_tx_data_i( .CLK_IN   (usrclk2_i)
+                        , .RESET_IN (reset_i)
+                        , .DATA_IN  (uart_rx_i)
+                        , .DATA_OUT (uart_rx_synced_i)
+                        );
+
+
+// The UART module
+spio_uart #( .IS_MASTER           (1'b0) // Slave mode
+           , .BAUD_PERIOD         (37_500_000/115_200) // 115200 baud
+           , .BAUD_NUM_BITS       (8)
+           , .RX_BUFFER_ADDR_BITS (UART_RX_BUFFER_ADDR_BITS)
+           , .RX_HIGH_WATER_MARK  (UART_RX_HIGH_WATER_MARK)
+           )
+spio_uart_i( .CLK_IN                (usrclk2_i)
+           , .RESET_IN              (reset_i)
+             // UART signals
+           , .RX_IN                 (uart_rx_synced_i)
+           , .CTS_IN                (1'b1) // FTDI doesn't provide these bidirectionally
+           , .TX_OUT                (uart_tx_i)
+           , .CTS_OUT               (uart_cts_i)
+             // Packet sending/receving
+           , .RX_DATA_OUT           (uart_pkt_rxdata_i)
+           , .RX_VLD_OUT            (uart_pkt_rxvld_i)
+           , .RX_RDY_IN             (uart_pkt_rxrdy_i)
+           , .RX_PACKET_DROPPED_OUT () // Unused
+           , .TX_DATA_IN            (uart_pkt_txdata_i)
+           , .TX_VLD_IN             (uart_pkt_txvld_i)
+           , .TX_RDY_OUT            (uart_pkt_txrdy_i)
+           , .TX_PACKET_DROPPED_OUT () // Unused
+             // Synchronisation status/control
+           , .SYNC_TRIGGER_IN       (1'b0) // Slaves don't need triggering
+           , .SYNCHRONISING_OUT     (uart_synchronising_i)
+           );
+
+////////////////////////////////////////////////////////////////////////////////
 // Transmit packets to SpiNNaker
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO
-generate for (i = 0; i < `NUM_CHANS; i = i + 1)
-	begin : xxx_spinnaker_rx_links
-		assign pkt_txdata_i[i] = { 32'hF0A0F030 // Payload
-		                         , 32'h0000AAAA // Routing key
-		                         , 2'b00  // MC packet
-		                         , 2'b00  // Non-emergency-routed state
-		                         , 2'b00  // Timestamp
-		                         , 1'b1   // With-Payload
-		                         , 1'b0   // Parity bit (Note: whole packet must have odd parity)
-		                         };
-		
-		// Send packet while button is pressed
-		always @ (posedge usrclk2_i, posedge reset_i)
-			if (reset_i)
-				pkt_txvld_i[i] <= 1'b0;
-			else
-				if (button_i)
-					pkt_txvld_i[i] <= 1'b1;
-				else if (pkt_txrdy_i[i] == 1)
-					pkt_txvld_i[i] <= 1'b0;
+// Connect first channel to the UART
+assign hss_pkt_txdata_i[0] = uart_pkt_rxdata_i;
+assign hss_pkt_txvld_i[0]  = uart_pkt_rxvld_i;
+assign uart_pkt_rxrdy_i    = hss_pkt_txrdy_i[0];
+
+// Tie-off the other channels
+generate for (i = 1; i < `NUM_CHANS; i = i + 1)
+	begin : spinnaker_inactive_tx_links
+		assign hss_pkt_txdata_i[i] = {`PKT_BITS{1'bX}};
+		assign hss_pkt_txvld_i[i]  = 1'b0;
 	end
 endgenerate
 
@@ -483,24 +560,17 @@ endgenerate
 // Handle incoming packets from SpiNNaker
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO
-// XXX: Temporarily just accept (and mostly ignore) all incoming packets
-generate for (i = 0; i < `NUM_CHANS; i = i + 1)
-	begin : xxx_spinnaker_tx_links
-		assign pkt_rxrdy_i[i] = 1'b1;
+// Connect first channel to UART
+assign uart_pkt_txdata_i  = hss_pkt_rxdata_i[0];
+assign uart_pkt_txvld_i   = hss_pkt_rxvld_i[0];
+assign hss_pkt_rxrdy_i[0] = uart_pkt_rxrdy_i;
+
+// Accept (and ignore) other incoming packets
+generate for (i = 1; i < `NUM_CHANS; i = i + 1)
+	begin : spinnaker_inactive_rx_links
+		assign hss_pkt_rxrdy_i[i] = 1'b1;
 	end
 endgenerate
-
-
-// TODO:
-// XXX: Tempoarily set the last LED based on the parity of the last packet which
-// arrived on the zeroth channel.
-always @ (posedge usrclk2_i, posedge reset_i)
-	if (reset_i)
-		xxx_last_packet_parity_i <= 1'b0;
-	else
-		if (pkt_rxvld_i[0] && pkt_rxrdy_i[0])
-			xxx_last_packet_parity_i <= pkt_rxdata_i[0][0];
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -532,42 +602,42 @@ generate if (DEBUG_CHIPSCOPE_VIO)
 		assign chipscope_sync_in_i[0+:`REGD_BITS] = reg_data_i;
 		
 		// HSS mux port RX ready/vld
-		assign chipscope_sync_in_i[`REGD_BITS+0 +:8] = { pkt_rxrdy_i[7]
-		                                               , pkt_rxrdy_i[6]
-		                                               , pkt_rxrdy_i[5]
-		                                               , pkt_rxrdy_i[4]
-		                                               , pkt_rxrdy_i[3]
-		                                               , pkt_rxrdy_i[2]
-		                                               , pkt_rxrdy_i[1]
-		                                               , pkt_rxrdy_i[0]
+		assign chipscope_sync_in_i[`REGD_BITS+0 +:8] = { hss_pkt_rxrdy_i[7]
+		                                               , hss_pkt_rxrdy_i[6]
+		                                               , hss_pkt_rxrdy_i[5]
+		                                               , hss_pkt_rxrdy_i[4]
+		                                               , hss_pkt_rxrdy_i[3]
+		                                               , hss_pkt_rxrdy_i[2]
+		                                               , hss_pkt_rxrdy_i[1]
+		                                               , hss_pkt_rxrdy_i[0]
 		                                               };
-		assign chipscope_sync_in_i[`REGD_BITS+8 +:8] = { pkt_rxvld_i[7]
-		                                               , pkt_rxvld_i[6]
-		                                               , pkt_rxvld_i[5]
-		                                               , pkt_rxvld_i[4]
-		                                               , pkt_rxvld_i[3]
-		                                               , pkt_rxvld_i[2]
-		                                               , pkt_rxvld_i[1]
-		                                               , pkt_rxvld_i[0]
+		assign chipscope_sync_in_i[`REGD_BITS+8 +:8] = { hss_pkt_rxvld_i[7]
+		                                               , hss_pkt_rxvld_i[6]
+		                                               , hss_pkt_rxvld_i[5]
+		                                               , hss_pkt_rxvld_i[4]
+		                                               , hss_pkt_rxvld_i[3]
+		                                               , hss_pkt_rxvld_i[2]
+		                                               , hss_pkt_rxvld_i[1]
+		                                               , hss_pkt_rxvld_i[0]
 		                                               };
 		// HSS mux port TX ready/vld
-		assign chipscope_sync_in_i[`REGD_BITS+16+:8] = { pkt_txrdy_i[7]
-		                                               , pkt_txrdy_i[6]
-		                                               , pkt_txrdy_i[5]
-		                                               , pkt_txrdy_i[4]
-		                                               , pkt_txrdy_i[3]
-		                                               , pkt_txrdy_i[2]
-		                                               , pkt_txrdy_i[1]
-		                                               , pkt_txrdy_i[0]
+		assign chipscope_sync_in_i[`REGD_BITS+16+:8] = { hss_pkt_txrdy_i[7]
+		                                               , hss_pkt_txrdy_i[6]
+		                                               , hss_pkt_txrdy_i[5]
+		                                               , hss_pkt_txrdy_i[4]
+		                                               , hss_pkt_txrdy_i[3]
+		                                               , hss_pkt_txrdy_i[2]
+		                                               , hss_pkt_txrdy_i[1]
+		                                               , hss_pkt_txrdy_i[0]
 		                                               };
-		assign chipscope_sync_in_i[`REGD_BITS+24+:8] = { pkt_txvld_i[7]
-		                                               , pkt_txvld_i[6]
-		                                               , pkt_txvld_i[5]
-		                                               , pkt_txvld_i[4]
-		                                               , pkt_txvld_i[3]
-		                                               , pkt_txvld_i[2]
-		                                               , pkt_txvld_i[1]
-		                                               , pkt_txvld_i[0]
+		assign chipscope_sync_in_i[`REGD_BITS+24+:8] = { hss_pkt_txvld_i[7]
+		                                               , hss_pkt_txvld_i[6]
+		                                               , hss_pkt_txvld_i[5]
+		                                               , hss_pkt_txvld_i[4]
+		                                               , hss_pkt_txvld_i[3]
+		                                               , hss_pkt_txvld_i[2]
+		                                               , hss_pkt_txvld_i[1]
+		                                               , hss_pkt_txvld_i[0]
 		                                               };
 		
 		
