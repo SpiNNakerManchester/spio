@@ -55,9 +55,14 @@ module raggedstone_ftdi_top #( // Enable simulation mode for GTP tile
                              , output wire HSS_TXP_OUT
                                
                                // FTDI-connected UART pins
-                             , input  wire UART_RX_IN
-                             , output wire UART_TX_OUT
-                             , output wire UART_CTS_OUT
+                             , output wire FTDI_CTS_N_OUT
+                             , output wire FTDI_DCD_N_OUT
+                             , output wire FTDI_DSR_N_OUT
+                             , output wire FTDI_RI_N_OUT
+                             , input  wire FTDI_RTS_N_IN
+                             , input  wire FTDI_DTR_N_IN
+                             , input  wire FTDI_TXD_IN
+                             , output wire FTDI_RXD_OUT
                              );
 
 genvar i;
@@ -482,10 +487,16 @@ periph_hss_multiplexer_i( .CLK_IN                         (usrclk2_i)
 // FTDI UART (PC) Interface
 ////////////////////////////////////////////////////////////////////////////////
 
-// Buffering for UART signals
-IBUF uart_rx_buf_i  (.O(uart_rx_i),  .I(UART_RX_IN));
-OBUF uart_tx_buf_i  (.I(uart_tx_i),  .O(UART_TX_OUT));
-OBUF uart_cts_buf_i (.I(uart_cts_i), .O(UART_CTS_OUT));
+// Buffering for FTDI signals
+OBUF ftdi_cts_n_buf_i (.I (!uart_cts_i), .O(FTDI_CTS_N_OUT));
+OBUF ftdi_dcd_n_buf_i (.I (1'b1),        .O(FTDI_DCD_N_OUT)); // Unused
+OBUF ftdi_dsr_n_buf_i (.I (1'b1),        .O(FTDI_DSR_N_OUT)); // Unused
+OBUF ftdi_ri_n_buf_i  (.I (1'b1),        .O(FTDI_RI_N_OUT));  // Unused
+IBUF ftdi_rts_n_buf_i (.O (),            .I(FTDI_RTS_N_IN));  // Unused
+IBUF ftdi_dtr_n_buf_i (.O (),            .I(FTDI_DTR_N_IN));  // Unused
+IBUF ftdi_txd_buf_i   (.O (uart_rx_i),   .I(FTDI_TXD_IN));
+OBUF ftdi_rxd_buf_i   (.I (uart_tx_i),   .O(FTDI_RXD_OUT));
+
 
 // Synchroniser for the serial data signal
 spio_uart_sync         #( .NUM_BITS      (1)
@@ -497,6 +508,7 @@ spio_uart_sync_tx_data_i( .CLK_IN   (usrclk2_i)
                         , .DATA_IN  (uart_rx_i)
                         , .DATA_OUT (uart_rx_synced_i)
                         );
+
 
 // The UART module
 spio_uart #( .IS_MASTER           (1'b0) // Slave mode
