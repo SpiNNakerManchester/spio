@@ -513,7 +513,7 @@ spio_uart_sync_tx_data_i( .CLK_IN   (usrclk2_i)
 // The UART module
 spio_uart #( .IS_MASTER           (1'b0) // Slave mode
            , .BAUD_PERIOD         (37_500_000/115_200) // 115200 baud
-           , .BAUD_NUM_BITS       (8)
+           , .BAUD_NUM_BITS       (9)
            , .RX_BUFFER_ADDR_BITS (UART_RX_BUFFER_ADDR_BITS)
            , .RX_HIGH_WATER_MARK  (UART_RX_HIGH_WATER_MARK)
            )

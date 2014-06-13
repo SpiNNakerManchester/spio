@@ -20,6 +20,7 @@ Dependencies
 This design makes use of the following modules from the spI/O module collection:
 * `hss_multiplexer/*`
 * `status_led_generator/*`
+* `uart/*`
 
 
 Target Platform
