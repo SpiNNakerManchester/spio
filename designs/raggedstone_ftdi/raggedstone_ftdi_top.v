@@ -120,6 +120,9 @@ wire gtpresetdone_i;
 wire usrclk_i;
 wire usrclk2_i;
 
+// Clock for the UART block
+wire uart_clk_i;
+
 // LED flasher clock
 wire led_clk_i;
 
@@ -296,19 +299,23 @@ gtpclkout_0_pll_bufio2_i ( .I            (unbuffered_gtpclkout_i[0])
 // Multiply/divide the transceiver's external clock to get the two user clocks
 // for each link type
 wire clk_150_i;
+wire clk_75_i;
 wire clk_37_5_i;
 clock_scaler
 clock_scaler_i ( .CLK_IN1  (gtpclkout_i) // 150  Mhz (Input)
                , .CLK_OUT1 (clk_150_i)   // 150  MHz (Output)
-               , .CLK_OUT2 (clk_37_5_i)  // 37.5 MHz (Output)
+               , .CLK_OUT2 (clk_75_i)  // 75   MHz (Output)
+               , .CLK_OUT3 (clk_37_5_i)  // 37.5 MHz (Output)
                , .RESET    (clk_reset_i)
                , .LOCKED   (usrclks_stable_i)
                );
 
-assign usrclk_i  = clk_150_i;
-assign usrclk2_i = clk_37_5_i;
+assign usrclk_i   = clk_150_i;
+assign usrclk2_i  = clk_37_5_i;
 
-assign led_clk_i = clk_37_5_i;
+assign uart_clk_i = clk_75_i;
+
+assign led_clk_i  = clk_37_5_i;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -503,21 +510,29 @@ spio_uart_sync         #( .NUM_BITS      (1)
                         , .NUM_STAGES    (2)
                         , .INITIAL_VALUE (1'b1)
                         )
-spio_uart_sync_tx_data_i( .CLK_IN   (usrclk2_i)
+spio_uart_sync_tx_data_i( .CLK_IN   (uart_clk_i)
                         , .RESET_IN (reset_i)
                         , .DATA_IN  (uart_rx_i)
                         , .DATA_OUT (uart_rx_synced_i)
                         );
 
 
-// The UART module
+// Connections to the clock rate translation blocks for the UART module
+wire [`PKT_BITS-1:0] fast_uart_pkt_txdata_i;
+wire                 fast_uart_pkt_txvld_i;
+wire                 fast_uart_pkt_txrdy_i;
+wire [`PKT_BITS-1:0] fast_uart_pkt_rxdata_i;
+wire                 fast_uart_pkt_rxvld_i;
+wire                 fast_uart_pkt_rxrdy_i;
+
+// The UART module (runs at double clock rate to enable accurate subsampling)
 spio_uart #( .IS_MASTER           (1'b0) // Slave mode
-           , .BAUD_PERIOD         (37_500_000/115_200) // 115200 baud
-           , .BAUD_NUM_BITS       (9)
+           , .BAUD_PERIOD         (75_000_000/3_000_000) // 3.0 Mbaud (Max for FTDI chip)
+           , .BAUD_NUM_BITS       (5)
            , .RX_BUFFER_ADDR_BITS (UART_RX_BUFFER_ADDR_BITS)
            , .RX_HIGH_WATER_MARK  (UART_RX_HIGH_WATER_MARK)
            )
-spio_uart_i( .CLK_IN                (usrclk2_i)
+spio_uart_i( .CLK_IN                (uart_clk_i)
            , .RESET_IN              (reset_i)
              // UART signals
            , .RX_IN                 (uart_rx_synced_i)
@@ -525,18 +540,47 @@ spio_uart_i( .CLK_IN                (usrclk2_i)
            , .TX_OUT                (uart_tx_i)
            , .CTS_OUT               (uart_cts_i)
              // Packet sending/receving
-           , .RX_DATA_OUT           (uart_pkt_rxdata_i)
-           , .RX_VLD_OUT            (uart_pkt_rxvld_i)
-           , .RX_RDY_IN             (uart_pkt_rxrdy_i)
+           , .RX_DATA_OUT           (fast_uart_pkt_rxdata_i)
+           , .RX_VLD_OUT            (fast_uart_pkt_rxvld_i)
+           , .RX_RDY_IN             (fast_uart_pkt_rxrdy_i)
            , .RX_PACKET_DROPPED_OUT () // Unused
-           , .TX_DATA_IN            (uart_pkt_txdata_i)
-           , .TX_VLD_IN             (uart_pkt_txvld_i)
-           , .TX_RDY_OUT            (uart_pkt_txrdy_i)
+           , .TX_DATA_IN            (fast_uart_pkt_txdata_i)
+           , .TX_VLD_IN             (fast_uart_pkt_txvld_i)
+           , .TX_RDY_OUT            (fast_uart_pkt_txrdy_i)
            , .TX_PACKET_DROPPED_OUT () // Unused
              // Synchronisation status/control
            , .SYNC_TRIGGER_IN       (1'b0) // Slaves don't need triggering
            , .SYNCHRONISING_OUT     (uart_synchronising_i)
            );
+
+// Clock-speed translation between UART block and HSS block
+spio_link_speed_halver #( .PKT_BITS(`PKT_BITS))
+spio_link_speed_halver_i( .RESET_IN(reset_i)
+                        , .SCLK_IN(usrclk2_i)
+                        , .FCLK_IN(uart_clk_i)
+                          // Incoming signals (on FCLK_IN)
+                        , .DATA_IN(fast_uart_pkt_rxdata_i)
+                        , .VLD_IN( fast_uart_pkt_rxvld_i)
+                        , .RDY_OUT(fast_uart_pkt_rxrdy_i)
+                          // Outgoing signals (on SCLK_IN)
+                        , .DATA_OUT(uart_pkt_rxdata_i)
+                        , .VLD_OUT( uart_pkt_rxvld_i)
+                        , .RDY_IN(  uart_pkt_rxrdy_i)
+                        );
+spio_link_speed_doubler #( .PKT_BITS(`PKT_BITS))
+spio_link_speed_doubler_i( .RESET_IN(reset_i)
+                         , .SCLK_IN(usrclk2_i)
+                         , .FCLK_IN(uart_clk_i)
+                           // Incoming signals (on SCLK_IN)
+                         , .DATA_IN(uart_pkt_txdata_i)
+                         , .VLD_IN( uart_pkt_txvld_i)
+                         , .RDY_OUT(uart_pkt_txrdy_i)
+                           // Outgoing signals (on FCLK_IN)
+                         , .DATA_OUT(fast_uart_pkt_txdata_i)
+                         , .VLD_OUT( fast_uart_pkt_txvld_i)
+                         , .RDY_IN(  fast_uart_pkt_txrdy_i)
+                         );
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // Transmit packets to SpiNNaker
