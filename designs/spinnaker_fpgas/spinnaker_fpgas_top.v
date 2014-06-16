@@ -982,6 +982,9 @@ generate for (i = 0; i < `NUM_CHANS; i = i + 1)
 		wire [1:0]               switch_out_vld_i;
 		wire [1:0]               switch_out_rdy_i;
 		
+		// Cause the switch to drop the current packet.
+		wire drop_i;
+		
 		// Route packets arriving from the first bank of spinnaker chips.
 		spio_switch #( .PKT_BITS(`PKT_BITS)
 		             , .NUM_PORTS(2)
@@ -1005,12 +1008,21 @@ generate for (i = 0; i < `NUM_CHANS; i = i + 1)
 		             , .BLOCKED_OUTPUTS_OUT  (switch_blocked_outputs_i[i])
 		             , .SELECTED_OUTPUTS_OUT (switch_selected_outputs_i[i])
 		             // Force packet drop (disabled, for now)
-		             , .DROP_IN              (1'b0)
+		             , .DROP_IN              (drop_i)
 		             // Dropped packet port
 		             , .DROPPED_DATA_OUT     (switch_dropped_data_i[i])
 		             , .DROPPED_OUTPUTS_OUT  (switch_dropped_outputs_i[i])
 		             , .DROPPED_VLD_OUT      (switch_dropped_vld_i[i])
 		             );
+		
+		
+		// XXX: Tempoary solution to preventing blocked streams due to disconnected
+		// devices: drop packets whenever blocked while also being known to be
+		// disconnected.
+		assign drop_i = |(switch_blocked_outputs_i[i] & { !periph_handshake_complete_i
+		                                                , !b2b_handshake_complete_i[0]
+		                                                });
+		
 		
 		// Connect switch's first output port to b2b link
 		assign b2b_pkt_txdata_i[0][i] = switch_out_data_i[0*`PKT_BITS+:`PKT_BITS];
