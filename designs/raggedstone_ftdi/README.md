@@ -2,10 +2,14 @@ Raggedstone 2 Low-Speed FTDI-Based USB SpiNNaker Interface
 ==========================================================
 
 A minimal design for the Raggedstone 2 development board which provides a
-proof-of-concept SpiNNaker-to-host USB interface via the onboard FTDI based
-USB "serial" port.
+minimal/proof-of-concept SpiNNaker-to-host USB interface via the onboard FTDI
+based USB "serial" port.
 
-The top button (SW2) resets the design.
+The top button (SW2) resets the design. The board should be connected via a
+S-ATA cable from the left-most socket (SATA1) to a socket configured as a
+Peripheral link on the SpiNNaker board. The design communicates with a PC using
+the protocol described in `uart/README.md`. Only the zeroth channel of the
+high-speed serial link is connected to the UART. The others simply drop packets.
 
 
 Authors
