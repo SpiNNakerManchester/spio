@@ -45,8 +45,8 @@ module spinnaker_fpgas_top #( // Enable simulation mode for GTP tile
                             , parameter   RING_NUM_HANDSHAKES_BITS = 7
                               // Mask and key to select MC packets to forward to
                               // a connected peripheral.
-                            , parameter PERIPH_MC_MASK = 32'hFFFF0000
-                            , parameter PERIPH_MC_KEY  = 32'hFFFE0000
+                            , parameter PERIPH_MC_MASK = 32'h00000000
+                            , parameter PERIPH_MC_KEY  = 32'h00000000
                             )
                             ( // Reset signal (only used during simulation)
                               input wire RESET_IN
