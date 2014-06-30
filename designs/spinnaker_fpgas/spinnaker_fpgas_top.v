@@ -27,6 +27,12 @@ module spinnaker_fpgas_top #( // Enable simulation mode for GTP tile
                             , parameter DEBUG_CHIPSCOPE_VIO = 1
                               // Which FPGA should this module be compiled for
                             , parameter FPGA_ID = 0
+                              // Should North and South connections be connected
+                              // to 0: J6 and J8 on the back respectively or 1:
+                              // J9 and J11 on the front respectively.
+                              // (peripheral connections will be placed on the
+                              // opposing side).
+                            , parameter NORTH_SOUTH_ON_FRONT = 0
                               // The interval at which clock correction sequences should
                               // be inserted (in cycles).
                             , parameter    B2B_CLOCK_CORRECTION_INTERVAL = 1000
@@ -499,183 +505,557 @@ assign led_clk_i = clk_75_i;
 
 // The transceiver IP blocks (split into two to allow complete, independent
 // control of the link speeds while still using the wizard).
+//
+// Different versions of these blocks are provided to support the different
+// speeds required by board-to-board connections and peripheral connections. The
+// versions required are instantiated as gtp_x0_y0_i and gtp_x1_y0_i and
+// connected up appropriately.
+//
+// Design         Tile   Block 0   Block 1
+// -------------- ------ --------- ---------
+// gtp_x0_y0_bb   0,0    b2b       b2b
+// gtp_x0_y0_bp   0,0    b2b       periph
+// gtp_x0_y0_pb   0,0    periph    b2b
+// gtp_x1_y0_pr   1,0    periph    ring
+// gtp_x1_y0_br   1,0    b2b       ring
 
-// X0Y0: The two board-to-board links
-gtp_x0_y0  #( .WRAPPER_SIM_GTPRESET_SPEEDUP (SIMULATION_GTPRESET_SPEEDUP)
-            , .WRAPPER_SIMULATION           (SIMULATION)
-            )
-gtp_x0_y0_i ( // TILE0 (X0_Y0)
-                // Loopback and Powerdown Ports
-                .TILE0_LOOPBACK0_IN         (B2B_GTP_LOOPBACK)
-            ,   .TILE0_LOOPBACK1_IN         (B2B_GTP_LOOPBACK)
-                // PLL Ports
-            ,   .TILE0_CLK00_IN             (gtpclkin_i)
-            ,   .TILE0_CLK01_IN             (1'b0) // Uses the first block's clock, just tie-off
-            ,   .TILE0_GTPRESET0_IN         (gtp_reset_i)
-            ,   .TILE0_GTPRESET1_IN         (gtp_reset_i)
-            ,   .TILE0_PLLLKDET0_OUT        (plllkdet_i)
-            ,   .TILE0_RESETDONE0_OUT       (b2b_gtpresetdone_i[0])
-            ,   .TILE0_RESETDONE1_OUT       (b2b_gtpresetdone_i[1])
-                // Receive Ports - 8b10b Decoder
-            ,   .TILE0_RXCHARISCOMMA0_OUT   (b2b_rxchariscomma_i[0])
-            ,   .TILE0_RXCHARISCOMMA1_OUT   (b2b_rxchariscomma_i[1])
-            ,   .TILE0_RXCHARISK0_OUT       (b2b_rxcharisk_i[0])
-            ,   .TILE0_RXCHARISK1_OUT       (b2b_rxcharisk_i[1])
-            ,   .TILE0_RXDISPERR0_OUT       () // Unused
-            ,   .TILE0_RXDISPERR1_OUT       () // Unused
-            ,   .TILE0_RXNOTINTABLE0_OUT    () // Unused
-            ,   .TILE0_RXNOTINTABLE1_OUT    () // Unused
-                // Receive Ports - Clock Correction
-            ,   .TILE0_RXCLKCORCNT0_OUT     () // Unused
-            ,   .TILE0_RXCLKCORCNT1_OUT     () // Unused
-                // Receive Ports - Comma Detection and Alignment
-            ,   .TILE0_RXENMCOMMAALIGN0_IN  (1'b1) // Always realign
-            ,   .TILE0_RXENMCOMMAALIGN1_IN  (1'b1) // Always realign
-            ,   .TILE0_RXENPCOMMAALIGN0_IN  (1'b1) // Always realign
-            ,   .TILE0_RXENPCOMMAALIGN1_IN  (1'b1) // Always realign
-                // Receive Ports - RX Data Path interface
-            ,   .TILE0_RXDATA0_OUT          (b2b_rxdata_i[0])
-            ,   .TILE0_RXDATA1_OUT          (b2b_rxdata_i[1])
-            ,   .TILE0_RXUSRCLK0_IN         (b2b_usrclk_i)
-            ,   .TILE0_RXUSRCLK1_IN         (b2b_usrclk_i)
-            ,   .TILE0_RXUSRCLK20_IN        (b2b_usrclk2_i)
-            ,   .TILE0_RXUSRCLK21_IN        (b2b_usrclk2_i)
-                // Receive Ports - RX Driver,OOB signalling,Coupling and Eq.,CDR
-            ,   .TILE0_RXN0_IN              (HSS_RXN_IN[0])
-            ,   .TILE0_RXN1_IN              (HSS_RXN_IN[1])
-            ,   .TILE0_RXP0_IN              (HSS_RXP_IN[0])
-            ,   .TILE0_RXP1_IN              (HSS_RXP_IN[1])
-                // Receive Ports - RX Loss-of-sync State Machine
-            ,   .TILE0_RXLOSSOFSYNC0_OUT    (b2b_rxlossofsync_i[0])
-            ,   .TILE0_RXLOSSOFSYNC1_OUT    (b2b_rxlossofsync_i[1])
-                // TX/RX Datapath Ports
-            ,   .TILE0_GTPCLKOUT0_OUT       (unbuffered_gtpclkout_i)
-            ,   .TILE0_GTPCLKOUT1_OUT       () // TILE0_GTPCLKOUT0_OUT used for everything
-                // Transmit Ports - 8b10b Encoder Control
-            ,   .TILE0_TXCHARISK0_IN        (b2b_txcharisk_i[0])
-            ,   .TILE0_TXCHARISK1_IN        (b2b_txcharisk_i[1])
-                // Transmit Ports - TX Data Path interface
-            ,   .TILE0_TXDATA0_IN           (b2b_txdata_i[0])
-            ,   .TILE0_TXDATA1_IN           (b2b_txdata_i[1])
-            ,   .TILE0_TXUSRCLK0_IN         (b2b_usrclk_i)
-            ,   .TILE0_TXUSRCLK1_IN         (b2b_usrclk_i)
-            ,   .TILE0_TXUSRCLK20_IN        (b2b_usrclk2_i)
-            ,   .TILE0_TXUSRCLK21_IN        (b2b_usrclk2_i)
-                // Transmit Ports - TX Driver and OOB signalling
-            ,   .TILE0_TXN0_OUT             (HSS_TXN_OUT[0])
-            ,   .TILE0_TXN1_OUT             (HSS_TXN_OUT[1])
-            ,   .TILE0_TXP0_OUT             (HSS_TXP_OUT[0])
-            ,   .TILE0_TXP1_OUT             (HSS_TXP_OUT[1])
-                // Receive Ports - Channel Bonding (Unused)
-            ,   .TILE0_RXCHANBONDSEQ0_OUT   () // Unused
-            ,   .TILE0_RXCHANBONDSEQ1_OUT   () // Unused
-            ,   .TILE0_RXCHANISALIGNED0_OUT () // Unused
-            ,   .TILE0_RXCHANISALIGNED1_OUT () // Unused
-            ,   .TILE0_RXCHANREALIGN0_OUT   () // Unused
-            ,   .TILE0_RXCHANREALIGN1_OUT   () // Unused
-            ,   .TILE0_RXCHBONDMASTER0_IN   (1'b0) // Unused
-            ,   .TILE0_RXCHBONDMASTER1_IN   (1'b0) // Unused
-            ,   .TILE0_RXCHBONDSLAVE0_IN    (1'b0) // Unused
-            ,   .TILE0_RXCHBONDSLAVE1_IN    (1'b0) // Unused
-            ,   .TILE0_RXENCHANSYNC0_IN     (1'b0) // Unused
-            ,   .TILE0_RXENCHANSYNC1_IN     (1'b0) // Unused
-                // Analog signal generation settings
-            ,   .TILE0_RXEQMIX0_IN              (B2B_RXEQMIX)
-            ,   .TILE0_RXEQMIX1_IN              (B2B_RXEQMIX)
-            ,   .TILE0_TXDIFFCTRL0_IN           (B2B_TXDIFFCTRL)
-            ,   .TILE0_TXDIFFCTRL1_IN           (B2B_TXDIFFCTRL)
-            ,   .TILE0_TXPREEMPHASIS0_IN        (B2B_TXPREEMPHASIS)
-            ,   .TILE0_TXPREEMPHASIS1_IN        (B2B_TXPREEMPHASIS)
-            );
+generate case ({NORTH_SOUTH_ON_FRONT, FPGA_ID})
+	{0, 0},
+	{0, 1},
+	{0, 2},
+	{1, 1}:
+		gtp_x0_y0_bb#( .WRAPPER_SIM_GTPRESET_SPEEDUP (SIMULATION_GTPRESET_SPEEDUP)
+		             , .WRAPPER_SIMULATION           (SIMULATION)
+		             )
+		gtp_x0_y0_i  ( // TILE0 (X0_Y0)
+		                 // Loopback and Powerdown Ports
+		                 .TILE0_LOOPBACK0_IN         (B2B_GTP_LOOPBACK)
+		             ,   .TILE0_LOOPBACK1_IN         (B2B_GTP_LOOPBACK)
+		                 // PLL Ports
+		             ,   .TILE0_CLK00_IN             (gtpclkin_i)
+		             ,   .TILE0_CLK01_IN             (1'b0) // Uses the first block's clock, just tie-off
+		             ,   .TILE0_GTPRESET0_IN         (gtp_reset_i)
+		             ,   .TILE0_GTPRESET1_IN         (gtp_reset_i)
+		             ,   .TILE0_PLLLKDET0_OUT        (plllkdet_i)
+		             ,   .TILE0_RESETDONE0_OUT       (b2b_gtpresetdone_i[0])
+		             ,   .TILE0_RESETDONE1_OUT       (b2b_gtpresetdone_i[1])
+		                 // Receive Ports - 8b10b Decoder
+		             ,   .TILE0_RXCHARISCOMMA0_OUT   (b2b_rxchariscomma_i[0])
+		             ,   .TILE0_RXCHARISCOMMA1_OUT   (b2b_rxchariscomma_i[1])
+		             ,   .TILE0_RXCHARISK0_OUT       (b2b_rxcharisk_i[0])
+		             ,   .TILE0_RXCHARISK1_OUT       (b2b_rxcharisk_i[1])
+		             ,   .TILE0_RXDISPERR0_OUT       () // Unused
+		             ,   .TILE0_RXDISPERR1_OUT       () // Unused
+		             ,   .TILE0_RXNOTINTABLE0_OUT    () // Unused
+		             ,   .TILE0_RXNOTINTABLE1_OUT    () // Unused
+		                 // Receive Ports - Clock Correction
+		             ,   .TILE0_RXCLKCORCNT0_OUT     () // Unused
+		             ,   .TILE0_RXCLKCORCNT1_OUT     () // Unused
+		                 // Receive Ports - Comma Detection and Alignment
+		             ,   .TILE0_RXENMCOMMAALIGN0_IN  (1'b1) // Always realign
+		             ,   .TILE0_RXENMCOMMAALIGN1_IN  (1'b1) // Always realign
+		             ,   .TILE0_RXENPCOMMAALIGN0_IN  (1'b1) // Always realign
+		             ,   .TILE0_RXENPCOMMAALIGN1_IN  (1'b1) // Always realign
+		                 // Receive Ports - RX Data Path interface
+		             ,   .TILE0_RXDATA0_OUT          (b2b_rxdata_i[0])
+		             ,   .TILE0_RXDATA1_OUT          (b2b_rxdata_i[1])
+		             ,   .TILE0_RXUSRCLK0_IN         (b2b_usrclk_i)
+		             ,   .TILE0_RXUSRCLK1_IN         (b2b_usrclk_i)
+		             ,   .TILE0_RXUSRCLK20_IN        (b2b_usrclk2_i)
+		             ,   .TILE0_RXUSRCLK21_IN        (b2b_usrclk2_i)
+		                 // Receive Ports - RX Driver,OOB signalling,Coupling and Eq.,CDR
+		             ,   .TILE0_RXN0_IN              (HSS_RXN_IN[0])
+		             ,   .TILE0_RXN1_IN              (HSS_RXN_IN[1])
+		             ,   .TILE0_RXP0_IN              (HSS_RXP_IN[0])
+		             ,   .TILE0_RXP1_IN              (HSS_RXP_IN[1])
+		                 // Receive Ports - RX Loss-of-sync State Machine
+		             ,   .TILE0_RXLOSSOFSYNC0_OUT    (b2b_rxlossofsync_i[0])
+		             ,   .TILE0_RXLOSSOFSYNC1_OUT    (b2b_rxlossofsync_i[1])
+		                 // TX/RX Datapath Ports
+		             ,   .TILE0_GTPCLKOUT0_OUT       (unbuffered_gtpclkout_i)
+		             ,   .TILE0_GTPCLKOUT1_OUT       () // TILE0_GTPCLKOUT0_OUT used for everything
+		                 // Transmit Ports - 8b10b Encoder Control
+		             ,   .TILE0_TXCHARISK0_IN        (b2b_txcharisk_i[0])
+		             ,   .TILE0_TXCHARISK1_IN        (b2b_txcharisk_i[1])
+		                 // Transmit Ports - TX Data Path interface
+		             ,   .TILE0_TXDATA0_IN           (b2b_txdata_i[0])
+		             ,   .TILE0_TXDATA1_IN           (b2b_txdata_i[1])
+		             ,   .TILE0_TXUSRCLK0_IN         (b2b_usrclk_i)
+		             ,   .TILE0_TXUSRCLK1_IN         (b2b_usrclk_i)
+		             ,   .TILE0_TXUSRCLK20_IN        (b2b_usrclk2_i)
+		             ,   .TILE0_TXUSRCLK21_IN        (b2b_usrclk2_i)
+		                 // Transmit Ports - TX Driver and OOB signalling
+		             ,   .TILE0_TXN0_OUT             (HSS_TXN_OUT[0])
+		             ,   .TILE0_TXN1_OUT             (HSS_TXN_OUT[1])
+		             ,   .TILE0_TXP0_OUT             (HSS_TXP_OUT[0])
+		             ,   .TILE0_TXP1_OUT             (HSS_TXP_OUT[1])
+		                 // Receive Ports - Channel Bonding (Unused)
+		             ,   .TILE0_RXCHANBONDSEQ0_OUT   () // Unused
+		             ,   .TILE0_RXCHANBONDSEQ1_OUT   () // Unused
+		             ,   .TILE0_RXCHANISALIGNED0_OUT () // Unused
+		             ,   .TILE0_RXCHANISALIGNED1_OUT () // Unused
+		             ,   .TILE0_RXCHANREALIGN0_OUT   () // Unused
+		             ,   .TILE0_RXCHANREALIGN1_OUT   () // Unused
+		             ,   .TILE0_RXCHBONDMASTER0_IN   (1'b0) // Unused
+		             ,   .TILE0_RXCHBONDMASTER1_IN   (1'b0) // Unused
+		             ,   .TILE0_RXCHBONDSLAVE0_IN    (1'b0) // Unused
+		             ,   .TILE0_RXCHBONDSLAVE1_IN    (1'b0) // Unused
+		             ,   .TILE0_RXENCHANSYNC0_IN     (1'b0) // Unused
+		             ,   .TILE0_RXENCHANSYNC1_IN     (1'b0) // Unused
+		                 // Analog signal generation settings
+		             ,   .TILE0_RXEQMIX0_IN              (B2B_RXEQMIX)
+		             ,   .TILE0_RXEQMIX1_IN              (B2B_RXEQMIX)
+		             ,   .TILE0_TXDIFFCTRL0_IN           (B2B_TXDIFFCTRL)
+		             ,   .TILE0_TXDIFFCTRL1_IN           (B2B_TXDIFFCTRL)
+		             ,   .TILE0_TXPREEMPHASIS0_IN        (B2B_TXPREEMPHASIS)
+		             ,   .TILE0_TXPREEMPHASIS1_IN        (B2B_TXPREEMPHASIS)
+		             );
+	
+	{1, 0}:
+		gtp_x0_y0_bp#( .WRAPPER_SIM_GTPRESET_SPEEDUP (SIMULATION_GTPRESET_SPEEDUP)
+		             , .WRAPPER_SIMULATION           (SIMULATION)
+		             )
+		gtp_x0_y0_i  ( // TILE0 (X0_Y0)
+		                 // Loopback and Powerdown Ports
+		                 .TILE0_LOOPBACK0_IN         (   B2B_GTP_LOOPBACK)
+		             ,   .TILE0_LOOPBACK1_IN         (PERIPH_GTP_LOOPBACK)
+		                 // PLL Ports
+		             ,   .TILE0_CLK00_IN             (gtpclkin_i)
+		             ,   .TILE0_CLK01_IN             (1'b0) // Uses the first block's clock, just tie-off
+		             ,   .TILE0_GTPRESET0_IN         (gtp_reset_i)
+		             ,   .TILE0_GTPRESET1_IN         (gtp_reset_i)
+		             ,   .TILE0_PLLLKDET0_OUT        (plllkdet_i)
+		             ,   .TILE0_RESETDONE0_OUT       (   b2b_gtpresetdone_i[0])
+		             ,   .TILE0_RESETDONE1_OUT       (periph_gtpresetdone_i)
+		                 // Receive Ports - 8b10b Decoder
+		             ,   .TILE0_RXCHARISCOMMA0_OUT   (   b2b_rxchariscomma_i[0])
+		             ,   .TILE0_RXCHARISCOMMA1_OUT   (periph_rxchariscomma_i)
+		             ,   .TILE0_RXCHARISK0_OUT       (   b2b_rxcharisk_i[0])
+		             ,   .TILE0_RXCHARISK1_OUT       (periph_rxcharisk_i)
+		             ,   .TILE0_RXDISPERR0_OUT       () // Unused
+		             ,   .TILE0_RXDISPERR1_OUT       () // Unused
+		             ,   .TILE0_RXNOTINTABLE0_OUT    () // Unused
+		             ,   .TILE0_RXNOTINTABLE1_OUT    () // Unused
+		                 // Receive Ports - Clock Correction
+		             ,   .TILE0_RXCLKCORCNT0_OUT     () // Unused
+		             ,   .TILE0_RXCLKCORCNT1_OUT     () // Unused
+		                 // Receive Ports - Comma Detection and Alignment
+		             ,   .TILE0_RXENMCOMMAALIGN0_IN  (1'b1) // Always realign
+		             ,   .TILE0_RXENMCOMMAALIGN1_IN  (1'b1) // Always realign
+		             ,   .TILE0_RXENPCOMMAALIGN0_IN  (1'b1) // Always realign
+		             ,   .TILE0_RXENPCOMMAALIGN1_IN  (1'b1) // Always realign
+		                 // Receive Ports - RX Data Path interface
+		             ,   .TILE0_RXDATA0_OUT          (   b2b_rxdata_i[0])
+		             ,   .TILE0_RXDATA1_OUT          (periph_rxdata_i)
+		             ,   .TILE0_RXUSRCLK0_IN         (   b2b_usrclk_i)
+		             ,   .TILE0_RXUSRCLK1_IN         (periph_usrclk_i)
+		             ,   .TILE0_RXUSRCLK20_IN        (   b2b_usrclk2_i)
+		             ,   .TILE0_RXUSRCLK21_IN        (periph_usrclk2_i)
+		                 // Receive Ports - RX Driver,OOB signalling,Coupling and Eq.,CDR
+		             ,   .TILE0_RXN0_IN              (HSS_RXN_IN[0])
+		             ,   .TILE0_RXN1_IN              (HSS_RXN_IN[1])
+		             ,   .TILE0_RXP0_IN              (HSS_RXP_IN[0])
+		             ,   .TILE0_RXP1_IN              (HSS_RXP_IN[1])
+		                 // Receive Ports - RX Loss-of-sync State Machine
+		             ,   .TILE0_RXLOSSOFSYNC0_OUT    (   b2b_rxlossofsync_i[0])
+		             ,   .TILE0_RXLOSSOFSYNC1_OUT    (periph_rxlossofsync_i)
+		                 // TX/RX Datapath Ports
+		             ,   .TILE0_GTPCLKOUT0_OUT       (unbuffered_gtpclkout_i)
+		             ,   .TILE0_GTPCLKOUT1_OUT       () // TILE0_GTPCLKOUT0_OUT used for everything
+		                 // Transmit Ports - 8b10b Encoder Control
+		             ,   .TILE0_TXCHARISK0_IN        (   b2b_txcharisk_i[0])
+		             ,   .TILE0_TXCHARISK1_IN        (periph_txcharisk_i)
+		                 // Transmit Ports - TX Data Path interface
+		             ,   .TILE0_TXDATA0_IN           (   b2b_txdata_i[0])
+		             ,   .TILE0_TXDATA1_IN           (periph_txdata_i)
+		             ,   .TILE0_TXUSRCLK0_IN         (   b2b_usrclk_i)
+		             ,   .TILE0_TXUSRCLK1_IN         (periph_usrclk_i)
+		             ,   .TILE0_TXUSRCLK20_IN        (   b2b_usrclk2_i)
+		             ,   .TILE0_TXUSRCLK21_IN        (periph_usrclk2_i)
+		                 // Transmit Ports - TX Driver and OOB signalling
+		             ,   .TILE0_TXN0_OUT             (HSS_TXN_OUT[0])
+		             ,   .TILE0_TXN1_OUT             (HSS_TXN_OUT[1])
+		             ,   .TILE0_TXP0_OUT             (HSS_TXP_OUT[0])
+		             ,   .TILE0_TXP1_OUT             (HSS_TXP_OUT[1])
+		                 // Receive Ports - Channel Bonding (Unused)
+		             ,   .TILE0_RXCHANBONDSEQ0_OUT   () // Unused
+		             ,   .TILE0_RXCHANBONDSEQ1_OUT   () // Unused
+		             ,   .TILE0_RXCHANISALIGNED0_OUT () // Unused
+		             ,   .TILE0_RXCHANISALIGNED1_OUT () // Unused
+		             ,   .TILE0_RXCHANREALIGN0_OUT   () // Unused
+		             ,   .TILE0_RXCHANREALIGN1_OUT   () // Unused
+		             ,   .TILE0_RXCHBONDMASTER0_IN   (1'b0) // Unused
+		             ,   .TILE0_RXCHBONDMASTER1_IN   (1'b0) // Unused
+		             ,   .TILE0_RXCHBONDSLAVE0_IN    (1'b0) // Unused
+		             ,   .TILE0_RXCHBONDSLAVE1_IN    (1'b0) // Unused
+		             ,   .TILE0_RXENCHANSYNC0_IN     (1'b0) // Unused
+		             ,   .TILE0_RXENCHANSYNC1_IN     (1'b0) // Unused
+		                 // Analog signal generation settings
+		             ,   .TILE0_RXEQMIX0_IN              (   B2B_RXEQMIX)
+		             ,   .TILE0_RXEQMIX1_IN              (PERIPH_RXEQMIX)
+		             ,   .TILE0_TXDIFFCTRL0_IN           (   B2B_TXDIFFCTRL)
+		             ,   .TILE0_TXDIFFCTRL1_IN           (PERIPH_TXDIFFCTRL)
+		             ,   .TILE0_TXPREEMPHASIS0_IN        (   B2B_TXPREEMPHASIS)
+		             ,   .TILE0_TXPREEMPHASIS1_IN        (PERIPH_TXPREEMPHASIS)
+		             );
+	
+	{1, 2}:
+		gtp_x0_y0_pb#( .WRAPPER_SIM_GTPRESET_SPEEDUP (SIMULATION_GTPRESET_SPEEDUP)
+		             , .WRAPPER_SIMULATION           (SIMULATION)
+		             )
+		gtp_x0_y0_i  ( // TILE0 (X0_Y0)
+		                 // Loopback and Powerdown Ports
+		                 .TILE0_LOOPBACK0_IN         (PERIPH_GTP_LOOPBACK)
+		             ,   .TILE0_LOOPBACK1_IN         (   B2B_GTP_LOOPBACK)
+		                 // PLL Ports
+		             ,   .TILE0_CLK00_IN             (gtpclkin_i)
+		             ,   .TILE0_CLK01_IN             (1'b0) // Uses the first block's clock, just tie-off
+		             ,   .TILE0_GTPRESET0_IN         (gtp_reset_i)
+		             ,   .TILE0_GTPRESET1_IN         (gtp_reset_i)
+		             ,   .TILE0_PLLLKDET0_OUT        (plllkdet_i)
+		             ,   .TILE0_RESETDONE0_OUT       (periph_gtpresetdone_i)
+		             ,   .TILE0_RESETDONE1_OUT       (   b2b_gtpresetdone_i[1])
+		                 // Receive Ports - 8b10b Decoder
+		             ,   .TILE0_RXCHARISCOMMA0_OUT   (periph_rxchariscomma_i)
+		             ,   .TILE0_RXCHARISCOMMA1_OUT   (   b2b_rxchariscomma_i[1])
+		             ,   .TILE0_RXCHARISK0_OUT       (periph_rxcharisk_i)
+		             ,   .TILE0_RXCHARISK1_OUT       (   b2b_rxcharisk_i[1])
+		             ,   .TILE0_RXDISPERR0_OUT       () // Unused
+		             ,   .TILE0_RXDISPERR1_OUT       () // Unused
+		             ,   .TILE0_RXNOTINTABLE0_OUT    () // Unused
+		             ,   .TILE0_RXNOTINTABLE1_OUT    () // Unused
+		                 // Receive Ports - Clock Correction
+		             ,   .TILE0_RXCLKCORCNT0_OUT     () // Unused
+		             ,   .TILE0_RXCLKCORCNT1_OUT     () // Unused
+		                 // Receive Ports - Comma Detection and Alignment
+		             ,   .TILE0_RXENMCOMMAALIGN0_IN  (1'b1) // Always realign
+		             ,   .TILE0_RXENMCOMMAALIGN1_IN  (1'b1) // Always realign
+		             ,   .TILE0_RXENPCOMMAALIGN0_IN  (1'b1) // Always realign
+		             ,   .TILE0_RXENPCOMMAALIGN1_IN  (1'b1) // Always realign
+		                 // Receive Ports - RX Data Path interface
+		             ,   .TILE0_RXDATA0_OUT          (periph_rxdata_i)
+		             ,   .TILE0_RXDATA1_OUT          (   b2b_rxdata_i[1])
+		             ,   .TILE0_RXUSRCLK0_IN         (periph_usrclk_i)
+		             ,   .TILE0_RXUSRCLK1_IN         (   b2b_usrclk_i)
+		             ,   .TILE0_RXUSRCLK20_IN        (periph_usrclk2_i)
+		             ,   .TILE0_RXUSRCLK21_IN        (   b2b_usrclk2_i)
+		                 // Receive Ports - RX Driver,OOB signalling,Coupling and Eq.,CDR
+		             ,   .TILE0_RXN0_IN              (HSS_RXN_IN[0])
+		             ,   .TILE0_RXN1_IN              (HSS_RXN_IN[1])
+		             ,   .TILE0_RXP0_IN              (HSS_RXP_IN[0])
+		             ,   .TILE0_RXP1_IN              (HSS_RXP_IN[1])
+		                 // Receive Ports - RX Loss-of-sync State Machine
+		             ,   .TILE0_RXLOSSOFSYNC0_OUT    (periph_rxlossofsync_i)
+		             ,   .TILE0_RXLOSSOFSYNC1_OUT    (   b2b_rxlossofsync_i[1])
+		                 // TX/RX Datapath Ports
+		             ,   .TILE0_GTPCLKOUT0_OUT       (unbuffered_gtpclkout_i)
+		             ,   .TILE0_GTPCLKOUT1_OUT       () // TILE0_GTPCLKOUT0_OUT used for everything
+		                 // Transmit Ports - 8b10b Encoder Control
+		             ,   .TILE0_TXCHARISK0_IN        (periph_txcharisk_i)
+		             ,   .TILE0_TXCHARISK1_IN        (   b2b_txcharisk_i[1])
+		                 // Transmit Ports - TX Data Path interface
+		             ,   .TILE0_TXDATA0_IN           (periph_txdata_i)
+		             ,   .TILE0_TXDATA1_IN           (   b2b_txdata_i[1])
+		             ,   .TILE0_TXUSRCLK0_IN         (periph_usrclk_i)
+		             ,   .TILE0_TXUSRCLK1_IN         (   b2b_usrclk_i)
+		             ,   .TILE0_TXUSRCLK20_IN        (periph_usrclk2_i)
+		             ,   .TILE0_TXUSRCLK21_IN        (   b2b_usrclk2_i)
+		                 // Transmit Ports - TX Driver and OOB signalling
+		             ,   .TILE0_TXN0_OUT             (HSS_TXN_OUT[0])
+		             ,   .TILE0_TXN1_OUT             (HSS_TXN_OUT[1])
+		             ,   .TILE0_TXP0_OUT             (HSS_TXP_OUT[0])
+		             ,   .TILE0_TXP1_OUT             (HSS_TXP_OUT[1])
+		                 // Receive Ports - Channel Bonding (Unused)
+		             ,   .TILE0_RXCHANBONDSEQ0_OUT   () // Unused
+		             ,   .TILE0_RXCHANBONDSEQ1_OUT   () // Unused
+		             ,   .TILE0_RXCHANISALIGNED0_OUT () // Unused
+		             ,   .TILE0_RXCHANISALIGNED1_OUT () // Unused
+		             ,   .TILE0_RXCHANREALIGN0_OUT   () // Unused
+		             ,   .TILE0_RXCHANREALIGN1_OUT   () // Unused
+		             ,   .TILE0_RXCHBONDMASTER0_IN   (1'b0) // Unused
+		             ,   .TILE0_RXCHBONDMASTER1_IN   (1'b0) // Unused
+		             ,   .TILE0_RXCHBONDSLAVE0_IN    (1'b0) // Unused
+		             ,   .TILE0_RXCHBONDSLAVE1_IN    (1'b0) // Unused
+		             ,   .TILE0_RXENCHANSYNC0_IN     (1'b0) // Unused
+		             ,   .TILE0_RXENCHANSYNC1_IN     (1'b0) // Unused
+		                 // Analog signal generation settings
+		             ,   .TILE0_RXEQMIX0_IN              (PERIPH_RXEQMIX)
+		             ,   .TILE0_RXEQMIX1_IN              (   B2B_RXEQMIX)
+		             ,   .TILE0_TXDIFFCTRL0_IN           (PERIPH_TXDIFFCTRL)
+		             ,   .TILE0_TXDIFFCTRL1_IN           (   B2B_TXDIFFCTRL)
+		             ,   .TILE0_TXPREEMPHASIS0_IN        (PERIPH_TXPREEMPHASIS)
+		             ,   .TILE0_TXPREEMPHASIS1_IN        (   B2B_TXPREEMPHASIS)
+		             );
+endcase endgenerate
 
-// X1Y0: Peripheral links and the ring network
-gtp_x1_y0  #( .WRAPPER_SIM_GTPRESET_SPEEDUP (SIMULATION_GTPRESET_SPEEDUP)
-            , .WRAPPER_SIMULATION           (SIMULATION)
-            )
-gtp_x1_y0_i ( // TILE0 (X0_Y0)
-                // Loopback and Powerdown Ports
-                .TILE0_LOOPBACK0_IN         (PERIPH_GTP_LOOPBACK) // Not loopback mode
-            ,   .TILE0_LOOPBACK1_IN         (  RING_GTP_LOOPBACK) // Not loopback mode
-                // PLL Ports
-            ,   .TILE0_CLK00_IN             (gtpclkin_i)
-            ,   .TILE0_CLK01_IN             (1'b0) // Uses the first block's clock, just tie-off
-            ,   .TILE0_GTPRESET0_IN         (gtp_reset_i)
-            ,   .TILE0_GTPRESET1_IN         (gtp_reset_i)
-            ,   .TILE0_PLLLKDET0_OUT        ()
-            ,   .TILE0_RESETDONE0_OUT       (periph_gtpresetdone_i)
-            ,   .TILE0_RESETDONE1_OUT       (  ring_gtpresetdone_i)
-                // Receive Ports - 8b10b Decoder
-            ,   .TILE0_RXCHARISCOMMA0_OUT   (periph_rxchariscomma_i)
-            ,   .TILE0_RXCHARISCOMMA1_OUT   (  ring_rxchariscomma_i)
-            ,   .TILE0_RXCHARISK0_OUT       (periph_rxcharisk_i)
-            ,   .TILE0_RXCHARISK1_OUT       (  ring_rxcharisk_i)
-            ,   .TILE0_RXDISPERR0_OUT       () // Unused
-            ,   .TILE0_RXDISPERR1_OUT       () // Unused
-            ,   .TILE0_RXNOTINTABLE0_OUT    () // Unused
-            ,   .TILE0_RXNOTINTABLE1_OUT    () // Unused
-                // Receive Ports - Clock Correction
-            ,   .TILE0_RXCLKCORCNT0_OUT     () // Unused
-            ,   .TILE0_RXCLKCORCNT1_OUT     () // Unused
-                // Receive Ports - Comma Detection and Alignment
-            ,   .TILE0_RXENMCOMMAALIGN0_IN  (1'b1) // Always realign
-            ,   .TILE0_RXENMCOMMAALIGN1_IN  (1'b1) // Always realign
-            ,   .TILE0_RXENPCOMMAALIGN0_IN  (1'b1) // Always realign
-            ,   .TILE0_RXENPCOMMAALIGN1_IN  (1'b1) // Always realign
-                // Receive Ports - RX Data Path interface
-            ,   .TILE0_RXDATA0_OUT          (periph_rxdata_i)
-            ,   .TILE0_RXDATA1_OUT          (  ring_rxdata_i)
-            ,   .TILE0_RXUSRCLK0_IN         (periph_usrclk_i)
-            ,   .TILE0_RXUSRCLK1_IN         (  ring_usrclk_i)
-            ,   .TILE0_RXUSRCLK20_IN        (periph_usrclk2_i)
-            ,   .TILE0_RXUSRCLK21_IN        (  ring_usrclk2_i)
-                // Receive Ports - RX Driver,OOB signalling,Coupling and Eq.,CDR
-            ,   .TILE0_RXN0_IN              (HSS_RXN_IN[2])
-            ,   .TILE0_RXN1_IN              (HSS_RXN_IN[3])
-            ,   .TILE0_RXP0_IN              (HSS_RXP_IN[2])
-            ,   .TILE0_RXP1_IN              (HSS_RXP_IN[3])
-                // Receive Ports - RX Loss-of-sync State Machine
-            ,   .TILE0_RXLOSSOFSYNC0_OUT    (periph_rxlossofsync_i)
-            ,   .TILE0_RXLOSSOFSYNC1_OUT    (  ring_rxlossofsync_i)
-                // TX/RX Datapath Ports
-            ,   .TILE0_GTPCLKOUT0_OUT       () // TILE0_GTPCLKOUT0_OUT used for everything
-            ,   .TILE0_GTPCLKOUT1_OUT       () // TILE0_GTPCLKOUT0_OUT used for everything
-                // Transmit Ports - 8b10b Encoder Control
-            ,   .TILE0_TXCHARISK0_IN        (periph_txcharisk_i)
-            ,   .TILE0_TXCHARISK1_IN        (  ring_txcharisk_i)
-                // Transmit Ports - TX Data Path interface
-            ,   .TILE0_TXDATA0_IN           (periph_txdata_i)
-            ,   .TILE0_TXDATA1_IN           (  ring_txdata_i)
-            ,   .TILE0_TXUSRCLK0_IN         (periph_usrclk_i)
-            ,   .TILE0_TXUSRCLK1_IN         (  ring_usrclk_i)
-            ,   .TILE0_TXUSRCLK20_IN        (periph_usrclk2_i)
-            ,   .TILE0_TXUSRCLK21_IN        (  ring_usrclk2_i)
-                // Transmit Ports - TX Driver and OOB signalling
-            ,   .TILE0_TXN0_OUT             (HSS_TXN_OUT[2])
-            ,   .TILE0_TXN1_OUT             (HSS_TXN_OUT[3])
-            ,   .TILE0_TXP0_OUT             (HSS_TXP_OUT[2])
-            ,   .TILE0_TXP1_OUT             (HSS_TXP_OUT[3])
-                // Receive Ports - Channel Bonding (Unused)
-            ,   .TILE0_RXCHANBONDSEQ0_OUT   () // Unused
-            ,   .TILE0_RXCHANBONDSEQ1_OUT   () // Unused
-            ,   .TILE0_RXCHANISALIGNED0_OUT () // Unused
-            ,   .TILE0_RXCHANISALIGNED1_OUT () // Unused
-            ,   .TILE0_RXCHANREALIGN0_OUT   () // Unused
-            ,   .TILE0_RXCHANREALIGN1_OUT   () // Unused
-            ,   .TILE0_RXCHBONDMASTER0_IN   (1'b0) // Unused
-            ,   .TILE0_RXCHBONDMASTER1_IN   (1'b0) // Unused
-            ,   .TILE0_RXCHBONDSLAVE0_IN    (1'b0) // Unused
-            ,   .TILE0_RXCHBONDSLAVE1_IN    (1'b0) // Unused
-            ,   .TILE0_RXENCHANSYNC0_IN     (1'b0) // Unused
-            ,   .TILE0_RXENCHANSYNC1_IN     (1'b0) // Unused
-                // Analog signal generation settings
-            ,   .TILE0_RXEQMIX0_IN              (PERIPH_RXEQMIX)
-            ,   .TILE0_RXEQMIX1_IN              (  RING_RXEQMIX)
-            ,   .TILE0_TXDIFFCTRL0_IN           (PERIPH_TXDIFFCTRL)
-            ,   .TILE0_TXDIFFCTRL1_IN           (  RING_TXDIFFCTRL)
-            ,   .TILE0_TXPREEMPHASIS0_IN        (PERIPH_TXPREEMPHASIS)
-            ,   .TILE0_TXPREEMPHASIS1_IN        (  RING_TXPREEMPHASIS)
-            );
-
+generate case ({NORTH_SOUTH_ON_FRONT, FPGA_ID})
+	{0, 0},
+	{0, 1},
+	{0, 2},
+	{1, 1}:
+		gtp_x1_y0_pr#( .WRAPPER_SIM_GTPRESET_SPEEDUP (SIMULATION_GTPRESET_SPEEDUP)
+		             , .WRAPPER_SIMULATION           (SIMULATION)
+		             )
+		gtp_x1_y0_i  ( // TILE0 (X0_Y0)
+		                 // Loopback and Powerdown Ports
+		                 .TILE0_LOOPBACK0_IN         (PERIPH_GTP_LOOPBACK) // Not loopback mode
+		             ,   .TILE0_LOOPBACK1_IN         (  RING_GTP_LOOPBACK) // Not loopback mode
+		                 // PLL Ports
+		             ,   .TILE0_CLK00_IN             (gtpclkin_i)
+		             ,   .TILE0_CLK01_IN             (1'b0) // Uses the first block's clock, just tie-off
+		             ,   .TILE0_GTPRESET0_IN         (gtp_reset_i)
+		             ,   .TILE0_GTPRESET1_IN         (gtp_reset_i)
+		             ,   .TILE0_PLLLKDET0_OUT        ()
+		             ,   .TILE0_RESETDONE0_OUT       (periph_gtpresetdone_i)
+		             ,   .TILE0_RESETDONE1_OUT       (  ring_gtpresetdone_i)
+		                 // Receive Ports - 8b10b Decoder
+		             ,   .TILE0_RXCHARISCOMMA0_OUT   (periph_rxchariscomma_i)
+		             ,   .TILE0_RXCHARISCOMMA1_OUT   (  ring_rxchariscomma_i)
+		             ,   .TILE0_RXCHARISK0_OUT       (periph_rxcharisk_i)
+		             ,   .TILE0_RXCHARISK1_OUT       (  ring_rxcharisk_i)
+		             ,   .TILE0_RXDISPERR0_OUT       () // Unused
+		             ,   .TILE0_RXDISPERR1_OUT       () // Unused
+		             ,   .TILE0_RXNOTINTABLE0_OUT    () // Unused
+		             ,   .TILE0_RXNOTINTABLE1_OUT    () // Unused
+		                 // Receive Ports - Clock Correction
+		             ,   .TILE0_RXCLKCORCNT0_OUT     () // Unused
+		             ,   .TILE0_RXCLKCORCNT1_OUT     () // Unused
+		                 // Receive Ports - Comma Detection and Alignment
+		             ,   .TILE0_RXENMCOMMAALIGN0_IN  (1'b1) // Always realign
+		             ,   .TILE0_RXENMCOMMAALIGN1_IN  (1'b1) // Always realign
+		             ,   .TILE0_RXENPCOMMAALIGN0_IN  (1'b1) // Always realign
+		             ,   .TILE0_RXENPCOMMAALIGN1_IN  (1'b1) // Always realign
+		                 // Receive Ports - RX Data Path interface
+		             ,   .TILE0_RXDATA0_OUT          (periph_rxdata_i)
+		             ,   .TILE0_RXDATA1_OUT          (  ring_rxdata_i)
+		             ,   .TILE0_RXUSRCLK0_IN         (periph_usrclk_i)
+		             ,   .TILE0_RXUSRCLK1_IN         (  ring_usrclk_i)
+		             ,   .TILE0_RXUSRCLK20_IN        (periph_usrclk2_i)
+		             ,   .TILE0_RXUSRCLK21_IN        (  ring_usrclk2_i)
+		                 // Receive Ports - RX Driver,OOB signalling,Coupling and Eq.,CDR
+		             ,   .TILE0_RXN0_IN              (HSS_RXN_IN[2])
+		             ,   .TILE0_RXN1_IN              (HSS_RXN_IN[3])
+		             ,   .TILE0_RXP0_IN              (HSS_RXP_IN[2])
+		             ,   .TILE0_RXP1_IN              (HSS_RXP_IN[3])
+		                 // Receive Ports - RX Loss-of-sync State Machine
+		             ,   .TILE0_RXLOSSOFSYNC0_OUT    (periph_rxlossofsync_i)
+		             ,   .TILE0_RXLOSSOFSYNC1_OUT    (  ring_rxlossofsync_i)
+		                 // TX/RX Datapath Ports
+		             ,   .TILE0_GTPCLKOUT0_OUT       () // TILE0_GTPCLKOUT0_OUT used for everything
+		             ,   .TILE0_GTPCLKOUT1_OUT       () // TILE0_GTPCLKOUT0_OUT used for everything
+		                 // Transmit Ports - 8b10b Encoder Control
+		             ,   .TILE0_TXCHARISK0_IN        (periph_txcharisk_i)
+		             ,   .TILE0_TXCHARISK1_IN        (  ring_txcharisk_i)
+		                 // Transmit Ports - TX Data Path interface
+		             ,   .TILE0_TXDATA0_IN           (periph_txdata_i)
+		             ,   .TILE0_TXDATA1_IN           (  ring_txdata_i)
+		             ,   .TILE0_TXUSRCLK0_IN         (periph_usrclk_i)
+		             ,   .TILE0_TXUSRCLK1_IN         (  ring_usrclk_i)
+		             ,   .TILE0_TXUSRCLK20_IN        (periph_usrclk2_i)
+		             ,   .TILE0_TXUSRCLK21_IN        (  ring_usrclk2_i)
+		                 // Transmit Ports - TX Driver and OOB signalling
+		             ,   .TILE0_TXN0_OUT             (HSS_TXN_OUT[2])
+		             ,   .TILE0_TXN1_OUT             (HSS_TXN_OUT[3])
+		             ,   .TILE0_TXP0_OUT             (HSS_TXP_OUT[2])
+		             ,   .TILE0_TXP1_OUT             (HSS_TXP_OUT[3])
+		                 // Receive Ports - Channel Bonding (Unused)
+		             ,   .TILE0_RXCHANBONDSEQ0_OUT   () // Unused
+		             ,   .TILE0_RXCHANBONDSEQ1_OUT   () // Unused
+		             ,   .TILE0_RXCHANISALIGNED0_OUT () // Unused
+		             ,   .TILE0_RXCHANISALIGNED1_OUT () // Unused
+		             ,   .TILE0_RXCHANREALIGN0_OUT   () // Unused
+		             ,   .TILE0_RXCHANREALIGN1_OUT   () // Unused
+		             ,   .TILE0_RXCHBONDMASTER0_IN   (1'b0) // Unused
+		             ,   .TILE0_RXCHBONDMASTER1_IN   (1'b0) // Unused
+		             ,   .TILE0_RXCHBONDSLAVE0_IN    (1'b0) // Unused
+		             ,   .TILE0_RXCHBONDSLAVE1_IN    (1'b0) // Unused
+		             ,   .TILE0_RXENCHANSYNC0_IN     (1'b0) // Unused
+		             ,   .TILE0_RXENCHANSYNC1_IN     (1'b0) // Unused
+		                 // Analog signal generation settings
+		             ,   .TILE0_RXEQMIX0_IN              (PERIPH_RXEQMIX)
+		             ,   .TILE0_RXEQMIX1_IN              (  RING_RXEQMIX)
+		             ,   .TILE0_TXDIFFCTRL0_IN           (PERIPH_TXDIFFCTRL)
+		             ,   .TILE0_TXDIFFCTRL1_IN           (  RING_TXDIFFCTRL)
+		             ,   .TILE0_TXPREEMPHASIS0_IN        (PERIPH_TXPREEMPHASIS)
+		             ,   .TILE0_TXPREEMPHASIS1_IN        (  RING_TXPREEMPHASIS)
+		            );
+	
+	{1, 0}:
+		gtp_x1_y0_br#( .WRAPPER_SIM_GTPRESET_SPEEDUP (SIMULATION_GTPRESET_SPEEDUP)
+		             , .WRAPPER_SIMULATION           (SIMULATION)
+		             )
+		gtp_x1_y0_i  ( // TILE0 (X0_Y0)
+		                 // Loopback and Powerdown Ports
+		                 .TILE0_LOOPBACK0_IN         ( B2B_GTP_LOOPBACK) // Not loopback mode
+		             ,   .TILE0_LOOPBACK1_IN         (RING_GTP_LOOPBACK) // Not loopback mode
+		                 // PLL Ports
+		             ,   .TILE0_CLK00_IN             (gtpclkin_i)
+		             ,   .TILE0_CLK01_IN             (1'b0) // Uses the first block's clock, just tie-off
+		             ,   .TILE0_GTPRESET0_IN         (gtp_reset_i)
+		             ,   .TILE0_GTPRESET1_IN         (gtp_reset_i)
+		             ,   .TILE0_PLLLKDET0_OUT        ()
+		             ,   .TILE0_RESETDONE0_OUT       ( b2b_gtpresetdone_i[1])
+		             ,   .TILE0_RESETDONE1_OUT       (ring_gtpresetdone_i)
+		                 // Receive Ports - 8b10b Decoder
+		             ,   .TILE0_RXCHARISCOMMA0_OUT   ( b2b_rxchariscomma_i[1])
+		             ,   .TILE0_RXCHARISCOMMA1_OUT   (ring_rxchariscomma_i)
+		             ,   .TILE0_RXCHARISK0_OUT       ( b2b_rxcharisk_i[1])
+		             ,   .TILE0_RXCHARISK1_OUT       (ring_rxcharisk_i)
+		             ,   .TILE0_RXDISPERR0_OUT       () // Unused
+		             ,   .TILE0_RXDISPERR1_OUT       () // Unused
+		             ,   .TILE0_RXNOTINTABLE0_OUT    () // Unused
+		             ,   .TILE0_RXNOTINTABLE1_OUT    () // Unused
+		                 // Receive Ports - Clock Correction
+		             ,   .TILE0_RXCLKCORCNT0_OUT     () // Unused
+		             ,   .TILE0_RXCLKCORCNT1_OUT     () // Unused
+		                 // Receive Ports - Comma Detection and Alignment
+		             ,   .TILE0_RXENMCOMMAALIGN0_IN  (1'b1) // Always realign
+		             ,   .TILE0_RXENMCOMMAALIGN1_IN  (1'b1) // Always realign
+		             ,   .TILE0_RXENPCOMMAALIGN0_IN  (1'b1) // Always realign
+		             ,   .TILE0_RXENPCOMMAALIGN1_IN  (1'b1) // Always realign
+		                 // Receive Ports - RX Data Path interface
+		             ,   .TILE0_RXDATA0_OUT          ( b2b_rxdata_i[1])
+		             ,   .TILE0_RXDATA1_OUT          (ring_rxdata_i)
+		             ,   .TILE0_RXUSRCLK0_IN         ( b2b_usrclk_i)
+		             ,   .TILE0_RXUSRCLK1_IN         (ring_usrclk_i)
+		             ,   .TILE0_RXUSRCLK20_IN        ( b2b_usrclk2_i)
+		             ,   .TILE0_RXUSRCLK21_IN        (ring_usrclk2_i)
+		                 // Receive Ports - RX Driver,OOB signalling,Coupling and Eq.,CDR
+		             ,   .TILE0_RXN0_IN              (HSS_RXN_IN[2])
+		             ,   .TILE0_RXN1_IN              (HSS_RXN_IN[3])
+		             ,   .TILE0_RXP0_IN              (HSS_RXP_IN[2])
+		             ,   .TILE0_RXP1_IN              (HSS_RXP_IN[3])
+		                 // Receive Ports - RX Loss-of-sync State Machine
+		             ,   .TILE0_RXLOSSOFSYNC0_OUT    ( b2b_rxlossofsync_i[1])
+		             ,   .TILE0_RXLOSSOFSYNC1_OUT    (ring_rxlossofsync_i)
+		                 // TX/RX Datapath Ports
+		             ,   .TILE0_GTPCLKOUT0_OUT       () // TILE0_GTPCLKOUT0_OUT used for everything
+		             ,   .TILE0_GTPCLKOUT1_OUT       () // TILE0_GTPCLKOUT0_OUT used for everything
+		                 // Transmit Ports - 8b10b Encoder Control
+		             ,   .TILE0_TXCHARISK0_IN        ( b2b_txcharisk_i[1])
+		             ,   .TILE0_TXCHARISK1_IN        (ring_txcharisk_i)
+		                 // Transmit Ports - TX Data Path interface
+		             ,   .TILE0_TXDATA0_IN           ( b2b_txdata_i[1])
+		             ,   .TILE0_TXDATA1_IN           (ring_txdata_i)
+		             ,   .TILE0_TXUSRCLK0_IN         ( b2b_usrclk_i)
+		             ,   .TILE0_TXUSRCLK1_IN         (ring_usrclk_i)
+		             ,   .TILE0_TXUSRCLK20_IN        ( b2b_usrclk2_i)
+		             ,   .TILE0_TXUSRCLK21_IN        (ring_usrclk2_i)
+		                 // Transmit Ports - TX Driver and OOB signalling
+		             ,   .TILE0_TXN0_OUT             (HSS_TXN_OUT[2])
+		             ,   .TILE0_TXN1_OUT             (HSS_TXN_OUT[3])
+		             ,   .TILE0_TXP0_OUT             (HSS_TXP_OUT[2])
+		             ,   .TILE0_TXP1_OUT             (HSS_TXP_OUT[3])
+		                 // Receive Ports - Channel Bonding (Unused)
+		             ,   .TILE0_RXCHANBONDSEQ0_OUT   () // Unused
+		             ,   .TILE0_RXCHANBONDSEQ1_OUT   () // Unused
+		             ,   .TILE0_RXCHANISALIGNED0_OUT () // Unused
+		             ,   .TILE0_RXCHANISALIGNED1_OUT () // Unused
+		             ,   .TILE0_RXCHANREALIGN0_OUT   () // Unused
+		             ,   .TILE0_RXCHANREALIGN1_OUT   () // Unused
+		             ,   .TILE0_RXCHBONDMASTER0_IN   (1'b0) // Unused
+		             ,   .TILE0_RXCHBONDMASTER1_IN   (1'b0) // Unused
+		             ,   .TILE0_RXCHBONDSLAVE0_IN    (1'b0) // Unused
+		             ,   .TILE0_RXCHBONDSLAVE1_IN    (1'b0) // Unused
+		             ,   .TILE0_RXENCHANSYNC0_IN     (1'b0) // Unused
+		             ,   .TILE0_RXENCHANSYNC1_IN     (1'b0) // Unused
+		                 // Analog signal generation settings
+		             ,   .TILE0_RXEQMIX0_IN              ( B2B_RXEQMIX)
+		             ,   .TILE0_RXEQMIX1_IN              (RING_RXEQMIX)
+		             ,   .TILE0_TXDIFFCTRL0_IN           ( B2B_TXDIFFCTRL)
+		             ,   .TILE0_TXDIFFCTRL1_IN           (RING_TXDIFFCTRL)
+		             ,   .TILE0_TXPREEMPHASIS0_IN        ( B2B_TXPREEMPHASIS)
+		             ,   .TILE0_TXPREEMPHASIS1_IN        (RING_TXPREEMPHASIS)
+		            );
+	
+	{1, 2}:
+		gtp_x1_y0_br#( .WRAPPER_SIM_GTPRESET_SPEEDUP (SIMULATION_GTPRESET_SPEEDUP)
+		             , .WRAPPER_SIMULATION           (SIMULATION)
+		             )
+		gtp_x1_y0_i  ( // TILE0 (X0_Y0)
+		                 // Loopback and Powerdown Ports
+		                 .TILE0_LOOPBACK0_IN         ( B2B_GTP_LOOPBACK) // Not loopback mode
+		             ,   .TILE0_LOOPBACK1_IN         (RING_GTP_LOOPBACK) // Not loopback mode
+		                 // PLL Ports
+		             ,   .TILE0_CLK00_IN             (gtpclkin_i)
+		             ,   .TILE0_CLK01_IN             (1'b0) // Uses the first block's clock, just tie-off
+		             ,   .TILE0_GTPRESET0_IN         (gtp_reset_i)
+		             ,   .TILE0_GTPRESET1_IN         (gtp_reset_i)
+		             ,   .TILE0_PLLLKDET0_OUT        ()
+		             ,   .TILE0_RESETDONE0_OUT       ( b2b_gtpresetdone_i[0])
+		             ,   .TILE0_RESETDONE1_OUT       (ring_gtpresetdone_i)
+		                 // Receive Ports - 8b10b Decoder
+		             ,   .TILE0_RXCHARISCOMMA0_OUT   ( b2b_rxchariscomma_i[0])
+		             ,   .TILE0_RXCHARISCOMMA1_OUT   (ring_rxchariscomma_i)
+		             ,   .TILE0_RXCHARISK0_OUT       ( b2b_rxcharisk_i[0])
+		             ,   .TILE0_RXCHARISK1_OUT       (ring_rxcharisk_i)
+		             ,   .TILE0_RXDISPERR0_OUT       () // Unused
+		             ,   .TILE0_RXDISPERR1_OUT       () // Unused
+		             ,   .TILE0_RXNOTINTABLE0_OUT    () // Unused
+		             ,   .TILE0_RXNOTINTABLE1_OUT    () // Unused
+		                 // Receive Ports - Clock Correction
+		             ,   .TILE0_RXCLKCORCNT0_OUT     () // Unused
+		             ,   .TILE0_RXCLKCORCNT1_OUT     () // Unused
+		                 // Receive Ports - Comma Detection and Alignment
+		             ,   .TILE0_RXENMCOMMAALIGN0_IN  (1'b1) // Always realign
+		             ,   .TILE0_RXENMCOMMAALIGN1_IN  (1'b1) // Always realign
+		             ,   .TILE0_RXENPCOMMAALIGN0_IN  (1'b1) // Always realign
+		             ,   .TILE0_RXENPCOMMAALIGN1_IN  (1'b1) // Always realign
+		                 // Receive Ports - RX Data Path interface
+		             ,   .TILE0_RXDATA0_OUT          ( b2b_rxdata_i[0])
+		             ,   .TILE0_RXDATA1_OUT          (ring_rxdata_i)
+		             ,   .TILE0_RXUSRCLK0_IN         ( b2b_usrclk_i)
+		             ,   .TILE0_RXUSRCLK1_IN         (ring_usrclk_i)
+		             ,   .TILE0_RXUSRCLK20_IN        ( b2b_usrclk2_i)
+		             ,   .TILE0_RXUSRCLK21_IN        (ring_usrclk2_i)
+		                 // Receive Ports - RX Driver,OOB signalling,Coupling and Eq.,CDR
+		             ,   .TILE0_RXN0_IN              (HSS_RXN_IN[2])
+		             ,   .TILE0_RXN1_IN              (HSS_RXN_IN[3])
+		             ,   .TILE0_RXP0_IN              (HSS_RXP_IN[2])
+		             ,   .TILE0_RXP1_IN              (HSS_RXP_IN[3])
+		                 // Receive Ports - RX Loss-of-sync State Machine
+		             ,   .TILE0_RXLOSSOFSYNC0_OUT    ( b2b_rxlossofsync_i[0])
+		             ,   .TILE0_RXLOSSOFSYNC1_OUT    (ring_rxlossofsync_i)
+		                 // TX/RX Datapath Ports
+		             ,   .TILE0_GTPCLKOUT0_OUT       () // TILE0_GTPCLKOUT0_OUT used for everything
+		             ,   .TILE0_GTPCLKOUT1_OUT       () // TILE0_GTPCLKOUT0_OUT used for everything
+		                 // Transmit Ports - 8b10b Encoder Control
+		             ,   .TILE0_TXCHARISK0_IN        ( b2b_txcharisk_i[0])
+		             ,   .TILE0_TXCHARISK1_IN        (ring_txcharisk_i)
+		                 // Transmit Ports - TX Data Path interface
+		             ,   .TILE0_TXDATA0_IN           ( b2b_txdata_i[0])
+		             ,   .TILE0_TXDATA1_IN           (ring_txdata_i)
+		             ,   .TILE0_TXUSRCLK0_IN         ( b2b_usrclk_i)
+		             ,   .TILE0_TXUSRCLK1_IN         (ring_usrclk_i)
+		             ,   .TILE0_TXUSRCLK20_IN        ( b2b_usrclk2_i)
+		             ,   .TILE0_TXUSRCLK21_IN        (ring_usrclk2_i)
+		                 // Transmit Ports - TX Driver and OOB signalling
+		             ,   .TILE0_TXN0_OUT             (HSS_TXN_OUT[2])
+		             ,   .TILE0_TXN1_OUT             (HSS_TXN_OUT[3])
+		             ,   .TILE0_TXP0_OUT             (HSS_TXP_OUT[2])
+		             ,   .TILE0_TXP1_OUT             (HSS_TXP_OUT[3])
+		                 // Receive Ports - Channel Bonding (Unused)
+		             ,   .TILE0_RXCHANBONDSEQ0_OUT   () // Unused
+		             ,   .TILE0_RXCHANBONDSEQ1_OUT   () // Unused
+		             ,   .TILE0_RXCHANISALIGNED0_OUT () // Unused
+		             ,   .TILE0_RXCHANISALIGNED1_OUT () // Unused
+		             ,   .TILE0_RXCHANREALIGN0_OUT   () // Unused
+		             ,   .TILE0_RXCHANREALIGN1_OUT   () // Unused
+		             ,   .TILE0_RXCHBONDMASTER0_IN   (1'b0) // Unused
+		             ,   .TILE0_RXCHBONDMASTER1_IN   (1'b0) // Unused
+		             ,   .TILE0_RXCHBONDSLAVE0_IN    (1'b0) // Unused
+		             ,   .TILE0_RXCHBONDSLAVE1_IN    (1'b0) // Unused
+		             ,   .TILE0_RXENCHANSYNC0_IN     (1'b0) // Unused
+		             ,   .TILE0_RXENCHANSYNC1_IN     (1'b0) // Unused
+		                 // Analog signal generation settings
+		             ,   .TILE0_RXEQMIX0_IN              ( B2B_RXEQMIX)
+		             ,   .TILE0_RXEQMIX1_IN              (RING_RXEQMIX)
+		             ,   .TILE0_TXDIFFCTRL0_IN           ( B2B_TXDIFFCTRL)
+		             ,   .TILE0_TXDIFFCTRL1_IN           (RING_TXDIFFCTRL)
+		             ,   .TILE0_TXPREEMPHASIS0_IN        ( B2B_TXPREEMPHASIS)
+		             ,   .TILE0_TXPREEMPHASIS1_IN        (RING_TXPREEMPHASIS)
+		            );
+endcase endgenerate
 
 ////////////////////////////////////////////////////////////////////////////////
 // High-speed serial multiplexers for board-to-board and peripheral connections

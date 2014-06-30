@@ -1,7 +1,7 @@
 ##############################################################
 #
 # Xilinx Core Generator version 14.5
-# Date: Tue May 13 17:01:35 2014
+# Date: Mon Jun 30 12:59:29 2014
 #
 ##############################################################
 #
@@ -40,8 +40,8 @@ SELECT Spartan-6_FPGA_GTP_Transceiver_Wizard xilinx.com:ip:s6_gtpwizard:1.11
 # END Select
 # BEGIN Parameters
 CSET advanced_clocking=false
-CSET cb_master_bottom=GTP0_DUAL_X0Y0
-CSET cb_master_top=GTP0_DUAL_X0Y0
+CSET cb_master_bottom=GTP0_DUAL_X1Y0
+CSET cb_master_top=GTP0_DUAL_X1Y0
 CSET cb_seq_1_1=00000000
 CSET cb_seq_1_1_disp=false
 CSET cb_seq_1_1_k=true
@@ -77,7 +77,7 @@ CSET cb_seq_2_4_mask=true
 CSET cb_sequence_1_max_skew=1
 CSET cb_sequence_2_max_skew=1
 CSET cb_sequence_length=1
-CSET component_name=gtp_x0_y0
+CSET component_name=gtp_x1_y0_br
 CSET gtp0_bytes_to_reduce_error=8
 CSET gtp0_cb2_inh_cc_period=8
 CSET gtp0_cc_keep_one_idle=false
@@ -312,7 +312,7 @@ CSET gtp1_pma_rx_cfg=0DCE089
 CSET gtp1_pma_tx_cfg=0DCE089
 CSET gtp1_ppm_offset=upto_+/-_500
 CSET gtp1_preemphasis_level=Use_TXPREEMPHASIS_Port
-CSET gtp1_protocol_file=Use_GTP0_settings
+CSET gtp1_protocol_file=Start_from_scratch
 CSET gtp1_refclk_x0_y0=Use_GTP0_PLL
 CSET gtp1_refclk_x0_y1=Use_GTP0_PLL
 CSET gtp1_refclk_x1_y0=Use_GTP0_PLL
@@ -413,9 +413,9 @@ CSET refclk_ac_coupling_x0_y1=false
 CSET refclk_ac_coupling_x1_y0=false
 CSET refclk_ac_coupling_x1_y1=false
 CSET use_cb=true
-CSET use_gtp_dual_x0_y0=true
+CSET use_gtp_dual_x0_y0=false
 CSET use_gtp_dual_x0_y1=false
-CSET use_gtp_dual_x1_y0=false
+CSET use_gtp_dual_x1_y0=true
 CSET use_gtp_dual_x1_y1=false
 CSET use_port_drp=false
 CSET use_port_plllkdet=true
@@ -426,4 +426,4 @@ CSET use_two_cb_sequences=false
 MISC pkg_timestamp=2011-04-06T10:16:39Z
 # END Extra information
 GENERATE
-# CRC: 1b9257dc
+# CRC: 5096002f

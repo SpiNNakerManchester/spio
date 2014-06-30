@@ -16,7 +16,10 @@ genvar i;
 `include "spinnaker_fpgas_top.h"
 
 // Select the FPGA ID and spinnaker module connectivity
-localparam FPGA_ID = 0;
+localparam FPGA_ID = 2;
+
+// Which HSS links are used
+localparam NORTH_SOUTH_ON_FRONT = 1;
 
 // External differential clock
 reg  refclk_pad_p_i;
@@ -89,18 +92,55 @@ initial
 // High-speed-serial Wires
 ////////////////////////////////////////////////////////////////////////////////
 
-// Cross-connect the two board-to-board links
-assign hss_rxn_i[0] = hss_txn_i[1];
-assign hss_rxp_i[0] = hss_txp_i[1];
-assign hss_rxn_i[1] = hss_txn_i[0];
-assign hss_rxp_i[1] = hss_txp_i[0];
-
-// Loop-back the peripheral link and ring link
-assign hss_rxn_i[2] = hss_txn_i[2];
-assign hss_rxp_i[2] = hss_txp_i[2];
-assign hss_rxn_i[3] = hss_txn_i[3];
-assign hss_rxp_i[3] = hss_txp_i[3];
-
+generate case ({NORTH_SOUTH_ON_FRONT, FPGA_ID})
+	{0, 0},
+	{0, 1},
+	{0, 2},
+	{1, 1}:
+		begin
+			// Cross-connect the two board-to-board links
+			assign hss_rxn_i[0] = hss_txn_i[1];
+			assign hss_rxp_i[0] = hss_txp_i[1];
+			assign hss_rxn_i[1] = hss_txn_i[0];
+			assign hss_rxp_i[1] = hss_txp_i[0];
+			
+			// Loop-back the peripheral link and ring link
+			assign hss_rxn_i[2] = hss_txn_i[2];
+			assign hss_rxp_i[2] = hss_txp_i[2];
+			assign hss_rxn_i[3] = hss_txn_i[3];
+			assign hss_rxp_i[3] = hss_txp_i[3];
+		end
+	
+	{1, 0}:
+		begin
+			// Cross-connect the two board-to-board links
+			assign hss_rxn_i[0] = hss_txn_i[2];
+			assign hss_rxp_i[0] = hss_txp_i[2];
+			assign hss_rxn_i[2] = hss_txn_i[0];
+			assign hss_rxp_i[2] = hss_txp_i[0];
+			
+			// Loop-back the peripheral link and ring link
+			assign hss_rxn_i[1] = hss_txn_i[1];
+			assign hss_rxp_i[1] = hss_txp_i[1];
+			assign hss_rxn_i[3] = hss_txn_i[3];
+			assign hss_rxp_i[3] = hss_txp_i[3];
+		end
+	
+	{1, 2}:
+		begin
+			// Cross-connect the two board-to-board links
+			assign hss_rxn_i[2] = hss_txn_i[1];
+			assign hss_rxp_i[2] = hss_txp_i[1];
+			assign hss_rxn_i[1] = hss_txn_i[2];
+			assign hss_rxp_i[1] = hss_txp_i[2];
+			
+			// Loop-back the peripheral link and ring link
+			assign hss_rxn_i[0] = hss_txn_i[0];
+			assign hss_rxp_i[0] = hss_txp_i[0];
+			assign hss_rxn_i[3] = hss_txn_i[3];
+			assign hss_rxp_i[3] = hss_txp_i[3];
+		end
+endcase endgenerate
 
 ////////////////////////////////////////////////////////////////////////////////
 // Device under test
@@ -113,6 +153,8 @@ spinnaker_fpgas_top #( // Enable simulation mode for GTP tile
                      , .DEBUG_CHIPSCOPE_VIO(0)
                        // Simulate the FPGA design for an arbitrary chip
                      , .FPGA_ID(FPGA_ID)
+                       // Connect I/O or B2B links arbitrarily
+                     , .NORTH_SOUTH_ON_FRONT(NORTH_SOUTH_ON_FRONT)
                        // The interval at which clock correction sequences should
                        // be inserted (in cycles).
                      ,    .B2B_CLOCK_CORRECTION_INTERVAL(1000)

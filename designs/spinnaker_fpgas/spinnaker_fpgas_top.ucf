@@ -32,8 +32,8 @@ NET GRN_LED_OUT LOC=AB20 | IOSTANDARD = LVCMOS18 | DRIVE = 6;
 ################################################################################
 # GTP Tile Positions
 ################################################################################
-INST gtp_x0_y0_i/tile0_gtp_x0_y0_i/gtpa1_dual_i LOC=GTPA1_DUAL_X0Y0;
-INST gtp_x1_y0_i/tile0_gtp_x1_y0_i/gtpa1_dual_i LOC=GTPA1_DUAL_X1Y0;
+INST gtp_x0_y0_i/tile0_gtp_x0_y0_*_i/gtpa1_dual_i LOC=GTPA1_DUAL_X0Y0;
+INST gtp_x1_y0_i/tile0_gtp_x1_y0_*_i/gtpa1_dual_i LOC=GTPA1_DUAL_X1Y0;
 
 
 ################################################################################
