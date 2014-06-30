@@ -16,8 +16,7 @@ genvar i;
 `include "spinnaker_fpgas_top.h"
 
 // Select the FPGA ID and spinnaker module connectivity
-localparam        FPGA_ID       = FPGA0;
-localparam [31:0] FPGA_SL_TYPES = FPGA0_SL_TYPES;
+localparam FPGA_ID = 0;
 
 // External differential clock
 reg  refclk_pad_p_i;
@@ -112,6 +111,8 @@ spinnaker_fpgas_top #( // Enable simulation mode for GTP tile
                      , .SIMULATION_GTPRESET_SPEEDUP(1)
                        // Disable (redundant) chipscope regbank interface during simulation
                      , .DEBUG_CHIPSCOPE_VIO(0)
+                       // Simulate the FPGA design for an arbitrary chip
+                     , .FPGA_ID(FPGA_ID)
                        // The interval at which clock correction sequences should
                        // be inserted (in cycles).
                      ,    .B2B_CLOCK_CORRECTION_INTERVAL(1000)
@@ -138,10 +139,6 @@ spinnaker_fpgas_top_i( // Reset signal
                      , .RED_LED_OUT(red_led_i)
                      , .GRN_LED_OUT(grn_led_i)
                        
-                       // A unique identifier signal used to determine
-                       // FPGA pin connections.
-                     , .FPGA_ID_IN(FPGA_ID)
-                       
                        // Differential 150 MHz clock source for each of
                        // the tiles
                      , .REFCLK_PAD_P_IN(refclk_pad_p_i)
@@ -158,22 +155,12 @@ spinnaker_fpgas_top_i( // Reset signal
                        // three different FPGAs are connected to
                        // different configurations, these pins have their
                        // directions set by the FPGA ID signal.
-                     , .SL0_INOUT(sl_pins_i[0])
-                     , .SL1_INOUT(sl_pins_i[1])
-                     , .SL2_INOUT(sl_pins_i[2])
-                     , .SL3_INOUT(sl_pins_i[3])
-                     , .SL4_INOUT(sl_pins_i[4])
-                     , .SL5_INOUT(sl_pins_i[5])
-                     , .SL6_INOUT(sl_pins_i[6])
-                     , .SL7_INOUT(sl_pins_i[7])
-                     , .SL8_INOUT(sl_pins_i[8])
-                     , .SL9_INOUT(sl_pins_i[9])
-                     , .SL10_INOUT(sl_pins_i[10])
-                     , .SL11_INOUT(sl_pins_i[11])
-                     , .SL12_INOUT(sl_pins_i[12])
-                     , .SL13_INOUT(sl_pins_i[13])
-                     , .SL14_INOUT(sl_pins_i[14])
-                     , .SL15_INOUT(sl_pins_i[15])
+                     , .SL_INOUT( { sl_pins_i[15], sl_pins_i[14], sl_pins_i[13], sl_pins_i[12]
+                                  , sl_pins_i[11], sl_pins_i[10], sl_pins_i[9],  sl_pins_i[8]
+                                  , sl_pins_i[7],  sl_pins_i[6],  sl_pins_i[5],  sl_pins_i[4]
+                                  , sl_pins_i[3],  sl_pins_i[2],  sl_pins_i[1],  sl_pins_i[0]
+                                  }
+                                )
                      );
 
 
@@ -185,7 +172,7 @@ generate
 	for (i = 0; i < 16; i = i + 1)
 	begin : spinnaker_link_stimulus_generation
 		// Wire up the links depending on the FPGA in use
-		if (FPGA_SL_TYPES[2 * i +: 2] == HIGH_SL)
+		if (FPGA_SL_TYPES[(32*FPGA_ID) + (2*i) +: 2] == HIGH_SL)
 		begin
 			assign sl_out_ack_i[i]    = sl_pins_i[i][0];
 			assign sl_pins_i[i][7:1]  = sl_out_data_i[i];

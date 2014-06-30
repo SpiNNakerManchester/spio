@@ -25,6 +25,8 @@ module spinnaker_fpgas_top #( // Enable simulation mode for GTP tile
                               // Enable chip-scope Virtual I/O interface (e.g.
                               // to access HSS multiplexer debug register banks)
                             , parameter DEBUG_CHIPSCOPE_VIO = 1
+                              // Which FPGA should this module be compiled for
+                            , parameter FPGA_ID = 0
                               // The interval at which clock correction sequences should
                               // be inserted (in cycles).
                             , parameter    B2B_CLOCK_CORRECTION_INTERVAL = 1000
@@ -55,10 +57,6 @@ module spinnaker_fpgas_top #( // Enable simulation mode for GTP tile
                             , output wire RED_LED_OUT
                             , output wire GRN_LED_OUT
                               
-                              // A unique identifier signal used to determine
-                              // FPGA pin connections.
-                            , input  wire [1:0] FPGA_ID_IN
-                              
                               // Differential 150 MHz clock source for each of
                               // the tiles
                             , input wire REFCLK_PAD_P_IN
@@ -71,26 +69,11 @@ module spinnaker_fpgas_top #( // Enable simulation mode for GTP tile
                             , output wire [3:0] HSS_TXN_OUT
                             , output wire [3:0] HSS_TXP_OUT
                               
-                              // Wires for the SpiNNaker 2-of-7 links. Since the
-                              // three different FPGAs are connected to
+                              // Wires for the 16 SpiNNaker 2-of-7 links. Since
+                              // the three different FPGAs are connected to
                               // different configurations, these pins have their
-                              // directions set by the FPGA ID signal.
-                            , inout wire [15:0] SL0_INOUT
-                            , inout wire [15:0] SL1_INOUT
-                            , inout wire [15:0] SL2_INOUT
-                            , inout wire [15:0] SL3_INOUT
-                            , inout wire [15:0] SL4_INOUT
-                            , inout wire [15:0] SL5_INOUT
-                            , inout wire [15:0] SL6_INOUT
-                            , inout wire [15:0] SL7_INOUT
-                            , inout wire [15:0] SL8_INOUT
-                            , inout wire [15:0] SL9_INOUT
-                            , inout wire [15:0] SL10_INOUT
-                            , inout wire [15:0] SL11_INOUT
-                            , inout wire [15:0] SL12_INOUT
-                            , inout wire [15:0] SL13_INOUT
-                            , inout wire [15:0] SL14_INOUT
-                            , inout wire [15:0] SL15_INOUT
+                              // directions implied by the FPGA_ID parameter.
+                            , inout wire [(16*16)-1:0] SL_INOUT
                             );
 
 genvar i;
@@ -146,8 +129,6 @@ wire led_reset_i;
 // LED signals
 wire red_led_i;
 wire grn_led_i;
-
-wire [1:0] fpga_id_i;
 
 // Input clock to the GTP modules from the external clock
 wire gtpclkin_i;
@@ -418,8 +399,6 @@ assign ring_pkt_activity_i = 1'b0;
 // Unique-Per-FPGA SpiNNaker Link Wiring and Buffering
 ////////////////////////////////////////////////////////////////////////////////
 
-IBUF fpga_id_buf_i [1:0] (.I (FPGA_ID_IN), .O (fpga_id_i));
-
 // Though SpiNNaker links are connected in order to the SL*_INOUT, the
 // input/output direction is switched for different chips on each FPGA (the
 // ordering is either a LOW_SL or a HIGH_SL). The signal ordering is as follows:
@@ -438,57 +417,30 @@ IBUF fpga_id_buf_i [1:0] (.I (FPGA_ID_IN), .O (fpga_id_i));
 //     * HIGH_SL[0]   = Ack
 //     * HIGH_SL[7:1] = Data
 
-// Get the link types for this FPGA
-reg [31:0] sl_types_i;
-always @ (*)
-	case (fpga_id_i)
-		FPGA0:   sl_types_i = FPGA0_SL_TYPES;
-		FPGA1:   sl_types_i = FPGA1_SL_TYPES;
-		FPGA2:   sl_types_i = FPGA2_SL_TYPES;
-		default: sl_types_i = {16{UNUSED_SL}};
-	endcase
-
-
-// Generate the tristate signal for the SpiNNaker links connected to this FPGA
-wire [15:0] sl_tristate_i [15:0];
-generate for (i = 0; i < 16; i = i + 1)
-	begin : spinnaker_link_breakout
-		assign sl_tristate_i[i] = { {7{sl_types_i[(2*i)+1]}}, sl_types_i[(2*i)+0]
-		                          , {7{sl_types_i[(2*i)+0]}}, sl_types_i[(2*i)+1]
-		                          };
-	end
-endgenerate
-
-
 // Buffer the incoming SpiNNaker link signals and split input and output parts
-wire [15:0] sl_in_pins_i  [15:0];
-wire [15:0] sl_out_pins_i [15:0];
-IOBUF sl0_buf_i  [15:0] (.IO(SL0_INOUT),  .O(sl_in_pins_i[ 0]), .I(sl_out_pins_i[ 0]), .T(sl_tristate_i[ 0]));
-IOBUF sl1_buf_i  [15:0] (.IO(SL1_INOUT),  .O(sl_in_pins_i[ 1]), .I(sl_out_pins_i[ 1]), .T(sl_tristate_i[ 1]));
-IOBUF sl2_buf_i  [15:0] (.IO(SL2_INOUT),  .O(sl_in_pins_i[ 2]), .I(sl_out_pins_i[ 2]), .T(sl_tristate_i[ 2]));
-IOBUF sl3_buf_i  [15:0] (.IO(SL3_INOUT),  .O(sl_in_pins_i[ 3]), .I(sl_out_pins_i[ 3]), .T(sl_tristate_i[ 3]));
-IOBUF sl4_buf_i  [15:0] (.IO(SL4_INOUT),  .O(sl_in_pins_i[ 4]), .I(sl_out_pins_i[ 4]), .T(sl_tristate_i[ 4]));
-IOBUF sl5_buf_i  [15:0] (.IO(SL5_INOUT),  .O(sl_in_pins_i[ 5]), .I(sl_out_pins_i[ 5]), .T(sl_tristate_i[ 5]));
-IOBUF sl6_buf_i  [15:0] (.IO(SL6_INOUT),  .O(sl_in_pins_i[ 6]), .I(sl_out_pins_i[ 6]), .T(sl_tristate_i[ 6]));
-IOBUF sl7_buf_i  [15:0] (.IO(SL7_INOUT),  .O(sl_in_pins_i[ 7]), .I(sl_out_pins_i[ 7]), .T(sl_tristate_i[ 7]));
-IOBUF sl8_buf_i  [15:0] (.IO(SL8_INOUT),  .O(sl_in_pins_i[ 8]), .I(sl_out_pins_i[ 8]), .T(sl_tristate_i[ 8]));
-IOBUF sl9_buf_i  [15:0] (.IO(SL9_INOUT),  .O(sl_in_pins_i[ 9]), .I(sl_out_pins_i[ 9]), .T(sl_tristate_i[ 9]));
-IOBUF sl10_buf_i [15:0] (.IO(SL10_INOUT), .O(sl_in_pins_i[10]), .I(sl_out_pins_i[10]), .T(sl_tristate_i[10]));
-IOBUF sl11_buf_i [15:0] (.IO(SL11_INOUT), .O(sl_in_pins_i[11]), .I(sl_out_pins_i[11]), .T(sl_tristate_i[11]));
-IOBUF sl12_buf_i [15:0] (.IO(SL12_INOUT), .O(sl_in_pins_i[12]), .I(sl_out_pins_i[12]), .T(sl_tristate_i[12]));
-IOBUF sl13_buf_i [15:0] (.IO(SL13_INOUT), .O(sl_in_pins_i[13]), .I(sl_out_pins_i[13]), .T(sl_tristate_i[13]));
-IOBUF sl14_buf_i [15:0] (.IO(SL14_INOUT), .O(sl_in_pins_i[14]), .I(sl_out_pins_i[14]), .T(sl_tristate_i[14]));
-IOBUF sl15_buf_i [15:0] (.IO(SL15_INOUT), .O(sl_in_pins_i[15]), .I(sl_out_pins_i[15]), .T(sl_tristate_i[15]));
-
 generate for (i = 0; i < 16; i = i + 1)
-	begin : spinnaker_link_buffering
-		// Select the appropriate input signals given the link type
-		assign sl_in_data_i[i] = (sl_types_i[2*i+:2] == HIGH_SL) ?  sl_in_pins_i[i][7:1] : sl_in_pins_i[i][15:9];
-		assign sl_out_ack_i[i] = (sl_types_i[2*i+:2] == HIGH_SL) ?  sl_in_pins_i[i][8]   : sl_in_pins_i[i][0];
-		
-		// Duplicate the output signals since the tristate will ensure that they get
-		// to the right pins
-		assign sl_out_pins_i[i] = {2{sl_out_data_i[i], sl_in_ack_i[i]}};
+	begin : sl_buffers
+		case (FPGA_SL_TYPES[(32*FPGA_ID) + (2*i)+:2])
+			HIGH_SL:
+				begin
+					// FPGA -> SpiNNaker
+					IBUF sl_in_data_buf_i [6:0] (.I(SL_INOUT[(i*16)+1 +: 7]), .O(sl_in_data_i[i]));
+					OBUF sl_in_ack_buf_i        (.O(SL_INOUT[(i*16)+0]),      .I(sl_in_ack_i[i]));
+					// SpiNNaker -> FPGA
+					OBUF sl_out_data_buf_i [6:0] (.O(SL_INOUT[(i*16)+9 +: 7]), .I(sl_out_data_i[i]));
+					IBUF sl_out_ack_buf_i        (.I(SL_INOUT[(i*16)+8]),      .O(sl_out_ack_i[i]));
+				end
+			
+			LOW_SL:
+				begin
+					// FPGA -> SpiNNaker
+					IBUF sl_in_data_buf_i [6:0] (.I(SL_INOUT[(i*16)+9 +: 7]), .O(sl_in_data_i[i]));
+					OBUF sl_in_ack_buf_i        (.O(SL_INOUT[(i*16)+8]),      .I(sl_in_ack_i[i]));
+					// SpiNNaker -> FPGA
+					OBUF sl_out_data_buf_i [6:0] (.O(SL_INOUT[(i*16)+1 +: 7]), .I(sl_out_data_i[i]));
+					IBUF sl_out_ack_buf_i        (.I(SL_INOUT[(i*16)+0]),      .O(sl_out_ack_i[i]));
+				end
+		endcase
 	end
 endgenerate
 
