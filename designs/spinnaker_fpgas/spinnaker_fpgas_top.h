@@ -17,21 +17,21 @@ localparam UNUSED_SL = 2'b11;
 // The first 32 bits are for FPGA0, the next for FPGA1 and the last for FPGA2.
 // This is to work around the inability of some simulators to support literal
 // assignment to arrays.
-localparam [31:0] FPGA_SL_TYPES = { // FPGA2
-                                    LOW_SL,  LOW_SL,  LOW_SL,  LOW_SL
-                                  , LOW_SL,  LOW_SL,  LOW_SL,  LOW_SL
-                                  , LOW_SL,  LOW_SL,  LOW_SL,  LOW_SL
-                                  , LOW_SL,  LOW_SL,  LOW_SL,  LOW_SL
-                                    // FPGA1
-                                  , HIGH_SL, LOW_SL,  HIGH_SL, LOW_SL
-                                  , HIGH_SL, LOW_SL,  HIGH_SL, LOW_SL
-                                  , HIGH_SL, HIGH_SL, HIGH_SL, HIGH_SL
-                                  , HIGH_SL, HIGH_SL, HIGH_SL, HIGH_SL
-                                    // FPGA0
-                                  , HIGH_SL, HIGH_SL, HIGH_SL, HIGH_SL
-                                  , HIGH_SL, HIGH_SL, HIGH_SL, HIGH_SL
-                                  , HIGH_SL, LOW_SL,  HIGH_SL, LOW_SL
-                                  , HIGH_SL, LOW_SL,  HIGH_SL, LOW_SL
-                                  };
+localparam [(32*3)-1:0] FPGA_SL_TYPES = { // FPGA2
+                                          LOW_SL,  LOW_SL,  LOW_SL,  LOW_SL
+                                        , LOW_SL,  LOW_SL,  LOW_SL,  LOW_SL
+                                        , LOW_SL,  LOW_SL,  LOW_SL,  LOW_SL
+                                        , LOW_SL,  LOW_SL,  LOW_SL,  LOW_SL
+                                          // FPGA1
+                                        , HIGH_SL, LOW_SL,  HIGH_SL, LOW_SL
+                                        , HIGH_SL, LOW_SL,  HIGH_SL, LOW_SL
+                                        , HIGH_SL, HIGH_SL, HIGH_SL, HIGH_SL
+                                        , HIGH_SL, HIGH_SL, HIGH_SL, HIGH_SL
+                                          // FPGA0
+                                        , HIGH_SL, HIGH_SL, HIGH_SL, HIGH_SL
+                                        , HIGH_SL, HIGH_SL, HIGH_SL, HIGH_SL
+                                        , HIGH_SL, LOW_SL,  HIGH_SL, LOW_SL
+                                        , HIGH_SL, LOW_SL,  HIGH_SL, LOW_SL
+                                        };
 
 `endif
