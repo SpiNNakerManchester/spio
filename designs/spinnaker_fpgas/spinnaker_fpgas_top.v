@@ -929,7 +929,7 @@ generate for (i = 0; i < 16; i = i + 1)
 		
 		// Synchronisers
 		spio_spinnaker_link_sync#(.SIZE(1))
-		spio_spinnaker_link_sync_i( .CLK_IN (spinnaker_link_clk1_i)
+		spio_spinnaker_link_sync_i( .CLK_IN (spinnaker_link_clk0_i)
 		                          , .IN     (sl_out_ack_i[i])
 		                          , .OUT    (synced_sl_out_ack_i)
 		                          );
