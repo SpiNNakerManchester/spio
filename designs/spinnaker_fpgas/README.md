@@ -11,7 +11,7 @@ from multiples/divisions of this clock.
 By convention, the four HSS links are named M0, M1, M2 and M3 corresponding to Tile 0 Block 0, Tile
 0 Block 1, Tile 1 Block 0 and Tile 1 block 1 respectively.
 
-M0-3 are broken out to S-ATA connectors on the SpiNN-5 board while M3 is connected in a ring
+M0-2 are broken out to S-ATA connectors on the SpiNN-5 board while M3 is connected in a ring
 network which is connected (in the TX direction) as  FPGA 0 -> FPGA 1 -> FPGA 2 -> FPGA 0.
 
 M0 and M1 are always used for board-to-board links while M2 is always used for peripherals.
@@ -39,7 +39,7 @@ Synthesis
 
 The design differs in pin configuration between the three FPGAs on a SpiNNaker
 board. As a result, it must be synthesised three times with the `FPGA_ID`
-paramter set to `0`, `1` and `2` respectively. Care must be taken to load only
+parameter set to `0`, `1` and `2` respectively. Care must be taken to load only
 the correct image onto each FPGA since some pins that are inputs for one FPGA
 are outputs for another.
 
