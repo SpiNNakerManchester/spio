@@ -57,7 +57,7 @@ module spinnaker_fpgas_top #( // Enable simulation mode for GTP tile
                             , parameter PERIPH_MC_KEY  = 32'hffffffff
                             )
                             ( // Reset signal (only used during simulation)
-                              input wire RESET_IN
+                              input wire N_RESET_IN
                               
                               // Status LEDs
                             , output wire RED_LED_OUT
@@ -110,6 +110,7 @@ localparam   RING_TXPREEMPHASIS = 3'b000;  // Default
 ////////////////////////////////////////////////////////////////////////////////
 
 // External reset signal
+wire n_reset_i;
 wire reset_i;
 
 // Reset GTP blocks
@@ -269,7 +270,8 @@ wire                  switch_dropped_vld_i     [`NUM_CHANS-1:0];
 // Reset
 ////////////////////////////////////////////////////////////////////////////////
 
-IBUF reset_buf (.I (RESET_IN), .O (reset_i));
+IBUF reset_buf (.I (N_RESET_IN), .O (n_reset_i));
+assign reset_i = ~n_reset_i;
 
 assign gtp_reset_i = reset_i;
 
