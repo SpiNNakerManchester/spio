@@ -28,6 +28,7 @@ reg tb_clk_i;
 
 // Reset signals
 reg reset_i;
+reg n_reset_i;
 reg lreset_i;
 
 // LEDs
@@ -85,6 +86,8 @@ initial
 		lreset_i = 1'b0;
 	end
 
+assign n_reset_i = !reset_i;
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // High-speed-serial Wires
@@ -135,7 +138,7 @@ spinnaker_fpgas_top #( // Enable simulation mode for GTP tile
                      , .PERIPH_MC_KEY (32'h00000001)
                      )
 spinnaker_fpgas_top_i( // Reset signal
-                       .RESET_IN(reset_i)
+                       .N_RESET_IN(n_reset_i)
                        
                        // Status LEDs
                      , .RED_LED_OUT(red_led_i)
