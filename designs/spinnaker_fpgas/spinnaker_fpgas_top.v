@@ -49,7 +49,7 @@ module spinnaker_fpgas_top #( // Enable simulation mode for GTP tile
                             , parameter PERIPH_MC_KEY  = 32'hffffffff
                             )
                             ( // Reset signal (only used during simulation)
-                              input wire RESET_IN
+                              input wire N_RESET_IN
                               
                               // Status LEDs
                             , output wire RED_LED_OUT
@@ -121,6 +121,7 @@ localparam   RING_TXPREEMPHASIS = 3'b000;  // Default
 ////////////////////////////////////////////////////////////////////////////////
 
 // External reset signal
+wire n_reset_i;
 wire reset_i;
 
 // Reset GTP blocks
@@ -282,7 +283,8 @@ wire                  switch_dropped_vld_i     [`NUM_CHANS-1:0];
 // Reset
 ////////////////////////////////////////////////////////////////////////////////
 
-IBUF reset_buf (.I (RESET_IN), .O (reset_i));
+IBUF reset_buf (.I (N_RESET_IN), .O (n_reset_i));
+assign reset_i = !n_reset_i;
 
 assign gtp_reset_i = reset_i;
 
@@ -290,10 +292,10 @@ assign clk_reset_i = reset_i | !plllkdet_i;
 
 // HSS blocks are connected to the GTP blocks and so must wait until they have
 // completely reset.
-assign    b2b_hss_reset_i[0] =    !b2b_gtpresetdone_i[0] & !usrclks_stable_i;
-assign    b2b_hss_reset_i[1] =    !b2b_gtpresetdone_i[1] & !usrclks_stable_i;
-assign periph_hss_reset_i    = !periph_gtpresetdone_i    & !usrclks_stable_i;
-//assign   ring_hss_reset_i    =   !ring_gtpresetdone_i    & !usrclks_stable_i;
+assign    b2b_hss_reset_i[0] =    !b2b_gtpresetdone_i[0] | !usrclks_stable_i;
+assign    b2b_hss_reset_i[1] =    !b2b_gtpresetdone_i[1] | !usrclks_stable_i;
+assign periph_hss_reset_i    = !periph_gtpresetdone_i    | !usrclks_stable_i;
+//assign   ring_hss_reset_i    =   !ring_gtpresetdone_i    | !usrclks_stable_i;
 
 assign spinnaker_link_reset_i = !usrclks_stable_i;
 
