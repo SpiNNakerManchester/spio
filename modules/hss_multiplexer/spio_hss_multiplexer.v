@@ -126,40 +126,37 @@ wire        rxvld_i;
 // Low-level serial TX/RX control blocks
 ////////////////////////////////////////////////////////////////////////////////
 
-wire handshake_phase_i;
+wire [1:0] rx_state_i;
 
-spio_hss_multiplexer_tx_control #( .CLOCK_CORRECTION_INTERVAL(CLOCK_CORRECTION_INTERVAL)
-                                 , .CLOCK_CORRECTION_INTERVAL_BITS(CLOCK_CORRECTION_INTERVAL_BITS)
-                                 )
-spio_hss_multiplexer_tx_control_i( .CLK_IN                 (CLK_IN)
-                                 , .RESET_IN               (RESET_IN)
-                                 , .HANDSHAKE_COMPLETE_IN  (HANDSHAKE_COMPLETE_OUT)
-                                 , .HANDSHAKE_PHASE_IN     (handshake_phase_i)
-                                 , .TXDATA_OUT             (TXDATA_OUT)
-                                 , .TXCHARISK_OUT          (TXCHARISK_OUT)
-                                 , .TXDATA_IN              (txdata_i)
-                                 , .TXCHARISK_IN           (txcharisk_i)
-                                 , .TXRDY_OUT              (txrdy_i)
-                                 );
+// Synthesize equivalent signals for the old txc/rxc
+assign HANDSHAKE_COMPLETE_OUT = rx_state_i == 2'b11;
+assign VERSION_MISMATCH_OUT = 1'b0;
 
+rxc rxc_i ( .clk(CLK_IN)
+          , .rst(RESET_IN)
+          , .gtp_data(RXDATA_IN)
+          , .gtp_kchr(RXCHARISK_IN)
+          , .gtp_is_comma(RXCHARISCOMMA_IN)
+          , .gtp_byte_is_aligned(RXLOSSOFSYNC_IN == 2'b00) // Use the LOS to
+                                                           // detect alignment
+                                                           // instead
+          , .gtp_los(RXLOSSOFSYNC_IN)
+          , .gtp_align_comma() // Ignore as the byte aligned signal is switched off
+          , .rx_state(rx_state_i)
+          , .rx_out_data(rxdata_i)
+          , .rx_out_kchr(rxcharisk_i)
+          , .rx_out_vld(rxvld_i)
+          );
 
-spio_hss_multiplexer_rx_control #( .NUM_HANDSHAKES(NUM_HANDSHAKES)
-                                 , .NUM_HANDSHAKES_BITS(NUM_HANDSHAKES_BITS)
-                                 )
-spio_hss_multiplexer_rx_control_i( .CLK_IN                 (CLK_IN)
-                                 , .RESET_IN               (RESET_IN)
-                                 , .HANDSHAKE_COMPLETE_OUT (HANDSHAKE_COMPLETE_OUT)
-                                 , .HANDSHAKE_PHASE_OUT    (handshake_phase_i)
-                                 , .VERSION_MISMATCH_OUT   (VERSION_MISMATCH_OUT)
-                                 , .RXDATA_IN              (RXDATA_IN)
-                                 , .RXCHARISCOMMA_IN       (RXCHARISCOMMA_IN)
-                                 , .RXLOSSOFSYNC_IN        (RXLOSSOFSYNC_IN)
-                                 , .RXCHARISK_IN           (RXCHARISK_IN)
-                                 , .RXDATA_OUT             (rxdata_i)
-                                 , .RXCHARISK_OUT          (rxcharisk_i)
-                                 , .RXVLD_OUT              (rxvld_i)
-                                 );
-
+txc txc_i ( .clk(CLK_IN)
+          , .rst(RESET_IN)
+          , .rx_state(rx_state_i)
+          , .tx_in_data(txdata_i)
+          , .tx_in_kchr(txcharisk_i)
+          , .tx_in_rdy(txrdy_i)
+          , .gtp_data(TXDATA_OUT)
+          , .gtp_kchr(TXCHARISK_OUT)
+          );
 
 ////////////////////////////////////////////////////////////////////////////////
 // High-level packet-framing protocol.

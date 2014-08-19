@@ -24,6 +24,7 @@
 `define KCH_COMMA 8'hBC
 
 `define CLKC              8'h1c   // K28.0
+`define SYNC              8'h5c   // K28.2
 `define COMMA             8'hbc   // K28.5
 
 `define KCH_DATA          `COMMA
@@ -119,8 +120,8 @@
 `define CLKC_FRM         {`FRM_BYTES {`KCH_CLKC}}
 
 // XXX: Now sent by tx_control/rx_control, should eventually be removed.
-`define SYNC_FRM         {`KCH_COMMA , `KCH_HANDSHAKE , 8'h01 , `VERSION}
-`define SYNC_KBITS       4'b1100
+`define SYNC_FRM         {`COMMA, 8'h02, `SYNC, 8'h00}
+`define SYNC_KBITS       4'b1010
 
 `define ZERO_FRM         {`FRM_BITS {1'b0}}
 
