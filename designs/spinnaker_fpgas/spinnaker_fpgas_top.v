@@ -284,7 +284,7 @@ wire                  switch_dropped_vld_i     [`NUM_CHANS-1:0];
 ////////////////////////////////////////////////////////////////////////////////
 
 IBUF reset_buf (.I (N_RESET_IN), .O (n_reset_i));
-assign reset_i = ~n_reset_i;
+assign reset_i = !n_reset_i;
 
 assign gtp_reset_i = reset_i;
 
