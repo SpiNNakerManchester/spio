@@ -34,6 +34,14 @@ This design makes use of the following modules from the spI/O module collection:
 * `rr_arbiter/*`
 * `switch/*`
 
+Synthesis
+---------
+
+The design differs in pin configuration between the three FPGAs on a SpiNNaker
+board. As a result, it must be synthesised three times with the `FPGA_ID`
+parameter set to `0`, `1` and `2` respectively. Care must be taken to load only
+the correct image onto each FPGA since some pins that are inputs for one FPGA
+are outputs for another.
 
 Target Platform
 ---------------
@@ -51,8 +59,7 @@ with eachother. Deleting these example files will result in warnings about
 missing files however just deleting the contents of them will solve the problem.
 A Bash snippet to be executed from this project's directory is listed below:
 
-	for f in ipcore_dir/gtp_x*_y0/example_design/*; do echo "" > "$f"; done
-
+	for f in ipcore_dir/gtp_x*_y0_*/example_design/*; do echo "" > "$f"; done
 
 Chipscope VIO
 -------------
