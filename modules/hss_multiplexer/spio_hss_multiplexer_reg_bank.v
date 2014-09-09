@@ -219,7 +219,7 @@ module spio_hss_multiplexer_reg_bank
     else
       if (reg_write)
         case (reg_addr)
-          `IDSO_REG: reg_idso <= reg_write_data;
+          `IDSO_REG: reg_idso <= reg_write_data[`IDLE_BITS-1:0];
         endcase
 
   //---------------------------------------------------------------
