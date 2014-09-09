@@ -261,8 +261,8 @@ module spio_hss_multiplexer_reg_bank
         `CFCR_REG: reg_read_data <= {{(`REGD_BITS - `NUM_CHANS) {1'b0}},
                                  reg_cfcr
                                };  // not a counter!
-        `IDSO_REG: reg_read_data <= reg_idso;
-        `IDSI_REG: reg_read_data <= reg_idsi;
+        `IDSO_REG: reg_read_data <= {{(`REGD_BITS-`IDLE_BITS){1'b0}}, reg_idso};
+        `IDSI_REG: reg_read_data <= {{(`REGD_BITS-`IDLE_BITS){1'b0}}, reg_idsi};
         default:   reg_read_data <= {`REGD_BITS {1'b1}};
       endcase
   //---------------------------------------------------------------
