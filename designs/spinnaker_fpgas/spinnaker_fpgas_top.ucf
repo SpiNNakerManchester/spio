@@ -29,6 +29,16 @@ NET N_RESET_IN LOC=C3  | IOSTANDARD = LVCMOS18;
 
 
 ################################################################################
+# SPI Pins
+################################################################################
+# TODO: Set pin locations
+#NET SPI_NSS_IN   LOC=XX  | IOSTANDARD = LVCMOS18;
+#NET SPI_SCLK_IN  LOC=XX  | IOSTANDARD = LVCMOS18;
+#NET SPI_MOSI_IN  LOC=XX  | IOSTANDARD = LVCMOS18;
+#NET SPI_MISO_OUT LOC=XX  | IOSTANDARD = LVCMOS18;
+
+
+################################################################################
 # LED Pins
 ################################################################################
 NET RED_LED_OUT LOC=AA3  | IOSTANDARD = LVCMOS18 | DRIVE = 6;
