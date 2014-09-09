@@ -24,7 +24,7 @@ module spinnaker_fpgas_top #( // Enable simulation mode for GTP tile
                             , parameter SIMULATION_GTPRESET_SPEEDUP = 0
                               // Enable chip-scope Virtual I/O interface (e.g.
                               // to access HSS multiplexer debug register banks)
-                            , parameter DEBUG_CHIPSCOPE_VIO = 1
+                            , parameter DEBUG_CHIPSCOPE_VIO = 0
                               // Which FPGA should this module be compiled for
                             , parameter FPGA_ID = 0
                               // Should North and South connections be connected
@@ -32,7 +32,7 @@ module spinnaker_fpgas_top #( // Enable simulation mode for GTP tile
                               // J9 and J11 on the front respectively.
                               // (peripheral connections will be placed on the
                               // opposing side).
-                            , parameter NORTH_SOUTH_ON_FRONT = 0
+                            , parameter NORTH_SOUTH_ON_FRONT = 1
                               // The interval at which clock correction sequences should
                               // be inserted (in cycles).
                             , parameter    B2B_CLOCK_CORRECTION_INTERVAL = 1000
