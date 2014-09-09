@@ -181,7 +181,7 @@ module spio_hss_multiplexer_frame_tx
         2'b1x:   hsl_data <= `CLKC_FRM;
 
         // When idle send a comma and an externally specified sentinel value
-        2'bx1:   hsl_data <= {`KCH_COMMA, reg_idso};
+        2'bx1:   hsl_data <= {`KCH_IDLE, reg_idso};
 
         default: hsl_data <= crc_out;
       endcase

@@ -186,7 +186,7 @@ module spio_hss_multiplexer_frame_disassembler
     crc_chk = ack_frm || nak_frm || ooc_frm || dat_lst;
 
   always @ (*)
-    crc_last = crc_chk || frm_error;
+    crc_last = crc_chk || frm_error || idl_frm;
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------
@@ -424,11 +424,13 @@ module spio_hss_multiplexer_frame_disassembler
   always @ (*)
     bad_frm = !idl_frm && !ack_frm && !nak_frm && !ooc_frm && !cfc_frm && !dat_frm;
 
+  // Idle frames have two k-chars
+  always @ (*)
+    idl_frm = hsl_vld && (hsl_kchr == `IDLE_KBITS) && (hsl_data[31:16] == `KCH_IDLE);
+
+  // Normal frames have one kchar
   always @ (*)
     vld_frm = hsl_vld && (hsl_kchr == {1'b1, {(`KCH_BITS - 1) {1'b0}}});
-
-  always @ (*)
-    idl_frm = vld_frm && (hsl_data[`FRM_KCH_RNG] == `KCH_COMMA);
 
   always @ (*)
     ack_frm = vld_frm && (hsl_data[`FRM_KCH_RNG] == `KCH_ACK);
