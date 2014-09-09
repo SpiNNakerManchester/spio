@@ -42,7 +42,7 @@ module spio_hss_multiplexer_spinnlink
   // register bank interface
   input  wire                    reg_write,
   input  wire [`REGA_BITS - 1:0] reg_addr,
-  output reg  [`REGD_BITS - 1:0] reg_read_data,
+  output wire [`REGD_BITS - 1:0] reg_read_data,
   input  wire [`REGD_BITS - 1:0] reg_write_data,
 
   // packet inputs
