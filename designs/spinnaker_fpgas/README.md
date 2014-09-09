@@ -67,3 +67,18 @@ Chipscope VIO
 A chipscope virtual I/O port can be added to aid in debugging allowing access to
 both the HSS multiplexers' debug register banks and also various internal
 signals.
+
+
+SPI Interface
+-------------
+
+A number of diagnostic registers associated with the HSS links are presented via
+an SPI interface.
+
+The address decoding scheme used to select which HSS link is queried is defined
+in `spinnaker_fpgas_address_decode.v`.
+
+The addresses of the available registersin each HSS link are defined in
+`../../modules/hss_multiplexer/spio_hss_multiplexer_reg_bank.h`.
+
+The SPI protocol and its parameters are defined in `spinnaker_fpgas_spi.v`.

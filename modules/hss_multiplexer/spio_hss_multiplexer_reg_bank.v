@@ -47,6 +47,7 @@ module spio_hss_multiplexer_reg_bank
 
   // frame transmitter interface
   input  wire                    reg_tfrm,
+  output reg  [`IDLE_BITS - 1:0] reg_idso,
 
   // frame disassembler interface
   input  wire                    reg_dfrm,
@@ -56,6 +57,7 @@ module spio_hss_multiplexer_reg_bank
   input  wire                    reg_rack,
   input  wire                    reg_rooc,
   input  wire [`NUM_CHANS - 1:0] reg_cfcr,
+  input  wire [`IDLE_BITS - 1:0] reg_idsi,
 
   // packet dispatcher interface
   input  wire                    reg_rfrm,
@@ -65,8 +67,10 @@ module spio_hss_multiplexer_reg_bank
   input  wire [`NUM_CHANS - 1:0] reg_cfcl,
 
   // register access interface
+  input  wire                    reg_write,
   input  wire [`REGA_BITS - 1:0] reg_addr,
-  output reg  [`REGD_BITS - 1:0] reg_data
+  output reg  [`REGD_BITS - 1:0] reg_read_data,
+  input  wire [`REGD_BITS - 1:0] reg_write_data
 );
 
   //---------------------------------------------------------------
@@ -204,43 +208,62 @@ module spio_hss_multiplexer_reg_bank
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------
+  // register writing
+  //---------------------------------------------------------------
+
+  always @(posedge clk or posedge rst)
+    if (rst)
+      begin
+        reg_idso <= {`IDLE_BITS{1'b0}};
+      end
+    else
+      if (reg_write)
+        case (reg_addr)
+          `IDSO_REG: reg_idso <= reg_write_data;
+        endcase
+
+  //---------------------------------------------------------------
+
+  //---------------------------------------------------------------
   // register output selection
   //---------------------------------------------------------------
   always @ (posedge clk or posedge rst)
     if (rst)
-      reg_data <= `REGD_BITS'd0; // not really necessary!
+      reg_read_data <= `REGD_BITS'd0; // not really necessary!
     else
       case (reg_addr)
-        `VERS_REG: reg_data <= `VERSION;
-        `CRCE_REG: reg_data <= crce_ctr;
-        `FRME_REG: reg_data <= frme_ctr;
-        `BUSY_REG: reg_data <= busy_ctr;
-        `LNAK_REG: reg_data <= lnak_ctr;
-        `RNAK_REG: reg_data <= rnak_ctr;
-        `LACK_REG: reg_data <= lack_ctr;
-        `RACK_REG: reg_data <= rack_ctr;
-        `LOOC_REG: reg_data <= looc_ctr;
-        `ROOC_REG: reg_data <= rooc_ctr;
-        `CRDT_REG: reg_data <= {{(`REGD_BITS - `CRDT_BITS) {1'b0}},
-                                 reg_crdt
-                               };  // not a counter!
-        `SFRM_REG: reg_data <= sfrm_ctr;
-        `TFRM_REG: reg_data <= tfrm_ctr;
-        `DFRM_REG: reg_data <= dfrm_ctr;
-        `RFRM_REG: reg_data <= rfrm_ctr;
-        `EMPT_REG: reg_data <= {{(`REGD_BITS - `NUM_CHANS) {1'b0}},
-                                 reg_empt
-                               };  // not a counter!
-        `FULL_REG: reg_data <= {{(`REGD_BITS - `NUM_CHANS) {1'b0}},
-                                 reg_full
-                               };  // not a counter!
-        `CFCL_REG: reg_data <= {{(`REGD_BITS - `NUM_CHANS) {1'b0}},
-                                 reg_cfcl
-                               };  // not a counter!
-        `CFCR_REG: reg_data <= {{(`REGD_BITS - `NUM_CHANS) {1'b0}},
+        `VERS_REG: reg_read_data <= `VERSION;
+        `CRCE_REG: reg_read_data <= crce_ctr;
+        `FRME_REG: reg_read_data <= frme_ctr;
+        `BUSY_REG: reg_read_data <= busy_ctr;
+        `LNAK_REG: reg_read_data <= lnak_ctr;
+        `RNAK_REG: reg_read_data <= rnak_ctr;
+        `LACK_REG: reg_read_data <= lack_ctr;
+        `RACK_REG: reg_read_data <= rack_ctr;
+        `LOOC_REG: reg_read_data <= looc_ctr;
+        `ROOC_REG: reg_read_data <= rooc_ctr;
+        `CRDT_REG: reg_read_data <= {{(`REGD_BITS - `CRDT_BITS) {1'b0}},
+                                      reg_crdt
+                                    };  // not a counter!
+        `SFRM_REG: reg_read_data <= sfrm_ctr;
+        `TFRM_REG: reg_read_data <= tfrm_ctr;
+        `DFRM_REG: reg_read_data <= dfrm_ctr;
+        `RFRM_REG: reg_read_data <= rfrm_ctr;
+        `EMPT_REG: reg_read_data <= {{(`REGD_BITS - `NUM_CHANS) {1'b0}},
+                                      reg_empt
+                                    };  // not a counter!
+        `FULL_REG: reg_read_data <= {{(`REGD_BITS - `NUM_CHANS) {1'b0}},
+                                      reg_full
+                                    };  // not a counter!
+        `CFCL_REG: reg_read_data <= {{(`REGD_BITS - `NUM_CHANS) {1'b0}},
+                                      reg_cfcl
+                                    };  // not a counter!
+        `CFCR_REG: reg_read_data <= {{(`REGD_BITS - `NUM_CHANS) {1'b0}},
                                  reg_cfcr
                                };  // not a counter!
-	default:   reg_data <= {`REGD_BITS {1'b1}};
+        `IDSO_REG: reg_read_data <= reg_idso;
+        `IDSI_REG: reg_read_data <= reg_idsi;
+        default:   reg_read_data <= {`REGD_BITS {1'b1}};
       endcase
   //---------------------------------------------------------------
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

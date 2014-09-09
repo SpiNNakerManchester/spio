@@ -118,9 +118,11 @@
 // removed.
 `define CLKC_FRM         {`FRM_BYTES {`KCH_CLKC}}
 
-// XXX: Now sent by tx_control/rx_control, should eventually be removed.
-`define SYNC_FRM         {`KCH_COMMA , `KCH_HANDSHAKE , 8'h01 , `VERSION}
-`define SYNC_KBITS       4'b1100
+// "Idle" frames k-characters (one for the leading comma)
+`define IDLE_KBITS       4'b1000
+
+// Number of bits in the idle frame sentinel value
+`define IDLE_BITS 24
 
 `define ZERO_FRM         {`FRM_BITS {1'b0}}
 

@@ -40,8 +40,10 @@ module spio_hss_multiplexer_spinnlink
   input  wire 			 rst,
 
   // register bank interface
+  input  wire                    reg_write,
   input  wire [`REGA_BITS - 1:0] reg_addr,
-  output wire [`REGD_BITS - 1:0] reg_data,
+  output reg  [`REGD_BITS - 1:0] reg_read_data,
+  input  wire [`REGD_BITS - 1:0] reg_write_data,
 
   // packet inputs
   input  wire  [`PKT_BITS - 1:0] pkt_data0,
@@ -135,6 +137,7 @@ module spio_hss_multiplexer_spinnlink
   wire                    reg_rfrm;
   wire                    reg_dfrm;
   wire                    reg_tfrm;
+  wire [`IDLE_BITS - 1:0] reg_idso;
   wire                    reg_sfrm;
   wire                    reg_busy;
   wire                    reg_nack;
@@ -144,6 +147,7 @@ module spio_hss_multiplexer_spinnlink
   wire                    reg_rack;
   wire                    reg_looc;
   wire                    reg_rooc;
+  wire [`IDLE_BITS - 1:0] reg_idsi;
   wire [`NUM_CHANS - 1:0] reg_empt;
   wire [`NUM_CHANS - 1:0] reg_full;
    
@@ -303,6 +307,7 @@ module spio_hss_multiplexer_spinnlink
 
     // register interface (to register bank)
     .reg_tfrm   (reg_tfrm),
+    .reg_idso   (reg_idso),
 
     // frame interface
     .frm_data   (frm_data),
@@ -346,6 +351,7 @@ module spio_hss_multiplexer_spinnlink
     .reg_crce   (reg_crce),
     .reg_frme   (reg_frme),
     .reg_rooc   (reg_rooc),
+    .reg_idsi   (reg_idsi),
 
     // high-speed link interface
     .hsl_data   (ihsl_data),
@@ -511,6 +517,7 @@ module spio_hss_multiplexer_spinnlink
 
     // frame transmitter interface
     .reg_tfrm (reg_tfrm),
+    .reg_idso (reg_idso),
 
     // frame disassembler interface
     .reg_dfrm (reg_dfrm),
@@ -518,6 +525,7 @@ module spio_hss_multiplexer_spinnlink
     .reg_frme (reg_frme),
     .reg_rooc (reg_rooc),
     .reg_cfcr (cfc_rem),
+    .reg_idsi (reg_idsi),
 
     // packet dispatcher interface
     .reg_rfrm (reg_rfrm),
@@ -527,8 +535,10 @@ module spio_hss_multiplexer_spinnlink
     .reg_cfcl (cfc_loc),
 
     // register access interface
-    .reg_addr (reg_addr),
-    .reg_data (reg_data)
+    .reg_write      (reg_write),
+    .reg_addr       (reg_addr),
+    .reg_read_data  (reg_read_data),
+    .reg_write_data (reg_write_data)
   );
   //---------------------------------------------------------------
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

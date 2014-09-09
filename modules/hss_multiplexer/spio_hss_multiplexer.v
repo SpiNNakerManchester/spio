@@ -100,11 +100,16 @@ module spio_hss_multiplexer #( // The interval at which clock correction sequenc
                              ,   input  wire                 RX_PKT7_RDY_IN
                              
                                // High-level protocol Performance counters
-                                 // Accessible as a bank of read-only registers
-                                 // whose addresses are given in
-                                 // spio_hss_multiplexer_register_bank.h
+                               // Accessible as a bank of read-only registers
+                               // whose addresses are given in
+                               // spio_hss_multiplexer_register_bank.h
+                                 // Write a value to a register
+                             ,   input  wire                    REG_WRITE_IN
+                                 // Address of register to read/write
                              ,   input  wire [`REGA_BITS - 1:0] REG_ADDR_IN
-                             ,   output wire [`REGD_BITS - 1:0] REG_DATA_OUT
+                                 // Register value being read/written
+                             ,   output wire [`REGD_BITS - 1:0] REG_READ_DATA_OUT
+                             ,   input  wire [`REGD_BITS - 1:0] REG_WRITE_DATA_IN
                              );
 
 
@@ -172,8 +177,10 @@ spio_hss_multiplexer_spinnlink_i( .clk       (CLK_IN)
                                 , .rst       (RESET_IN)
                                 
                                   // Monitoring interface
-                                , .reg_addr  (REG_ADDR_IN)
-                                , .reg_data  (REG_DATA_OUT)
+                                , .reg_write      (REG_WRITE_IN)
+                                , .reg_addr       (REG_ADDR_IN)
+                                , .reg_read_data  (REG_READ_DATA_OUT)
+                                , .reg_write_data (REG_WRITE_DATA_IN)
                                 
                                   // To high-speed serial: assembled frames out
                                 , .hsl_data  (txdata_i)
