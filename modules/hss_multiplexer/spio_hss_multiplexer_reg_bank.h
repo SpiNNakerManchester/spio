@@ -5,7 +5,7 @@
 `ifndef SPIO_HSS_MUTLIPLEXER_REG_BANK_H
 `define SPIO_HSS_MUTLIPLEXER_REG_BANK_H
 
-`define REGA_BITS        5
+`define REGA_BITS        6
 `define REGD_BITS       32
 
 `define VERS_REG         0   // (RO) Protocol version
