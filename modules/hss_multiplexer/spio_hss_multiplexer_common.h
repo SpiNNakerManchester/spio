@@ -6,7 +6,7 @@
 `define SPIO_HSS_MUTLIPLEXER_COMMON_H
 
 // Protocol Version Identifier (checked at time of handshake)
-`define VERSION 8'h02
+`define VERSION 8'h03
 
 ////////////////////////////////////////////////////////////////////////////////
 // K-Characters

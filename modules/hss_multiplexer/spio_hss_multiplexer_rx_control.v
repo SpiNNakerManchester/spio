@@ -4,8 +4,12 @@
  *  * Ensure 32-bit word-alignment
  *  * Perform a handshake with the remote system to ensure protocol
  *    compatibility and link stability.
- *  * Insert and filter clock correction sequences transparently into the
- *    stream.
+ *  * Filter clock correction sequences from stream. Insertion of these
+ *    sequences is handled by the frame tx due to a limitation of the frame tx
+ *    and disassembler and related components where they ignore ready/valid
+ *    signals during a data frame. Clock correction sequences are still inserted
+ *    during handshaking.
+
  *  * Re-acquire 32-bit word-alignment upon loss of sync.
  */
 
@@ -159,8 +163,8 @@ wire is_handshake_i = is_word_aligned_i
                     && aligned_rxcharisk_i == 4'b1100
                     ;
 
-wire handshake_phase_in_i   = is_handshake_i ? aligned_rxdata_i[8]   : 1'bX;
-wire handshake_version_in_i = is_handshake_i ? aligned_rxdata_i[7:0] : 1'bX;
+wire       handshake_phase_in_i   = is_handshake_i ? aligned_rxdata_i[8]   : 1'bX;
+wire [7:0] handshake_version_in_i = is_handshake_i ? aligned_rxdata_i[7:0] : 8'bX;
 
 // Version mismatch reporting
 always @ (posedge CLK_IN, posedge RESET_IN)

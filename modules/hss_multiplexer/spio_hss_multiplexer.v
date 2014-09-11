@@ -133,9 +133,7 @@ wire        rxvld_i;
 
 wire handshake_phase_i;
 
-spio_hss_multiplexer_tx_control #( .CLOCK_CORRECTION_INTERVAL(CLOCK_CORRECTION_INTERVAL)
-                                 , .CLOCK_CORRECTION_INTERVAL_BITS(CLOCK_CORRECTION_INTERVAL_BITS)
-                                 )
+spio_hss_multiplexer_tx_control
 spio_hss_multiplexer_tx_control_i( .CLK_IN                 (CLK_IN)
                                  , .RESET_IN               (RESET_IN)
                                  , .HANDSHAKE_COMPLETE_IN  (HANDSHAKE_COMPLETE_OUT)

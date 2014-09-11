@@ -4,8 +4,11 @@
  *  * Ensure 32-bit word-alignment
  *  * Perform a handshake with the remote system to ensure protocol
  *    compatibility and link stability.
- *  * Insert and filter clock correction sequences transparently into the
- *    stream.
+ *  * Filter clock correction sequences from stream. Insertion of these
+ *    sequences is handled by the frame tx due to a limitation of the frame tx
+ *    and disassembler and related components where they ignore ready/valid
+ *    signals during a data frame. Clock correction sequences are still inserted
+ *    during handshaking.
  *  * Re-acquire 32-bit word-alignment upon loss of sync.
  *
  * Note that since handshakes are usually only restarted after a number of link
@@ -78,20 +81,23 @@ always @ (posedge CLK_IN, posedge RESET_IN)
 			TXCHARISK_OUT <=  4'h0; // Don't wish to generate illegal K-chars
 		end
 	else
-		if (send_clock_correction_sequence_i)
+		if (send_handshake_i)
 			begin
-				TXDATA_OUT    <= {4{`KCH_CLKC}};
-				TXCHARISK_OUT <=  4'b1111;
-			end
-		else if (send_handshake_i)
-			begin
-				TXDATA_OUT    <= { `KCH_COMMA
-				                 , `KCH_HANDSHAKE
-				                 , 7'b000000, HANDSHAKE_PHASE_IN
-				                 , `VERSION
-				                 };
-				TXCHARISK_OUT <=  4'b1100;
-			end
+				if (send_clock_correction_sequence_i)
+					begin
+						TXDATA_OUT    <= {4{`KCH_CLKC}};
+						TXCHARISK_OUT <=  4'b1111;
+					end
+				else
+					begin
+						TXDATA_OUT    <= { `KCH_COMMA
+						                 , `KCH_HANDSHAKE
+						                 , 7'b000000, HANDSHAKE_PHASE_IN
+						                 , `VERSION
+						                 };
+						TXCHARISK_OUT <=  4'b1100;
+					end
+				end
 		else
 			begin
 				TXDATA_OUT    <= TXDATA_IN;
@@ -106,7 +112,7 @@ always @ (posedge CLK_IN, posedge RESET_IN)
 	if (RESET_IN)
 		TXRDY_OUT <= 1'b0;
 	else
-		TXRDY_OUT <= !clock_correction_sequence_due_i && HANDSHAKE_COMPLETE_IN;
+		TXRDY_OUT <= HANDSHAKE_COMPLETE_IN;
 
 endmodule
 
