@@ -13,9 +13,9 @@
 `define FRME_REG         2   // (RO) Frame error counter
 `define BUSY_REG         3   // (RO) Packet dispatcher busy counter
 `define LNAK_REG         4   // (RO) Local nack'd frame counter
-`define RNAK_REG         5   // (RO) Remtoe nack counter
+`define RNAK_REG         5   // (RO) Remote nack counter
 `define LACK_REG         6   // (RO) Local ack'd frame counter
-`define RACK_REG         7   // (RO) Remtoe ack counter
+`define RACK_REG         7   // (RO) Remote ack counter
 `define LOOC_REG         8   // (RO) Local out-of-credit counter
 `define ROOC_REG         9   // (RO) Remote out-of-credit counter
 `define CRDT_REG         10  // (RO) Credit
