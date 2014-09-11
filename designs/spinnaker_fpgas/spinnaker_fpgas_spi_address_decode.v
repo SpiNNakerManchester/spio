@@ -25,8 +25,8 @@ module spinnaker_fpgas_spi_address_decode #( // Number of address bits from SPI.
                                              // Read value to return via SPI
                                            , output reg [VAL_BITS-1:0] SPI_READ_VALUE_OUT
                                              // Address for intended device (missing
-                                             // the top two and bottom two bits)
-                                           , output wire [SPI_ADDR_BITS-5:0] ADDR_OUT
+                                             // the bottom two bits)
+                                           , output wire [15:2] ADDR_OUT
                                              // Per-device signals
                                                // Read strobes
                                            ,   output wire [1:0]    B2B_READ_OUT
@@ -42,19 +42,19 @@ module spinnaker_fpgas_spi_address_decode #( // Number of address bits from SPI.
                                            ,   input  wire [VAL_BITS-1:0]       RING_READ_VALUE_IN
                                            );
 // Device addresses
-localparam   B2B0_ADDR = 2'b00;
-localparam   B2B1_ADDR = 2'b01;
-localparam PERIPH_ADDR = 2'b10;
-localparam   RING_ADDR = 2'b11;
+localparam   B2B0_ADDR = 16'h0000;
+localparam   B2B1_ADDR = 16'h0001;
+localparam PERIPH_ADDR = 16'h0002;
+localparam   RING_ADDR = 16'h0003;
 
-assign ADDR_OUT = SPI_ADDR_IN[SPI_ADDR_BITS-2:2];
+assign ADDR_OUT = SPI_ADDR_IN[15:2];
 
 // Address decode
-wire [1:0]    b2b_sel = { SPI_ADDR_IN[SPI_ADDR_BITS-2+:2] == B2B1_ADDR
-                        , SPI_ADDR_IN[SPI_ADDR_BITS-2+:2] == B2B0_ADDR
+wire [1:0]    b2b_sel = { SPI_ADDR_IN[SPI_ADDR_BITS-1:16] == B2B1_ADDR
+                        , SPI_ADDR_IN[SPI_ADDR_BITS-1:16] == B2B0_ADDR
                         };
-wire periph_sel = SPI_ADDR_IN[SPI_ADDR_BITS-2+:2] == PERIPH_ADDR;
-wire ring_sel = SPI_ADDR_IN[SPI_ADDR_BITS-2+:2] == RING_ADDR;
+wire periph_sel = SPI_ADDR_IN[SPI_ADDR_BITS-1:16] == PERIPH_ADDR;
+wire ring_sel = SPI_ADDR_IN[SPI_ADDR_BITS-1:16] == RING_ADDR;
 
 // Read strobes
 assign B2B_READ_OUT = { SPI_READ_IN && b2b_sel[1]
@@ -72,7 +72,7 @@ assign RING_WRITE_OUT = SPI_WRITE_IN && ring_sel;
 
 // Value multiplexer
 always @ (*)
-	case (SPI_ADDR_IN[SPI_ADDR_BITS-2+:2])
+	case (SPI_ADDR_IN[SPI_ADDR_BITS-1:16])
 		  B2B0_ADDR: SPI_READ_VALUE_OUT =    B2B_READ_VALUE_IN[0*VAL_BITS+:VAL_BITS];
 		  B2B1_ADDR: SPI_READ_VALUE_OUT =    B2B_READ_VALUE_IN[1*VAL_BITS+:VAL_BITS];
 		PERIPH_ADDR: SPI_READ_VALUE_OUT = PERIPH_READ_VALUE_IN;

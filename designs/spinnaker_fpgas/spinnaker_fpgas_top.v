@@ -1476,7 +1476,7 @@ wire synced_spi_mosi_i;
 wire synced_spi_nss_i;
 
 // Decoded address
-wire [27:0] all_reg_addr_i;
+wire [15:2] all_reg_addr_i;
 
 // Buffer (and tristate) the SPI signals
 IBUF  spi_nss_buf  (.I  (SPI_NSS_IN),   .O (spi_nss_i));
@@ -1553,10 +1553,10 @@ spinnaker_fpgas_spi_address_decode_i( // Un-decoded interface
                                     );
 
 // Truncate decoded addresses and distribute to all devices
-assign    b2b_reg_addr_i[1] = all_reg_addr_i[`REGA_BITS-1:0];
-assign    b2b_reg_addr_i[0] = all_reg_addr_i[`REGA_BITS-1:0];
-assign periph_reg_addr_i    = all_reg_addr_i[`REGA_BITS-1:0];
-assign   ring_reg_addr_i    = all_reg_addr_i[`REGA_BITS-1:0];
+assign    b2b_reg_addr_i[1] = all_reg_addr_i[`REGA_BITS-1+2:2];
+assign    b2b_reg_addr_i[0] = all_reg_addr_i[`REGA_BITS-1+2:2];
+assign periph_reg_addr_i    = all_reg_addr_i[`REGA_BITS-1+2:2];
+assign   ring_reg_addr_i    = all_reg_addr_i[`REGA_BITS-1+2:2];
 
 
 // Distribute write data to all devices
