@@ -25,8 +25,8 @@ module spinnaker_fpgas_spi_address_decode #( // Number of address bits from SPI.
                                              // Read value to return via SPI
                                            , output reg [VAL_BITS-1:0] SPI_READ_VALUE_OUT
                                              // Address for intended device (missing
-                                             // the top two bits)
-                                           , output wire [SPI_ADDR_BITS-3:0] ADDR_OUT
+                                             // the top two and bottom two bits)
+                                           , output wire [SPI_ADDR_BITS-5:0] ADDR_OUT
                                              // Per-device signals
                                                // Read strobes
                                            ,   output wire [1:0]    B2B_READ_OUT
@@ -47,7 +47,7 @@ localparam   B2B1_ADDR = 2'b01;
 localparam PERIPH_ADDR = 2'b10;
 localparam   RING_ADDR = 2'b11;
 
-assign ADDR_OUT = SPI_ADDR_IN[SPI_ADDR_BITS-2:0];
+assign ADDR_OUT = SPI_ADDR_IN[SPI_ADDR_BITS-2:2];
 
 // Address decode
 wire [1:0]    b2b_sel = { SPI_ADDR_IN[SPI_ADDR_BITS-2+:2] == B2B1_ADDR

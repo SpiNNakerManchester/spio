@@ -1476,7 +1476,7 @@ wire synced_spi_mosi_i;
 wire synced_spi_nss_i;
 
 // Decoded address
-wire [29:0] all_reg_addr_i;
+wire [27:0] all_reg_addr_i;
 
 // Buffer (and tristate) the SPI signals
 IBUF  spi_nss_buf  (.I  (SPI_NSS_IN),   .O (spi_nss_i));
