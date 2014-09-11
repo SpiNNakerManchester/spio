@@ -40,6 +40,7 @@ module spio_hss_multiplexer_frame_tx
 
   // register interface (to register bank)
   output reg                     reg_tfrm,
+  input  wire [`IDLE_BITS - 1:0] reg_idso,
 
   // frame interface (from frame assembler)
   // assembled data frame
@@ -107,7 +108,7 @@ module spio_hss_multiplexer_frame_tx
 
   reg  [STATE_BITS - 1:0] state;
   
-  reg 			  send_sync;
+  reg 			  send_idle;
   reg 			  send_clkc;
   reg 			  send_frm;
   reg 			  send_nak;
@@ -176,10 +177,11 @@ module spio_hss_multiplexer_frame_tx
     if (rst)
       hsl_data <= {`FRM_BITS {1'b0}}; // not really necessary!
     else
-      casex ({send_clkc, send_sync})
+      casex ({send_clkc, send_idle})
         2'b1x:   hsl_data <= `CLKC_FRM;
 
-        2'bx1:   hsl_data <= `SYNC_FRM;
+        // When idle send a comma and an externally specified sentinel value
+        2'bx1:   hsl_data <= {`KCH_IDLE, reg_idso};
 
         default: hsl_data <= crc_out;
       endcase
@@ -188,10 +190,10 @@ module spio_hss_multiplexer_frame_tx
     if (rst)
       hsl_kchr <= {`KCH_BITS {1'b0}}; // not really necessary!
     else
-      casex ({send_clkc, send_sync, send_nak, send_ack, send_ooc, send_cfc})
+      casex ({send_clkc, send_idle, send_nak, send_ack, send_ooc, send_cfc})
         6'b1xxxxx: hsl_kchr <= `CLKC_KBITS;
     
-        6'bx1xxxx: hsl_kchr <= `SYNC_KBITS;
+        6'bx1xxxx: hsl_kchr <= `IDLE_KBITS;
     
         6'bxx1xxx: hsl_kchr <= `NAK_KBITS;
     
@@ -377,7 +379,7 @@ module spio_hss_multiplexer_frame_tx
           send_ooc  = 1'b0;
           send_cfc  = 1'b0;
           send_frm  = 1'b0;
-          send_sync = 1'b0;
+          send_idle = 1'b0;
         end
 
       // top priority
@@ -389,7 +391,7 @@ module spio_hss_multiplexer_frame_tx
           send_ooc  = 1'b0;
           send_cfc  = 1'b0;
           send_frm  = 1'b0;
-          send_sync = 1'b0;
+          send_idle = 1'b0;
         end
 
       // second priority
@@ -401,7 +403,7 @@ module spio_hss_multiplexer_frame_tx
           send_ooc  = 1'b0;
           send_cfc  = 1'b0;
           send_frm  = 1'b0;
-          send_sync = 1'b0;
+          send_idle = 1'b0;
         end
 
       // second priority
@@ -413,7 +415,7 @@ module spio_hss_multiplexer_frame_tx
           send_ooc  = 1'b0;
           send_cfc  = 1'b0;
           send_frm  = 1'b0;
-          send_sync = 1'b0;
+          send_idle = 1'b0;
         end
 
       // third priority
@@ -425,7 +427,7 @@ module spio_hss_multiplexer_frame_tx
           send_ooc  = 1'b1;
           send_cfc  = 1'b0;
           send_frm  = 1'b0;
-          send_sync = 1'b0;
+          send_idle = 1'b0;
         end
 
       // third priority
@@ -437,7 +439,7 @@ module spio_hss_multiplexer_frame_tx
           send_ooc  = 1'b0;
           send_cfc  = 1'b1;
           send_frm  = 1'b0;
-          send_sync = 1'b0;
+          send_idle = 1'b0;
         end
 
       // third priority
@@ -450,7 +452,7 @@ module spio_hss_multiplexer_frame_tx
           send_ooc  = 1'b0;
           send_cfc  = 1'b0;
           send_frm  = 1'b1;
-          send_sync = 1'b0;
+          send_idle = 1'b0;
         end
 
       // lowest priority
@@ -462,7 +464,7 @@ module spio_hss_multiplexer_frame_tx
           send_ooc  = 1'b0;
           send_cfc  = 1'b0;
           send_frm  = 1'b0;
-          send_sync = 1'b1;
+          send_idle = 1'b1;
         end
     endcase
   //---------------------------------------------------------------

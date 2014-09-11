@@ -44,6 +44,7 @@ module spio_hss_multiplexer_frame_disassembler
   output reg                     reg_frme,
   output reg                     reg_dfrm,
   output reg                     reg_rooc,
+  output reg  [`IDLE_BITS - 1:0] reg_idsi,
 
   // high-speed link interface (from gtp)
   input  wire  [`FRM_BITS - 1:0] hsl_data,
@@ -139,6 +140,7 @@ module spio_hss_multiplexer_frame_disassembler
   reg vld_frm;
   reg dat_frm;
   reg dat_lst;
+  reg idl_frm;
   reg ack_frm;
   reg nak_frm;
   reg ooc_frm;
@@ -184,7 +186,7 @@ module spio_hss_multiplexer_frame_disassembler
     crc_chk = ack_frm || nak_frm || ooc_frm || dat_lst;
 
   always @ (*)
-    crc_last = crc_chk || frm_error;
+    crc_last = crc_chk || frm_error || idl_frm;
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------
@@ -311,6 +313,19 @@ module spio_hss_multiplexer_frame_disassembler
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------
+  // Idle frame handling (simply latch the latest sentinel value)
+  //---------------------------------------------------------------
+
+  always @ (posedge clk or posedge rst)
+    if (rst)
+      reg_idsi <= {`IDLE_BITS{1'b1}};
+    else
+      if (idl_frm)
+        reg_idsi <= hsl_data[`IDLE_BITS-1:0];
+
+  //---------------------------------------------------------------
+
+  //---------------------------------------------------------------
   // out-of-credit interface
   //---------------------------------------------------------------
   always @ (posedge clk or posedge rst)
@@ -407,8 +422,13 @@ module spio_hss_multiplexer_frame_disassembler
   // frame type decoding (combinatorial)
   //---------------------------------------------------------------
   always @ (*)
-    bad_frm = !ack_frm && !nak_frm && !ooc_frm && !cfc_frm && !dat_frm;
+    bad_frm = !idl_frm && !ack_frm && !nak_frm && !ooc_frm && !cfc_frm && !dat_frm;
 
+  // Idle frames have two k-chars
+  always @ (*)
+    idl_frm = hsl_vld && (hsl_kchr == `IDLE_KBITS) && (hsl_data[31:16] == `KCH_IDLE);
+
+  // Normal frames have one kchar
   always @ (*)
     vld_frm = hsl_vld && (hsl_kchr == {1'b1, {(`KCH_BITS - 1) {1'b0}}});
 

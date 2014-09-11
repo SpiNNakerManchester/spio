@@ -1,6 +1,7 @@
 /**
  * SpiNNaker FPGA design providing board-to-board, peripheral and inter-FPGA
- * ring network connectivity for SpiNN-5 boards. Top level module.
+ * ring network connectivity for SpiNN-5 boards. Also exposes a set of
+ * diagnostic/debug registers via SPI. Top level module.
  *
  * In this source:
  *   Nets named b2b_* are signals for logic driving the two board-to-board links.
@@ -9,7 +10,6 @@
  *
  * Missing features:
  *  * Ring network implementation.
- *  * Peripheral connectivity.
  */
 
 `include "../../modules/spinnaker_link/spio_spinnaker_link.h"
@@ -24,7 +24,7 @@ module spinnaker_fpgas_top #( // Enable simulation mode for GTP tile
                             , parameter SIMULATION_GTPRESET_SPEEDUP = 0
                               // Enable chip-scope Virtual I/O interface (e.g.
                               // to access HSS multiplexer debug register banks)
-                            , parameter DEBUG_CHIPSCOPE_VIO = 1
+                            , parameter DEBUG_CHIPSCOPE_VIO = 0
                               // Which FPGA should this module be compiled for
                             , parameter FPGA_ID = 0
                               // Should North and South connections be connected
@@ -32,7 +32,7 @@ module spinnaker_fpgas_top #( // Enable simulation mode for GTP tile
                               // J9 and J11 on the front respectively.
                               // (peripheral connections will be placed on the
                               // opposing side).
-                            , parameter NORTH_SOUTH_ON_FRONT = 0
+                            , parameter NORTH_SOUTH_ON_FRONT = 1
                               // The interval at which clock correction sequences should
                               // be inserted (in cycles).
                             , parameter    B2B_CLOCK_CORRECTION_INTERVAL = 1000
@@ -56,7 +56,7 @@ module spinnaker_fpgas_top #( // Enable simulation mode for GTP tile
                             , parameter PERIPH_MC_MASK = 32'h00000000
                             , parameter PERIPH_MC_KEY  = 32'hffffffff
                             )
-                            ( // Reset signal (only used during simulation)
+                            ( // Reset signal
                               input wire N_RESET_IN
                               
                               // Status LEDs
@@ -80,6 +80,12 @@ module spinnaker_fpgas_top #( // Enable simulation mode for GTP tile
                               // different configurations, these pins have their
                               // directions implied by the FPGA_ID parameter.
                             , inout wire [(16*16)-1:0] SL_INOUT
+                            
+                              // SPI interface pins
+                            , input  wire SPI_NSS_IN
+                            , input  wire SPI_SCLK_IN
+                            , input  wire SPI_MOSI_IN
+                            , output wire SPI_MISO_OUT
                             );
 
 genvar i;
@@ -133,6 +139,9 @@ wire arbiter_reset_i;
 // Reset for LED control
 wire led_reset_i;
 
+// Reset for SPI interface
+wire spi_reset_i;
+
 // LED signals
 wire red_led_i;
 wire grn_led_i;
@@ -167,6 +176,9 @@ wire spinnaker_link_clk1_i;
 
 // LED flasher clock
 wire led_clk_i;
+
+// SPI interface clock
+wire spi_clk_i;
 
 // Are the user clocks stable?
 wire usrclks_stable_i;
@@ -248,13 +260,26 @@ wire    b2b_activity_i [1:0];
 wire periph_activity_i;
 wire   ring_activity_i;
 
-// HSS Multiplexer debug registers (for access by chipscope)
+// Un-decoded debug register pins
+wire        reg_read_i;
+wire        reg_write_i;
+wire [31:0] reg_addr_i;
+wire [31:0] reg_read_data_i;
+wire [31:0] reg_write_data_i;
+
+// HSS Multiplexer debug register pins (for access by chipscope)
+wire                     b2b_reg_write_i [1:0];
+wire                  periph_reg_write_i;
+wire                    ring_reg_write_i;
 wire [`REGA_BITS-1:0]    b2b_reg_addr_i [1:0];
 wire [`REGA_BITS-1:0] periph_reg_addr_i;
-wire [`REGA_BITS-1:0]   ring_reg_addr_i;
-wire [`REGD_BITS-1:0]    b2b_reg_data_i [1:0];
-wire [`REGD_BITS-1:0] periph_reg_data_i;
-wire [`REGD_BITS-1:0]   ring_reg_data_i;
+wire [`REGA_BITS-1:0]   ring_reg_addr_i;;
+wire [`REGD_BITS-1:0]    b2b_reg_read_data_i [1:0];
+wire [`REGD_BITS-1:0] periph_reg_read_data_i;
+wire [`REGD_BITS-1:0]   ring_reg_read_data_i;
+wire [`REGD_BITS-1:0]    b2b_reg_write_data_i [1:0];
+wire [`REGD_BITS-1:0] periph_reg_write_data_i;
+wire [`REGD_BITS-1:0]   ring_reg_write_data_i;
 
 // Routing (spio_switch) status signals
 wire [1:0] switch_blocked_outputs_i  [`NUM_CHANS-1:0];
@@ -264,7 +289,6 @@ wire [1:0] switch_selected_outputs_i [`NUM_CHANS-1:0];
 wire [`PKT_BITS-1:0]  switch_dropped_data_i    [`NUM_CHANS-1:0];
 wire [1:0]            switch_dropped_outputs_i [`NUM_CHANS-1:0];
 wire                  switch_dropped_vld_i     [`NUM_CHANS-1:0];
-
 
 ////////////////////////////////////////////////////////////////////////////////
 // Reset
@@ -289,6 +313,8 @@ assign spinnaker_link_reset_i = !usrclks_stable_i;
 assign arbiter_reset_i = !usrclks_stable_i;
 
 assign led_reset_i = !usrclks_stable_i;
+
+assign spi_reset_i = !usrclks_stable_i;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -499,6 +525,8 @@ assign spinnaker_link_clk0_i = clk_150_i;
 assign spinnaker_link_clk1_i = b2b_usrclk2_i;
 
 assign led_clk_i = clk_75_i;
+
+assign spi_clk_i = clk_75_i;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1133,8 +1161,10 @@ generate for (i = 0; i < 2; i = i + 1)
 		                     , .RX_PKT7_VLD_OUT                (b2b_pkt_rxvld_i[i][i ? 0 : 7])
 		                     , .RX_PKT7_RDY_IN                 (b2b_pkt_rxrdy_i[i][i ? 0 : 7])
 		                       // High-level protocol performance counters
+		                     , .REG_WRITE_IN                   (b2b_reg_write_i[i])
 		                     , .REG_ADDR_IN                    (b2b_reg_addr_i[i])
-		                     , .REG_DATA_OUT                   (b2b_reg_data_i[i])
+		                     , .REG_READ_DATA_OUT              (b2b_reg_read_data_i[i])
+		                     , .REG_WRITE_DATA_IN              (b2b_reg_write_data_i[i])
 		                     );
 	end
 endgenerate
@@ -1207,8 +1237,10 @@ periph_hss_multiplexer_i( .CLK_IN                         (periph_usrclk2_i)
                         , .RX_PKT7_VLD_OUT                (periph_pkt_rxvld_i[7])
                         , .RX_PKT7_RDY_IN                 (periph_pkt_rxrdy_i[7])
                           // High-level protocol performance counters
+                        , .REG_WRITE_IN                   (periph_reg_write_i)
                         , .REG_ADDR_IN                    (periph_reg_addr_i)
-                        , .REG_DATA_OUT                   (periph_reg_data_i)
+                        , .REG_READ_DATA_OUT              (periph_reg_read_data_i)
+                        , .REG_WRITE_DATA_IN              (periph_reg_write_data_i)
                         );
 
 
@@ -1429,18 +1461,123 @@ endgenerate
 
 
 ////////////////////////////////////////////////////////////////////////////////
+// SPI Interface and register address-bank decoding
+////////////////////////////////////////////////////////////////////////////////
+
+// Buffered SPI Signals
+wire spi_sclk_i;
+wire spi_mosi_i;
+wire spi_miso_i;
+wire spi_nss_i;
+
+// Synchronised SPI signals
+wire synced_spi_sclk_i;
+wire synced_spi_mosi_i;
+wire synced_spi_nss_i;
+
+// Decoded address
+wire [15:2] all_reg_addr_i;
+
+// Buffer (and tristate) the SPI signals
+IBUF  spi_nss_buf  (.I  (SPI_NSS_IN),   .O (spi_nss_i));
+IBUF  spi_sclk_buf (.I  (SPI_SCLK_IN),  .O (spi_sclk_i));
+IBUF  spi_mosi_buf (.I  (SPI_MOSI_IN),  .O (spi_mosi_i));
+IOBUF spi_miso_buf (.IO (SPI_MISO_OUT), .I (spi_miso_i), .T (spi_nss_i), .O());
+
+// Synchronising flip-flops
+spinnaker_fpgas_sync #( .SIZE(1)
+                      )
+sync_nss_i            ( .CLK_IN(spi_clk_i)
+                      , .IN(spi_nss_i)
+                      , .OUT(synced_spi_nss_i)
+                      );
+spinnaker_fpgas_sync #( .SIZE(1)
+                      )
+sync_sclk_i           ( .CLK_IN(spi_clk_i)
+                      , .IN(spi_sclk_i)
+                      , .OUT(synced_spi_sclk_i)
+                      );
+spinnaker_fpgas_sync #( .SIZE(1)
+                      )
+sync_mosi_i           ( .CLK_IN(spi_clk_i)
+                      , .IN(spi_mosi_i)
+                      , .OUT(synced_spi_mosi_i)
+                      );
+
+// SPI Interface
+spinnaker_fpgas_spi #( .ADDR_BITS(32)
+                     , .VAL_BITS(32)
+                     )
+spinnaker_fpgas_spi_i( // System reset and clock
+                       .RESET_IN (spi_reset_i)
+                     , .CLK_IN   (spi_clk_i)
+                       // SPI Signals
+                     , .SCLK_IN  (synced_spi_sclk_i)
+                     , .MOSI_IN  (synced_spi_mosi_i)
+                     , .MISO_OUT (spi_miso_i)
+                     , .NSS_IN   (synced_spi_nss_i)
+                       
+                       // Peek/Poke interface.
+                     , .ADDRESS_OUT     (reg_addr_i)
+                     , .READ_OUT        (reg_read_i)
+                     , .WRITE_OUT       (reg_write_i)
+                     , .WRITE_VALUE_OUT (reg_write_data_i)
+                     , .READ_VALUE_IN   (reg_read_data_i)
+                     );
+
+// Address decode
+spinnaker_fpgas_spi_address_decode #( .SPI_ADDR_BITS(32)
+                                    , .VAL_BITS(32)
+                                    )
+spinnaker_fpgas_spi_address_decode_i( // Un-decoded interface
+                                      .SPI_ADDR_IN        (reg_addr_i)
+                                    , .SPI_READ_IN        (reg_read_i)
+                                    , .SPI_WRITE_IN       (reg_write_i)
+                                    , .SPI_READ_VALUE_OUT (reg_read_data_i)
+                                      // Device signals
+                                    , .ADDR_OUT(all_reg_addr_i)
+                                      // Per-device signals
+                                    ,    .B2B_READ_OUT() // Unused
+                                    , .PERIPH_READ_OUT() // Unused
+                                    ,   .RING_READ_OUT() // Unused
+                                    ,    .B2B_WRITE_OUT({ b2b_reg_write_i[1]
+                                                        , b2b_reg_write_i[0]
+                                                        })
+                                    , .PERIPH_WRITE_OUT(periph_reg_write_i)
+                                    ,   .RING_WRITE_OUT(ring_reg_write_i)
+                                    ,    .B2B_READ_VALUE_IN({ b2b_reg_read_data_i[1]
+                                                            , b2b_reg_read_data_i[0]
+                                                            })
+                                    , .PERIPH_READ_VALUE_IN(periph_reg_read_data_i)
+                                    ,   .RING_READ_VALUE_IN(ring_reg_read_data_i)
+                                    );
+
+// Truncate decoded addresses and distribute to all devices
+assign    b2b_reg_addr_i[1] = all_reg_addr_i[`REGA_BITS-1+2:2];
+assign    b2b_reg_addr_i[0] = all_reg_addr_i[`REGA_BITS-1+2:2];
+assign periph_reg_addr_i    = all_reg_addr_i[`REGA_BITS-1+2:2];
+assign   ring_reg_addr_i    = all_reg_addr_i[`REGA_BITS-1+2:2];
+
+
+// Distribute write data to all devices
+assign    b2b_reg_write_data_i[1] = reg_write_data_i;
+assign    b2b_reg_write_data_i[0] = reg_write_data_i;
+assign periph_reg_write_data_i    = reg_write_data_i;
+assign   ring_reg_write_data_i    = reg_write_data_i;
+
+
+////////////////////////////////////////////////////////////////////////////////
 // Chipscope virtual I/O
 ////////////////////////////////////////////////////////////////////////////////
 
 // Virtual I/O connections to allow observation of useful values
 
 generate if (DEBUG_CHIPSCOPE_VIO)
-	begin : chipscope_enabled
+	begin : chipscope
 		
 		wire [35:0] chipscope_control_i;
 		
-		wire [191:0] chipscope_sync_in_i;
-		wire [19:0]  chipscope_sync_out_i;
+		wire [63:0] chipscope_sync_in_i;
 		
 		// Chipscope Integrated CONtroller (ICON)
 		chipscope_icon chipscope_icon_i (.CONTROL0 (chipscope_control_i));
@@ -1449,100 +1586,79 @@ generate if (DEBUG_CHIPSCOPE_VIO)
 		chipscope_vio chipscope_vio_i ( .CONTROL (chipscope_control_i)
 		                              , .CLK     (b2b_usrclk2_i)
 		                              , .SYNC_IN (chipscope_sync_in_i)
-		                              , .SYNC_OUT(chipscope_sync_out_i)
 		                              );
 		
-		// HSS Multiplexer debug registers
-		assign    b2b_reg_addr_i[0] = chipscope_sync_out_i[0*`REGA_BITS+:`REGA_BITS];
-		assign    b2b_reg_addr_i[1] = chipscope_sync_out_i[1*`REGA_BITS+:`REGA_BITS];
-		assign periph_reg_addr_i    = chipscope_sync_out_i[2*`REGA_BITS+:`REGA_BITS];
-		assign   ring_reg_addr_i    = chipscope_sync_out_i[3*`REGA_BITS+:`REGA_BITS];
-		assign chipscope_sync_in_i[0*`REGD_BITS+:`REGD_BITS] =     b2b_reg_data_i[0];
-		assign chipscope_sync_in_i[1*`REGD_BITS+:`REGD_BITS] =     b2b_reg_data_i[1];
-		assign chipscope_sync_in_i[2*`REGD_BITS+:`REGD_BITS] = periph_reg_data_i;
-		assign chipscope_sync_in_i[3*`REGD_BITS+:`REGD_BITS] =   ring_reg_data_i;
-		
 		// SpiNNaker link RX ready/vld
-		assign chipscope_sync_in_i[4*`REGD_BITS+0 +:16] = { sl_pkt_rxrdy_i[15]
-		                                                  , sl_pkt_rxrdy_i[14]
-		                                                  , sl_pkt_rxrdy_i[13]
-		                                                  , sl_pkt_rxrdy_i[12]
-		                                                  , sl_pkt_rxrdy_i[11]
-		                                                  , sl_pkt_rxrdy_i[10]
-		                                                  , sl_pkt_rxrdy_i[9]
-		                                                  , sl_pkt_rxrdy_i[8]
-		                                                  , sl_pkt_rxrdy_i[7]
-		                                                  , sl_pkt_rxrdy_i[6]
-		                                                  , sl_pkt_rxrdy_i[5]
-		                                                  , sl_pkt_rxrdy_i[4]
-		                                                  , sl_pkt_rxrdy_i[3]
-		                                                  , sl_pkt_rxrdy_i[2]
-		                                                  , sl_pkt_rxrdy_i[1]
-		                                                  , sl_pkt_rxrdy_i[0]
-		                                                  };
-		assign chipscope_sync_in_i[4*`REGD_BITS+16+:16] = { sl_pkt_rxvld_i[15]
-		                                                  , sl_pkt_rxvld_i[14]
-		                                                  , sl_pkt_rxvld_i[13]
-		                                                  , sl_pkt_rxvld_i[12]
-		                                                  , sl_pkt_rxvld_i[11]
-		                                                  , sl_pkt_rxvld_i[10]
-		                                                  , sl_pkt_rxvld_i[9]
-		                                                  , sl_pkt_rxvld_i[8]
-		                                                  , sl_pkt_rxvld_i[7]
-		                                                  , sl_pkt_rxvld_i[6]
-		                                                  , sl_pkt_rxvld_i[5]
-		                                                  , sl_pkt_rxvld_i[4]
-		                                                  , sl_pkt_rxvld_i[3]
-		                                                  , sl_pkt_rxvld_i[2]
-		                                                  , sl_pkt_rxvld_i[1]
-		                                                  , sl_pkt_rxvld_i[0]
-		                                                  };
-		// SpiNNaker link TX ready/vld
-		assign chipscope_sync_in_i[4*`REGD_BITS+32+:16] = { sl_pkt_txrdy_i[15]
-		                                                  , sl_pkt_txrdy_i[14]
-		                                                  , sl_pkt_txrdy_i[13]
-		                                                  , sl_pkt_txrdy_i[12]
-		                                                  , sl_pkt_txrdy_i[11]
-		                                                  , sl_pkt_txrdy_i[10]
-		                                                  , sl_pkt_txrdy_i[9]
-		                                                  , sl_pkt_txrdy_i[8]
-		                                                  , sl_pkt_txrdy_i[7]
-		                                                  , sl_pkt_txrdy_i[6]
-		                                                  , sl_pkt_txrdy_i[5]
-		                                                  , sl_pkt_txrdy_i[4]
-		                                                  , sl_pkt_txrdy_i[3]
-		                                                  , sl_pkt_txrdy_i[2]
-		                                                  , sl_pkt_txrdy_i[1]
-		                                                  , sl_pkt_txrdy_i[0]
-		                                                  };
-		assign chipscope_sync_in_i[4*`REGD_BITS+48+:16] = { sl_pkt_txvld_i[15]
-		                                                  , sl_pkt_txvld_i[14]
-		                                                  , sl_pkt_txvld_i[13]
-		                                                  , sl_pkt_txvld_i[12]
-		                                                  , sl_pkt_txvld_i[11]
-		                                                  , sl_pkt_txvld_i[10]
-		                                                  , sl_pkt_txvld_i[9]
-		                                                  , sl_pkt_txvld_i[8]
-		                                                  , sl_pkt_txvld_i[7]
-		                                                  , sl_pkt_txvld_i[6]
-		                                                  , sl_pkt_txvld_i[5]
-		                                                  , sl_pkt_txvld_i[4]
-		                                                  , sl_pkt_txvld_i[3]
-		                                                  , sl_pkt_txvld_i[2]
-		                                                  , sl_pkt_txvld_i[1]
-		                                                  , sl_pkt_txvld_i[0]
-		                                                  };
+		assign chipscope_sync_in_i[ 0+:16] = { sl_pkt_rxrdy_i[15]
+		                                     , sl_pkt_rxrdy_i[14]
+		                                     , sl_pkt_rxrdy_i[13]
+		                                     , sl_pkt_rxrdy_i[12]
+		                                     , sl_pkt_rxrdy_i[11]
+		                                     , sl_pkt_rxrdy_i[10]
+		                                     , sl_pkt_rxrdy_i[9]
+		                                     , sl_pkt_rxrdy_i[8]
+		                                     , sl_pkt_rxrdy_i[7]
+		                                     , sl_pkt_rxrdy_i[6]
+		                                     , sl_pkt_rxrdy_i[5]
+		                                     , sl_pkt_rxrdy_i[4]
+		                                     , sl_pkt_rxrdy_i[3]
+		                                     , sl_pkt_rxrdy_i[2]
+		                                     , sl_pkt_rxrdy_i[1]
+		                                     , sl_pkt_rxrdy_i[0]
+		                                     };
+		assign chipscope_sync_in_i[16+:16] = { sl_pkt_rxvld_i[15]
+		                                     , sl_pkt_rxvld_i[14]
+		                                     , sl_pkt_rxvld_i[13]
+		                                     , sl_pkt_rxvld_i[12]
+		                                     , sl_pkt_rxvld_i[11]
+		                                     , sl_pkt_rxvld_i[10]
+		                                     , sl_pkt_rxvld_i[9]
+		                                     , sl_pkt_rxvld_i[8]
+		                                     , sl_pkt_rxvld_i[7]
+		                                     , sl_pkt_rxvld_i[6]
+		                                     , sl_pkt_rxvld_i[5]
+		                                     , sl_pkt_rxvld_i[4]
+		                                     , sl_pkt_rxvld_i[3]
+		                                     , sl_pkt_rxvld_i[2]
+		                                     , sl_pkt_rxvld_i[1]
+		                                     , sl_pkt_rxvld_i[0]
+		                                     };
+		// SpiNNaker link TX ready/
+		assign chipscope_sync_in_i[32+:16] = { sl_pkt_txrdy_i[15]
+		                                     , sl_pkt_txrdy_i[14]
+		                                     , sl_pkt_txrdy_i[13]
+		                                     , sl_pkt_txrdy_i[12]
+		                                     , sl_pkt_txrdy_i[11]
+		                                     , sl_pkt_txrdy_i[10]
+		                                     , sl_pkt_txrdy_i[9]
+		                                     , sl_pkt_txrdy_i[8]
+		                                     , sl_pkt_txrdy_i[7]
+		                                     , sl_pkt_txrdy_i[6]
+		                                     , sl_pkt_txrdy_i[5]
+		                                     , sl_pkt_txrdy_i[4]
+		                                     , sl_pkt_txrdy_i[3]
+		                                     , sl_pkt_txrdy_i[2]
+		                                     , sl_pkt_txrdy_i[1]
+		                                     , sl_pkt_txrdy_i[0]
+		                                     };
+		assign chipscope_sync_in_i[48+:16] = { sl_pkt_txvld_i[15]
+		                                     , sl_pkt_txvld_i[14]
+		                                     , sl_pkt_txvld_i[13]
+		                                     , sl_pkt_txvld_i[12]
+		                                     , sl_pkt_txvld_i[11]
+		                                     , sl_pkt_txvld_i[10]
+		                                     , sl_pkt_txvld_i[9]
+		                                     , sl_pkt_txvld_i[8]
+		                                     , sl_pkt_txvld_i[7]
+		                                     , sl_pkt_txvld_i[6]
+		                                     , sl_pkt_txvld_i[5]
+		                                     , sl_pkt_txvld_i[4]
+		                                     , sl_pkt_txvld_i[3]
+		                                     , sl_pkt_txvld_i[2]
+		                                     , sl_pkt_txvld_i[1]
+		                                     , sl_pkt_txvld_i[0]
+		                                     };
 		
-		
-	end
-else
-	begin : chipscope_disabled
-		
-		// Tie off register addresses to an arbitrary register
-		assign    b2b_reg_addr_i[0] = `VERS_REG;
-		assign    b2b_reg_addr_i[1] = `VERS_REG;
-		assign periph_reg_addr_i    = `VERS_REG;
-		assign   ring_reg_addr_i    = `VERS_REG;
 		
 	end
 endgenerate

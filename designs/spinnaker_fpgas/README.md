@@ -1,26 +1,28 @@
 The Default SpiNNaker FPGA Design
 =================================
 
-This design for the SpiNN-5 board's Spartan-6 FPGAs is designed to provide transparent
-board-to-board connectivity.
+This design for the SpiNN-5 board's Spartan-6 FPGAs is designed to provide
+transparent board-to-board connectivity.
 
-This design uses two GTP dual tiles to provide four gigabit transceiver links.  These four links
-are all clocked from the same external clock source and the entire design is intended to be clocked
-from multiples/divisions of this clock.
+This design uses two GTP dual tiles to provide four gigabit transceiver links.
+These four links are all clocked from the same external clock source and the
+entire design is intended to be clocked from multiples/divisions of this clock.
 
-By convention, the four HSS links are named M0, M1, M2 and M3 corresponding to Tile 0 Block 0, Tile
-0 Block 1, Tile 1 Block 0 and Tile 1 block 1 respectively.
+By convention, the four HSS links are named M0, M1, M2 and M3 corresponding to
+Tile 0 Block 0, Tile 0 Block 1, Tile 1 Block 0 and Tile 1 block 1 respectively.
 
-M0-2 are broken out to S-ATA connectors on the SpiNN-5 board while M3 is connected in a ring
-network which is connected (in the TX direction) as  FPGA 0 -> FPGA 1 -> FPGA 2 -> FPGA 0.
+M0-2 are broken out to S-ATA connectors on the SpiNN-5 board while M3 is
+connected in a ring network which is connected (in the TX direction) as  FPGA 0
+-> FPGA 1 -> FPGA 2 -> FPGA 0.
 
-M0 and M1 are always used for board-to-board links while M2 is always used for peripherals.
+M0 and M1 are always used for board-to-board links while M2 is always used for
+peripherals.
 
 Authors
 -------
 
-This top-level design was produced by Jonathan Heathcote and is derived from the original design by
-Luis Plana and, before him, Jeff Pepper.
+This top-level design was produced by Jonathan Heathcote and is derived from the
+original design by Luis Plana and, before him, Jeff Pepper.
 
 
 Dependencies
@@ -46,8 +48,8 @@ are outputs for another.
 Target Platform
 ---------------
 
-This design is for a Xilinx Spartan-6 XC6SLX45T FPGA in a FG(G)484 package with a speed grade of
--3, as fitted in the SpiNN-5 PCB.
+This design is for a Xilinx Spartan-6 XC6SLX45T FPGA in a FG(G)484 package with
+a speed grade of -3, as fitted in the SpiNN-5 PCB.
 
 
 Opening Designs in Xilinx ISE
@@ -64,6 +66,59 @@ A Bash snippet to be executed from this project's directory is listed below:
 Chipscope VIO
 -------------
 
-A chipscope virtual I/O port can be added to aid in debugging allowing access to
-both the HSS multiplexers' debug register banks and also various internal
-signals.
+A chipscope virtual I/O port can be added to aid in debugging. Various internal
+signals are exposed, see `spinnaker_fpgas_top.v`.
+
+
+SPI Interface
+-------------
+
+A number of diagnostic registers associated with the HSS links are presented via
+an SPI interface. There is one register bank per link (i.e. per socket socket).
+These banks can be found at the base addresses given in the table below.
+
+	Link        FPGA Number  Base Address
+	----------  -----------  ------------
+	East        0            0x00000000
+	South       0            0x00010000
+	Periph 0    0            0x00020000
+	South-West  1            0x00000000
+	West        1            0x00010000
+	Periph 1    1            0x00020000
+	North       2            0x00000000
+	North-East  2            0x00010000
+	Periph 2    2            0x00020000
+
+Offsets into each register bank are given below. All registers are read/written
+as 32 bit words but the actual number of useful bits may differ.
+
+	Name  Number Offset  Access  Size  Description
+	----  ------ ------  ------  ----  ---------------------------------------------
+	VERS       0   0x00  RO         8  Protocol version
+	CRCE       1   0x04  RO        32  CRC error counter
+	FRME       2   0x08  RO        32  Frame error counter
+	BUSY       3   0x0C  RO        32  Packet dispatcher busy counter
+	LNAK       4   0x10  RO        32  Local nack'd frame counter
+	RNAK       5   0x14  RO        32  Remote nack counter
+	LACK       6   0x18  RO        32  Local ack'd frame counter
+	RACK       7   0x1C  RO        32  Remote ack counter
+	LOOC       8   0x20  RO        32  Local out-of-credit counter
+	ROOC       9   0x24  RO        32  Remote out-of-credit counter
+	CRDT      10   0x28  RO         3  Credit
+	SFRM      11   0x2C  RO        32  Frame assembler valid sent frame counter
+	TFRM      12   0x30  RO        32  Frame transmitter frame counter
+	DFRM      13   0x34  RO        32  Frame disassembler valid frame counter
+	RFRM      14   0x38  RO        32  Packet dispatcher valid receieved frame ctr.
+	EMPT      15   0x3C  RO         8  Empty frame assembler queues
+	FULL      16   0x40  RO         8  Full frame assembler queues
+	CFCL      17   0x44  RO         8  Local channel flow control status
+	CFCR      18   0x48  RO         8  Remote channel flow control status
+	IDSO      19   0x4C  RW        16  IDle Sentinel Output val. (sent in idle frms)
+	IDSI      20   0x50  RO        16  IDle Sentinel Input val. (latest received)
+
+If in doubt, a definitive definition of the SPI address space should be saught
+from the code The address decoding scheme used to select which HSS link is
+queried is defined in `spinnaker_fpgas_address_decode.v`.  The addresses of the
+available registersin each HSS link are defined in
+`../../modules/hss_multiplexer/spio_hss_multiplexer_reg_bank.h`.  The SPI
+protocol and its parameters are defined in `spinnaker_fpgas_spi.v`.

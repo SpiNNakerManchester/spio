@@ -6,7 +6,7 @@
 `define SPIO_HSS_MUTLIPLEXER_COMMON_H
 
 // Protocol Version Identifier (checked at time of handshake)
-`define VERSION 8'h01
+`define VERSION 8'h02
 
 ////////////////////////////////////////////////////////////////////////////////
 // K-Characters
@@ -22,6 +22,10 @@
 
 // 8b/10b K28.5: Commma symbol used to ensure byte-allignment
 `define KCH_COMMA 8'hBC
+
+// 8b/10b K28.5 then K27.7: Used for "idle" frames sent across the link (bottom
+// 16 bits of the frame may be arbitrary data)
+`define KCH_IDLE 16'h5CFB
 
 `define CLKC              8'h1c   // K28.0
 `define COMMA             8'hbc   // K28.5
@@ -118,9 +122,12 @@
 // removed.
 `define CLKC_FRM         {`FRM_BYTES {`KCH_CLKC}}
 
-// XXX: Now sent by tx_control/rx_control, should eventually be removed.
-`define SYNC_FRM         {`KCH_COMMA , `KCH_HANDSHAKE , 8'h01 , `VERSION}
-`define SYNC_KBITS       4'b1100
+// "Idle" frames k-characters (one for the leading comma and another for the
+// idle frame indicator)
+`define IDLE_KBITS       4'b1100
+
+// Number of bits in the idle frame sentinel value
+`define IDLE_BITS 16
 
 `define ZERO_FRM         {`FRM_BITS {1'b0}}
 

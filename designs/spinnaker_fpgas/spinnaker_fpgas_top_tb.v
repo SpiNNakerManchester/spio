@@ -29,9 +29,9 @@ wire refclk_pad_n_i = ~refclk_pad_p_i;
 reg tb_clk_i;
 
 // Reset signals
-reg reset_i;
-reg n_reset_i;
-reg lreset_i;
+reg  reset_i;
+wire n_reset_i;
+reg  lreset_i;
 
 // LEDs
 wire red_led_i;
@@ -209,6 +209,12 @@ spinnaker_fpgas_top_i( // Reset signal
                                   , sl_pins_i[3],  sl_pins_i[2],  sl_pins_i[1],  sl_pins_i[0]
                                   }
                                 )
+                       
+                       // Wires for the (not-tested-here) SPI interface
+                     , .SPI_NSS_IN(1'b1) // Tie off as not selected
+                     , .SPI_SCLK_IN(1'b0)
+                     , .SPI_MOSI_IN(1'b0)
+                     , .SPI_MISO_OUT()
                      );
 
 

@@ -27,6 +27,14 @@ supporting the GTP-Transceiver v1.11 IP CORE block. It should, however, be
 possible to port it to similar systems.
 
 
+Register Bank
+-------------
+
+The module features an addressible register bank of 32-bit values which reveal
+diagnostic information relating to the module. A brief listing of register
+addresses and definitions is available in `spio_hss_multiplexer_reg_bank.h`.
+
+
 Configuring the Spartan-6 GTP Tile
 ----------------------------------
 
