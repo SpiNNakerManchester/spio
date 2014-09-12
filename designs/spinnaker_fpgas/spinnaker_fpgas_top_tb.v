@@ -176,9 +176,6 @@ spinnaker_fpgas_top #( // Enable simulation mode for GTP tile
                      ,    .B2B_NUM_HANDSHAKES_BITS(7)
                      , .PERIPH_NUM_HANDSHAKES_BITS(7)
                      ,   .RING_NUM_HANDSHAKES_BITS(7)
-                       // Send every-other packet to peripheral.
-                     , .PERIPH_MC_MASK(32'h00000001)
-                     , .PERIPH_MC_KEY (32'h00000001)
                      )
 spinnaker_fpgas_top_i( // Reset signal
                        .N_RESET_IN(n_reset_i)

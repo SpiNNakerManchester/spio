@@ -39,11 +39,33 @@ module spio_hss_multiplexer_spinnlink
   input  wire 			 clk,
   input  wire 			 rst,
 
-  // register bank interface
-  input  wire                    reg_write,
-  input  wire [`REGA_BITS - 1:0] reg_addr,
-  output wire [`REGD_BITS - 1:0] reg_read_data,
-  input  wire [`REGD_BITS - 1:0] reg_write_data,
+  // frame assembler interface
+  output wire                    reg_sfrm,
+  output wire                    reg_looc,
+  output wire [`CRDT_BITS - 1:0] reg_crdt,
+  output wire [`NUM_CHANS - 1:0] reg_empt,
+  output wire [`NUM_CHANS - 1:0] reg_full,
+
+  // frame transmitter interface
+  output wire                    reg_tfrm,
+  input  wire [`IDLE_BITS - 1:0] reg_idso,
+
+  // frame disassembler interface
+  output wire                    reg_dfrm,
+  output wire                    reg_crce,
+  output wire                    reg_frme,
+  output wire                    reg_rnak,
+  output wire                    reg_rack,
+  output wire                    reg_rooc,
+  output wire [`NUM_CHANS - 1:0] reg_cfcr,
+  output wire [`IDLE_BITS - 1:0] reg_idsi,
+
+  // packet dispatcher interface
+  output wire                    reg_rfrm,
+  output wire                    reg_busy,
+  output wire                    reg_lnak,
+  output wire                    reg_lack,
+  output wire [`NUM_CHANS - 1:0] reg_cfcl,
 
   // packet inputs
   input  wire  [`PKT_BITS - 1:0] pkt_data0,
@@ -130,28 +152,7 @@ module spio_hss_multiplexer_spinnlink
   //---------------------------------------------------------------
   // internal signals
   //---------------------------------------------------------------
-  // register interface ({fa, ft, fd, pd} -> rb)
-  wire [`CRDT_BITS - 1:0] reg_crdt;
-  wire                    reg_crce;
-  wire                    reg_frme;
-  wire                    reg_rfrm;
-  wire                    reg_dfrm;
-  wire                    reg_tfrm;
-  wire [`IDLE_BITS - 1:0] reg_idso;
-  wire                    reg_sfrm;
-  wire                    reg_busy;
-  wire                    reg_nack;
-  wire                    reg_lnak;
-  wire                    reg_rnak;
-  wire                    reg_lack;
-  wire                    reg_rack;
-  wire                    reg_looc;
-  wire                    reg_rooc;
-  wire [`IDLE_BITS - 1:0] reg_idsi;
-  wire [`NUM_CHANS - 1:0] reg_empt;
-  wire [`NUM_CHANS - 1:0] reg_full;
-   
-
+  
   // frame interface (fa -> ft)
   wire  [`FRM_BITS - 1:0] frm_data;
   wire  [`KCH_BITS - 1:0] frm_kchr;
@@ -495,52 +496,5 @@ module spio_hss_multiplexer_spinnlink
     .pkt_rdy7  (opkt_rdy7)
   );
   //---------------------------------------------------------------
-
-
-  //---------------------------------------------------------------
-  // instantiate the register bank
-  //---------------------------------------------------------------
-  spio_hss_multiplexer_reg_bank rb
-  (
-    .clk      (clk),
-    .rst      (rst),
-
-    // frame assembler interface
-    .reg_sfrm (reg_sfrm),
-    .reg_rnak (reg_rnak),
-    .reg_rack (reg_rack),
-    .reg_looc (reg_looc),
-    .reg_crdt (reg_crdt),
-    .reg_empt (reg_empt),
-    .reg_full (reg_full),
-
-
-    // frame transmitter interface
-    .reg_tfrm (reg_tfrm),
-    .reg_idso (reg_idso),
-
-    // frame disassembler interface
-    .reg_dfrm (reg_dfrm),
-    .reg_crce (reg_crce),
-    .reg_frme (reg_frme),
-    .reg_rooc (reg_rooc),
-    .reg_cfcr (cfc_rem),
-    .reg_idsi (reg_idsi),
-
-    // packet dispatcher interface
-    .reg_rfrm (reg_rfrm),
-    .reg_busy (reg_busy),
-    .reg_lnak (reg_lnak),
-    .reg_lack (reg_lack),
-    .reg_cfcl (cfc_loc),
-
-    // register access interface
-    .reg_write      (reg_write),
-    .reg_addr       (reg_addr),
-    .reg_read_data  (reg_read_data),
-    .reg_write_data (reg_write_data)
-  );
-  //---------------------------------------------------------------
-  //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 endmodule

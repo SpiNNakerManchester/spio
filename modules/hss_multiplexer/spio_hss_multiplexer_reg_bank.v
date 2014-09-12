@@ -65,6 +65,9 @@ module spio_hss_multiplexer_reg_bank
   input  wire                    reg_lnak,
   input  wire                    reg_lack,
   input  wire [`NUM_CHANS - 1:0] reg_cfcl,
+  
+  // TX/RX Control interface
+  input  wire [1:0]              reg_hand,
 
   // register access interface
   input  wire                    reg_write,
@@ -94,11 +97,28 @@ module spio_hss_multiplexer_reg_bank
   reg  [`REGD_BITS - 1:0] lack_ctr;
   reg  [`REGD_BITS - 1:0] rack_ctr;
   reg  [`REGD_BITS - 1:0] rooc_ctr;
+  reg  [`REGD_BITS - 1:0] reco_ctr;
+
+  reg  [1:0] last_reg_hand;
+  reg        reg_reco;
 
 
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   //--------------------------- datapath --------------------------
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+  //---------------------------------------------------------------
+  // reg_hand edge detection
+  //---------------------------------------------------------------
+  always @(posedge clk or posedge rst)
+    if (rst)
+      last_reg_hand <= 2'b00;
+    else
+      last_reg_hand <= reg_hand;
+
+  always @ (*)
+    reg_reco = last_reg_hand[0] == 1'b0 && reg_hand[0] == 1'b1;
+
   //---------------------------------------------------------------
   // status bit counters
   //---------------------------------------------------------------
@@ -205,6 +225,14 @@ module spio_hss_multiplexer_reg_bank
     else
       if (reg_rooc)
         rooc_ctr <= rooc_ctr + 1;
+
+  // Reconnection counter (count of handshake complete posedges)
+  always @ (posedge clk or posedge rst)
+    if (rst)
+      reco_ctr <= 1'b0;
+    else
+      if (reg_reco)
+        reco_ctr <= reco_ctr + 1;
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------
@@ -229,7 +257,7 @@ module spio_hss_multiplexer_reg_bank
   //---------------------------------------------------------------
   always @ (*)
     case (reg_addr)
-      `VERS_REG: reg_read_data <= `VERSION;
+      `VERS_REG: reg_read_data <= {`HSS_MULTIPLEXER_VERSION,`PROTOCOL_VERSION};
       `CRCE_REG: reg_read_data <= crce_ctr;
       `FRME_REG: reg_read_data <= frme_ctr;
       `BUSY_REG: reg_read_data <= busy_ctr;
@@ -260,6 +288,8 @@ module spio_hss_multiplexer_reg_bank
                              };  // not a counter!
       `IDSO_REG: reg_read_data <= {{(`REGD_BITS-`IDLE_BITS){1'b0}}, reg_idso};
       `IDSI_REG: reg_read_data <= {{(`REGD_BITS-`IDLE_BITS){1'b0}}, reg_idsi};
+      `HAND_REG: reg_read_data <= {{(`REGD_BITS-2){1'b0}}, reg_hand};
+      `RECO_REG: reg_read_data <= reco_ctr;
       default:   reg_read_data <= {`REGD_BITS {1'b1}};
     endcase
   //---------------------------------------------------------------

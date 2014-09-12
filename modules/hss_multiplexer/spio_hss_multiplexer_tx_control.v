@@ -93,7 +93,7 @@ always @ (posedge CLK_IN, posedge RESET_IN)
 						TXDATA_OUT    <= { `KCH_COMMA
 						                 , `KCH_HANDSHAKE
 						                 , 7'b000000, HANDSHAKE_PHASE_IN
-						                 , `VERSION
+						                 , `PROTOCOL_VERSION
 						                 };
 						TXCHARISK_OUT <=  4'b1100;
 					end

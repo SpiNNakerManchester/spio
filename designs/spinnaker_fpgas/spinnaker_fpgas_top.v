@@ -18,15 +18,17 @@
 `include "../../modules/hss_multiplexer/spio_hss_multiplexer_reg_bank.h"
 
 
-module spinnaker_fpgas_top #( // Enable simulation mode for GTP tile
-                              parameter SIMULATION = 0
+module spinnaker_fpgas_top #( // Version number for top-level design
+                              parameter VERSION = 32'h12091400
+                              // Enable simulation mode for GTP tile
+                            , parameter SIMULATION = 0
                               // Speed up simulated reset of GTP tile
                             , parameter SIMULATION_GTPRESET_SPEEDUP = 0
                               // Enable chip-scope Virtual I/O interface (e.g.
                               // to access HSS multiplexer debug register banks)
                             , parameter DEBUG_CHIPSCOPE_VIO = 0
                               // Which FPGA should this module be compiled for
-                            , parameter FPGA_ID = 0
+                            , parameter FPGA_ID = 1
                               // Should North and South connections be connected
                               // to 0: J6 and J8 on the back respectively or 1:
                               // J9 and J11 on the front respectively.
@@ -51,10 +53,6 @@ module spinnaker_fpgas_top #( // Enable simulation mode for GTP tile
                             , parameter    B2B_NUM_HANDSHAKES_BITS = 7
                             , parameter PERIPH_NUM_HANDSHAKES_BITS = 7
                             , parameter   RING_NUM_HANDSHAKES_BITS = 7
-                              // Mask and key to select MC packets to forward to
-                              // a connected peripheral.
-                            , parameter PERIPH_MC_MASK = 32'h00000000
-                            , parameter PERIPH_MC_KEY  = 32'hffffffff
                             )
                             ( // Reset signal
                               input wire N_RESET_IN
@@ -142,6 +140,9 @@ wire led_reset_i;
 // Reset for SPI interface
 wire spi_reset_i;
 
+// Reset for register bank
+wire reg_bank_reset_i;
+
 // LED signals
 wire red_led_i;
 wire grn_led_i;
@@ -179,6 +180,9 @@ wire led_clk_i;
 
 // SPI interface clock
 wire spi_clk_i;
+
+// Register bank clock
+wire reg_bank_clk_i;
 
 // Are the user clocks stable?
 wire usrclks_stable_i;
@@ -281,6 +285,12 @@ wire [`REGD_BITS-1:0]    b2b_reg_write_data_i [1:0];
 wire [`REGD_BITS-1:0] periph_reg_write_data_i;
 wire [`REGD_BITS-1:0]   ring_reg_write_data_i;
 
+// Top-level register bank signals
+wire        top_reg_write_i;
+wire [13:0] top_reg_addr_i;
+wire [31:0] top_reg_read_data_i;
+wire [31:0] top_reg_write_data_i;
+
 // Routing (spio_switch) status signals
 wire [1:0] switch_blocked_outputs_i  [`NUM_CHANS-1:0];
 wire [1:0] switch_selected_outputs_i [`NUM_CHANS-1:0];
@@ -289,6 +299,11 @@ wire [1:0] switch_selected_outputs_i [`NUM_CHANS-1:0];
 wire [`PKT_BITS-1:0]  switch_dropped_data_i    [`NUM_CHANS-1:0];
 wire [1:0]            switch_dropped_outputs_i [`NUM_CHANS-1:0];
 wire                  switch_dropped_vld_i     [`NUM_CHANS-1:0];
+
+// Key/mask to match to forward MC packets to peripheral link
+wire [31:0] periph_mc_key_i;
+wire [31:0] periph_mc_mask_i;
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // Reset
@@ -315,6 +330,8 @@ assign arbiter_reset_i = !usrclks_stable_i;
 assign led_reset_i = !usrclks_stable_i;
 
 assign spi_reset_i = !usrclks_stable_i;
+
+assign reg_bank_reset_i = !usrclks_stable_i;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -527,6 +544,8 @@ assign spinnaker_link_clk1_i = b2b_usrclk2_i;
 assign led_clk_i = clk_75_i;
 
 assign spi_clk_i = clk_75_i;
+
+assign reg_bank_clk_i = clk_75_i;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1340,7 +1359,7 @@ generate for (i = 0; i < `NUM_CHANS; i = i + 1)
 		
 		// Only match non-emergency routed multicast packets
 		wire is_mc_packet_i = (sl_pkt_rxdata_i[i][0+:8]  & 8'b11110000) == 8'b00000000;
-		wire key_matches_i  = (sl_pkt_rxdata_i[i][8+:32] & PERIPH_MC_MASK) == PERIPH_MC_KEY;
+		wire key_matches_i  = (sl_pkt_rxdata_i[i][8+:32] & periph_mc_mask_i) == periph_mc_key_i;
 		
 		// The output ports from the switch (which must be broken onto their various
 		// buses)
@@ -1540,16 +1559,19 @@ spinnaker_fpgas_spi_address_decode_i( // Un-decoded interface
                                     ,    .B2B_READ_OUT() // Unused
                                     , .PERIPH_READ_OUT() // Unused
                                     ,   .RING_READ_OUT() // Unused
+                                    ,    .TOP_READ_OUT() // Unused
                                     ,    .B2B_WRITE_OUT({ b2b_reg_write_i[1]
                                                         , b2b_reg_write_i[0]
                                                         })
                                     , .PERIPH_WRITE_OUT(periph_reg_write_i)
                                     ,   .RING_WRITE_OUT(ring_reg_write_i)
+                                    ,    .TOP_WRITE_OUT(top_reg_write_i)
                                     ,    .B2B_READ_VALUE_IN({ b2b_reg_read_data_i[1]
                                                             , b2b_reg_read_data_i[0]
                                                             })
                                     , .PERIPH_READ_VALUE_IN(periph_reg_read_data_i)
                                     ,   .RING_READ_VALUE_IN(ring_reg_read_data_i)
+                                    ,    .TOP_READ_VALUE_IN(top_reg_read_data_i)
                                     );
 
 // Truncate decoded addresses and distribute to all devices
@@ -1557,6 +1579,7 @@ assign    b2b_reg_addr_i[1] = all_reg_addr_i[`REGA_BITS-1+2:2];
 assign    b2b_reg_addr_i[0] = all_reg_addr_i[`REGA_BITS-1+2:2];
 assign periph_reg_addr_i    = all_reg_addr_i[`REGA_BITS-1+2:2];
 assign   ring_reg_addr_i    = all_reg_addr_i[`REGA_BITS-1+2:2];
+assign    top_reg_addr_i    = all_reg_addr_i;
 
 
 // Distribute write data to all devices
@@ -1564,6 +1587,27 @@ assign    b2b_reg_write_data_i[1] = reg_write_data_i;
 assign    b2b_reg_write_data_i[0] = reg_write_data_i;
 assign periph_reg_write_data_i    = reg_write_data_i;
 assign   ring_reg_write_data_i    = reg_write_data_i;
+assign    top_reg_write_data_i    = reg_write_data_i;
+
+
+////////////////////////////////////////////////////////////////////////////////
+// Top-level register bank
+////////////////////////////////////////////////////////////////////////////////
+
+spinnaker_fpgas_reg_bank
+spinnaker_fpgas_reg_bank_i( .CLK_IN   (reg_bank_clk_i)
+                          , .RESET_IN (reg_bank_reset_i)
+                            // Register bank interface
+                          , .WRITE_IN      (top_reg_write_i)
+                          , .ADDR_IN       (top_reg_addr_i)
+                          , .WRITE_DATA_IN (top_reg_write_data_i)
+                          , .READ_DATA_OUT (top_reg_read_data_i)
+                            // Regsiters
+                          , .VERSION_IN     (VERSION)
+                          , .FLAGS_IN       ({FPGA_ID[1:0], NORTH_SOUTH_ON_FRONT[0], DEBUG_CHIPSCOPE_VIO[0]})
+                          , .PERIPH_MC_KEY  (periph_mc_key_i)
+                          , .PERIPH_MC_MASK (periph_mc_mask_i)
+                          );
 
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -94,7 +94,7 @@ as 32 bit words but the actual number of useful bits may differ.
 
 	Name  Number Offset  Access  Size  Description
 	----  ------ ------  ------  ----  ---------------------------------------------
-	VERS       0   0x00  RO         8  Protocol version
+	VERS       0   0x00  RO        32  Version {top 24: Module, bottom 8: Protocol}
 	CRCE       1   0x04  RO        32  CRC error counter
 	FRME       2   0x08  RO        32  Frame error counter
 	BUSY       3   0x0C  RO        32  Packet dispatcher busy counter
@@ -115,6 +115,8 @@ as 32 bit words but the actual number of useful bits may differ.
 	CFCR      18   0x48  RO         8  Remote channel flow control status
 	IDSO      19   0x4C  RW        16  IDle Sentinel Output val. (sent in idle frms)
 	IDSI      20   0x50  RO        16  IDle Sentinel Input val. (latest received)
+	HAND      21   0x54  RO         2  Handshake {bit1: version err, bit0: complete}
+	RECO      22   0x58  RO        32  Link reconnection (re-handshake) counter
 
 If in doubt, a definitive definition of the SPI address space should be saught
 from the code The address decoding scheme used to select which HSS link is
@@ -122,3 +124,16 @@ queried is defined in `spinnaker_fpgas_address_decode.v`.  The addresses of the
 available registersin each HSS link are defined in
 `../../modules/hss_multiplexer/spio_hss_multiplexer_reg_bank.h`.  The SPI
 protocol and its parameters are defined in `spinnaker_fpgas_spi.v`.
+
+There is also an register bank associated with the top-level design at base
+address: 0x00040000
+
+	Name  Number Offset  Access  Size  Description
+	----  ------ ------  ------  ----  ---------------------------------------------
+	VERS       0   0x00  RO        32  Top-level design version
+	FLAG       1   0x04  RO         4  Compile flags { 3-2: FPGA ID
+	                                                 ,   1: north/south on front
+	                                                 ,   0: chip scope
+	                                                 }
+	PKEY       2   0x08  RW        32  Peripheral MC route key
+	PMSK       3   0x0C  RW        32  Peripheral MC route mask

@@ -126,6 +126,83 @@ wire [31:0] rxdata_i;
 wire  [3:0] rxcharisk_i;
 wire        rxvld_i;
 
+// frame assembler interface
+wire                    reg_sfrm_i;
+wire                    reg_looc_i;
+wire [`CRDT_BITS - 1:0] reg_crdt_i;
+wire [`NUM_CHANS - 1:0] reg_empt_i;
+wire [`NUM_CHANS - 1:0] reg_full_i;
+
+// frame transmitter interface
+wire                    reg_tfrm_i;
+wire [`IDLE_BITS - 1:0] reg_idso_i;
+
+// frame disassembler interface
+wire                    reg_dfrm_i;
+wire                    reg_crce_i;
+wire                    reg_frme_i;
+wire                    reg_rnak_i;
+wire                    reg_rack_i;
+wire                    reg_rooc_i;
+wire [`NUM_CHANS - 1:0] reg_cfcr_i;
+wire [`IDLE_BITS - 1:0] reg_idsi_i;
+
+// packet dispatcher interface
+wire                    reg_rfrm_i;
+wire                    reg_busy_i;
+wire                    reg_lnak_i;
+wire                    reg_lack_i;
+wire [`NUM_CHANS - 1:0] reg_cfcl_i;
+
+// TX/RX Control registers
+wire [1:0]              reg_hand_i;
+
+////////////////////////////////////////////////////////////////////////////////
+// Link diagnostics registers
+////////////////////////////////////////////////////////////////////////////////
+
+spio_hss_multiplexer_reg_bank
+spio_hss_multiplexer_reg_bank_i( .clk (CLK_IN)
+                               , .rst (RESET_IN)
+                               
+                                 // frame assembler interface
+                               , .reg_sfrm (reg_sfrm_i)
+                               , .reg_looc (reg_looc_i)
+                               , .reg_crdt (reg_crdt_i)
+                               , .reg_empt (reg_empt_i)
+                               , .reg_full (reg_full_i)
+                               
+                                 // frame transmitter interface
+                               , .reg_tfrm (reg_tfrm_i)
+                               , .reg_idso (reg_idso_i)
+                               
+                                 // frame disassembler interface
+                               , .reg_dfrm (reg_dfrm_i)
+                               , .reg_crce (reg_crce_i)
+                               , .reg_frme (reg_frme_i)
+                               , .reg_rnak (reg_rnak_i)
+                               , .reg_rack (reg_rack_i)
+                               , .reg_rooc (reg_rooc_i)
+                               , .reg_cfcr (reg_cfcr_i)
+                               , .reg_idsi (reg_idsi_i)
+                               
+                                 // packet dispatcher interface
+                               , .reg_rfrm (reg_rfrm_i)
+                               , .reg_busy (reg_busy_i)
+                               , .reg_lnak (reg_lnak_i)
+                               , .reg_lack (reg_lack_i)
+                               , .reg_cfcl (reg_cfcl_i)
+                               
+                                 // TX/RX Control interface
+                               , .reg_hand (reg_hand_i)
+                               
+                                 // register access interface
+                               , .reg_write      (REG_WRITE_IN)
+                               , .reg_addr       (REG_ADDR_IN)
+                               , .reg_read_data  (REG_READ_DATA_OUT)
+                               , .reg_write_data (REG_WRITE_DATA_IN)
+                               );
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // Low-level serial TX/RX control blocks
@@ -163,6 +240,7 @@ spio_hss_multiplexer_rx_control_i( .CLK_IN                 (CLK_IN)
                                  , .RXVLD_OUT              (rxvld_i)
                                  );
 
+assign reg_hand_i = {VERSION_MISMATCH_OUT, HANDSHAKE_COMPLETE_OUT};
 
 ////////////////////////////////////////////////////////////////////////////////
 // High-level packet-framing protocol.
@@ -174,11 +252,33 @@ spio_hss_multiplexer_spinnlink
 spio_hss_multiplexer_spinnlink_i( .clk       (CLK_IN)
                                 , .rst       (RESET_IN)
                                 
-                                  // Monitoring interface
-                                , .reg_write      (REG_WRITE_IN)
-                                , .reg_addr       (REG_ADDR_IN)
-                                , .reg_read_data  (REG_READ_DATA_OUT)
-                                , .reg_write_data (REG_WRITE_DATA_IN)
+                                  // Diagnostic signals from frame assembler
+                                , .reg_sfrm  (reg_sfrm_i)
+                                , .reg_looc  (reg_looc_i)
+                                , .reg_crdt  (reg_crdt_i)
+                                , .reg_empt  (reg_empt_i)
+                                , .reg_full  (reg_full_i)
+                                  
+                                  // Diagnostic signals from frame transmitter
+                                , .reg_tfrm  (reg_tfrm_i)
+                                , .reg_idso  (reg_idso_i)
+                                  
+                                  // Diagnostic signals from frame disassembler
+                                , .reg_dfrm  (reg_dfrm_i)
+                                , .reg_crce  (reg_crce_i)
+                                , .reg_frme  (reg_frme_i)
+                                , .reg_rnak  (reg_rnak_i)
+                                , .reg_rack  (reg_rack_i)
+                                , .reg_rooc  (reg_rooc_i)
+                                , .reg_cfcr  (reg_cfcr_i)
+                                , .reg_idsi  (reg_idsi_i)
+                                  
+                                  // Diagnostic signals from packet dispatcher
+                                , .reg_rfrm  (reg_rfrm_i)
+                                , .reg_busy  (reg_busy_i)
+                                , .reg_lnak  (reg_lnak_i)
+                                , .reg_lack  (reg_lack_i)
+                                , .reg_cfcl  (reg_cfcl_i)
                                 
                                   // To high-speed serial: assembled frames out
                                 , .hsl_data  (txdata_i)

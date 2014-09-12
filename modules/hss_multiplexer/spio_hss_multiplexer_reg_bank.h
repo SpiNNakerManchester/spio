@@ -8,7 +8,7 @@
 `define REGA_BITS        6
 `define REGD_BITS       32
 
-`define VERS_REG         0   // (RO) Protocol version
+`define VERS_REG         0   // (RO) Version: top 24 bits: Module btm 8 bits: Protocol
 `define CRCE_REG         1   // (RO) CRC error counter
 `define FRME_REG         2   // (RO) Frame error counter
 `define BUSY_REG         3   // (RO) Packet dispatcher busy counter
@@ -29,6 +29,8 @@
 `define CFCR_REG         18  // (RO) Remote channel flow control status
 `define IDSO_REG         19  // (RW) IDle Sentinel Output value (value sent in "idle" frames)
 `define IDSI_REG         20  // (RO) IDle Sentinel Input value (latest received sentinel)
+`define HAND_REG         21  // (RO) Handshake: bit 0: complete bit 1: version mismatch
+`define RECO_REG         22  // (RO) Link reconnection counter
 
 `define PKT0_CTR         0
 `define PKT1_CTR         1

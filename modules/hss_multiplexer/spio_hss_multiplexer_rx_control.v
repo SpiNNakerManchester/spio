@@ -172,7 +172,7 @@ always @ (posedge CLK_IN, posedge RESET_IN)
 		VERSION_MISMATCH_OUT <= 0;
 	else
 		if (is_handshake_i)
-			VERSION_MISMATCH_OUT <= handshake_version_in_i != `VERSION;
+			VERSION_MISMATCH_OUT <= handshake_version_in_i != `PROTOCOL_VERSION;
 		else
 			VERSION_MISMATCH_OUT <= 1'b0;
 
@@ -194,7 +194,7 @@ always @ (posedge CLK_IN, posedge RESET_IN)
 //     completing with incompatible devices)
 wire restart_handshake_i = !is_word_aligned_i
                          || (is_handshake_i && (handshake_phase_in_i   <  last_handshake_phase_in_i))
-                         || (is_handshake_i && (handshake_version_in_i != `VERSION))
+                         || (is_handshake_i && (handshake_version_in_i != `PROTOCOL_VERSION))
                          ;
 
 
