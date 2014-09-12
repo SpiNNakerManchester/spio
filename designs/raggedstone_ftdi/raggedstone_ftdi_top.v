@@ -179,8 +179,10 @@ wire hss_activity_i;
 wire uart_activity_i;
 
 // HSS Multiplexer debug registers (for access by chipscope)
+wire                  reg_write_i;
 wire [`REGA_BITS-1:0] reg_addr_i;
-wire [`REGD_BITS-1:0] reg_data_i;
+wire [`REGD_BITS-1:0] reg_read_data_i;
+wire [`REGD_BITS-1:0] reg_write_data_i;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -485,8 +487,10 @@ periph_hss_multiplexer_i( .CLK_IN                         (usrclk2_i)
                         , .RX_PKT7_VLD_OUT                (hss_pkt_rxvld_i[7])
                         , .RX_PKT7_RDY_IN                 (hss_pkt_rxrdy_i[7])
                           // High-level protocol performance counters
-                        , .REG_ADDR_IN                    (reg_addr_i)
-                        , .REG_DATA_OUT                   (reg_data_i)
+		                    , .REG_WRITE_IN                   (reg_write_i)
+		                    , .REG_ADDR_IN                    (reg_addr_i)
+		                    , .REG_READ_DATA_OUT              (reg_read_data_i)
+		                    , .REG_WRITE_DATA_IN              (reg_write_data_i)
                         );
 
 
@@ -628,8 +632,8 @@ generate if (DEBUG_CHIPSCOPE_VIO)
 		
 		wire [35:0] chipscope_control_i;
 		
-		wire [63:0] chipscope_sync_in_i;
-		wire [4:0]  chipscope_sync_out_i;
+		wire [63:0]                        chipscope_sync_in_i;
+		wire [1+`REGA_BITS+`REGD_BITS-1:0] chipscope_sync_out_i;
 		
 		// Chipscope Integrated CONtroller (ICON)
 		chipscope_icon chipscope_icon_i (.CONTROL0 (chipscope_control_i));
@@ -642,8 +646,10 @@ generate if (DEBUG_CHIPSCOPE_VIO)
 		                              );
 		
 		// HSS Multiplexer debug registers
-		assign reg_addr_i                         = chipscope_sync_out_i[0+:`REGA_BITS];
-		assign chipscope_sync_in_i[0+:`REGD_BITS] = reg_data_i;
+		assign reg_write_i                        = chipscope_sync_out_i[0];
+		assign reg_addr_i                         = chipscope_sync_out_i[1+:`REGA_BITS];
+		assign reg_write_data_i                   = chipscope_sync_out_i[1+`REGA_BITS+:`REGD_BITS];
+		assign chipscope_sync_in_i[0+:`REGD_BITS] = reg_read_data_i;
 		
 		// HSS mux port RX ready/vld
 		assign chipscope_sync_in_i[`REGD_BITS+0 +:8] = { hss_pkt_rxrdy_i[7]
@@ -690,7 +696,9 @@ else
 	begin : chipscope_disabled
 		
 		// Tie off register addresses to an arbitrary register
-		assign reg_addr_i    = `VERS_REG;
+		assign reg_write_i      = 1'b0;
+		assign reg_addr_i       = `VERS_REG;
+		assign reg_write_data_i = {`REGD_BITS{1'bX}};
 		
 	end
 endgenerate

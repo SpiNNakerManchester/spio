@@ -1,7 +1,7 @@
 ##############################################################
 #
 # Xilinx Core Generator version 14.5
-# Date: Wed Jun  4 10:36:17 2014
+# Date: Fri Sep 12 08:55:05 2014
 #
 ##############################################################
 #
@@ -30,7 +30,7 @@ SET foundationsym = false
 SET implementationfiletype = Ngc
 SET package = fgg484
 SET removerpms = false
-SET simulationfiles = Structural
+SET simulationfiles = Behavioral
 SET speedgrade = -2
 SET verilogsim = true
 SET vhdlsim = false
@@ -50,10 +50,10 @@ CSET enable_synchronous_output_port=true
 CSET example_design=false
 CSET invert_clock_input=false
 CSET synchronous_input_port_width=64
-CSET synchronous_output_port_width=5
+CSET synchronous_output_port_width=39
 # END Parameters
 # BEGIN Extra information
 MISC pkg_timestamp=2014-04-30T10:53:50Z
 # END Extra information
 GENERATE
-# CRC: e0546203
+# CRC: 3070b8e9
