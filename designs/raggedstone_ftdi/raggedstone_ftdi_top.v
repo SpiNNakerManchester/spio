@@ -100,8 +100,9 @@ wire led_reset_i;
 wire [5:2] leds_i;
 
 // Button signals (including an active-high version)
-wire nbutton_i;
-wire button_i;
+wire       nbutton_i;
+wire       button_i;
+reg  [1:0] button_sync_i;
 
 // Input clock to the GTP modules from the external clock
 wire gtpclkin_i;
@@ -195,6 +196,9 @@ IBUF nbuttons_buf_i (.I(NBUTTON_IN), .O(nbutton_i));
 // Convert to active high
 assign button_i = ~nbutton_i;
 
+// Synchronise
+always @ (posedge usrclk2_i)
+	button_sync_i <= {button_sync_i[0], button_i};
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -595,8 +599,21 @@ assign hss_pkt_txdata_i[0] = uart_pkt_rxdata_i;
 assign hss_pkt_txvld_i[0]  = uart_pkt_rxvld_i;
 assign uart_pkt_rxrdy_i    = hss_pkt_txrdy_i[0];
 
+// Connect second channel to the button (press-to-generate-packets)
+assign hss_pkt_txdata_i[1] = { 32'hF0A0F030 // Payload
+                             , 32'h0000AAAA // Routing key
+                             , 2'b00        // MC packet
+                             , 2'b00        // Non-emergency-routed state
+                             , 2'b00        // Timestamp
+                             , 1'b1         // With-Payload
+                             , 1'b0         // Parity bit (Note: whole packet must have odd parity)
+                             };
+// XXX: This signal is not held if ready is not high. In this instance this is
+// OK but in general this is a protocol violation.
+assign hss_pkt_txvld_i[1]  = button_sync_i[1];
+
 // Tie-off the other channels
-generate for (i = 1; i < `NUM_CHANS; i = i + 1)
+generate for (i = 2; i < `NUM_CHANS; i = i + 1)
 	begin : spinnaker_inactive_tx_links
 		assign hss_pkt_txdata_i[i] = {`PKT_BITS{1'bX}};
 		assign hss_pkt_txvld_i[i]  = 1'b0;
