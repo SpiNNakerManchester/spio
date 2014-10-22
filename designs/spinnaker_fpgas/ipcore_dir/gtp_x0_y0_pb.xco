@@ -1,7 +1,7 @@
 ##############################################################
 #
 # Xilinx Core Generator version 14.5
-# Date: Mon Jun 30 13:06:16 2014
+# Date: Tue Oct 21 09:27:20 2014
 #
 ##############################################################
 #
@@ -44,8 +44,8 @@ CSET cb_master_bottom=GTP0_DUAL_X0Y0
 CSET cb_master_top=GTP0_DUAL_X0Y0
 CSET cb_seq_1_1=00000000
 CSET cb_seq_1_1_disp=false
-CSET cb_seq_1_1_k=true
-CSET cb_seq_1_1_mask=false
+CSET cb_seq_1_1_k=false
+CSET cb_seq_1_1_mask=true
 CSET cb_seq_1_2=00000000
 CSET cb_seq_1_2_disp=false
 CSET cb_seq_1_2_k=false
@@ -412,7 +412,7 @@ CSET refclk_ac_coupling_x0_y0=false
 CSET refclk_ac_coupling_x0_y1=false
 CSET refclk_ac_coupling_x1_y0=false
 CSET refclk_ac_coupling_x1_y1=false
-CSET use_cb=true
+CSET use_cb=false
 CSET use_gtp_dual_x0_y0=true
 CSET use_gtp_dual_x0_y1=false
 CSET use_gtp_dual_x1_y0=false
@@ -426,4 +426,4 @@ CSET use_two_cb_sequences=false
 MISC pkg_timestamp=2011-04-06T10:16:39Z
 # END Extra information
 GENERATE
-# CRC: b6b07aa2
+# CRC: d56f1a36

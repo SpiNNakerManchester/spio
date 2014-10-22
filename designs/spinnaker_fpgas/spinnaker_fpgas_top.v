@@ -28,7 +28,7 @@ module spinnaker_fpgas_top #( // Version number for top-level design
                               // to access HSS multiplexer debug register banks)
                             , parameter DEBUG_CHIPSCOPE_VIO = 0
                               // Which FPGA should this module be compiled for
-                            , parameter FPGA_ID = 1
+                            , parameter FPGA_ID = 2
                               // Should North and South connections be connected
                               // to 0: J6 and J8 on the back respectively or 1:
                               // J9 and J11 on the front respectively.
@@ -100,7 +100,8 @@ localparam    B2B_RXEQMIX = 2'b10;   // 5.4 dB
 localparam PERIPH_RXEQMIX = 2'b00;   // Default
 localparam   RING_RXEQMIX = 2'b00;   // Default
 
-localparam    B2B_TXDIFFCTRL = 4'b0010; // 495 mV
+// !!lap localparam    B2B_TXDIFFCTRL = 4'b0010; // 495 mV
+localparam    B2B_TXDIFFCTRL = 4'b1010; // 1054 mV
 localparam PERIPH_TXDIFFCTRL = 4'b0000; // Default
 localparam   RING_TXDIFFCTRL = 4'b0000; // Default
 
@@ -638,7 +639,7 @@ generate case ({NORTH_SOUTH_ON_FRONT, FPGA_ID})
 		             ,   .TILE0_TXN1_OUT             (HSS_TXN_OUT[1])
 		             ,   .TILE0_TXP0_OUT             (HSS_TXP_OUT[0])
 		             ,   .TILE0_TXP1_OUT             (HSS_TXP_OUT[1])
-		                 // Receive Ports - Channel Bonding (Unused)
+/* !!lap		                 // Receive Ports - Channel Bonding (Unused)
 		             ,   .TILE0_RXCHANBONDSEQ0_OUT   () // Unused
 		             ,   .TILE0_RXCHANBONDSEQ1_OUT   () // Unused
 		             ,   .TILE0_RXCHANISALIGNED0_OUT () // Unused
@@ -650,7 +651,7 @@ generate case ({NORTH_SOUTH_ON_FRONT, FPGA_ID})
 		             ,   .TILE0_RXCHBONDSLAVE0_IN    (1'b0) // Unused
 		             ,   .TILE0_RXCHBONDSLAVE1_IN    (1'b0) // Unused
 		             ,   .TILE0_RXENCHANSYNC0_IN     (1'b0) // Unused
-		             ,   .TILE0_RXENCHANSYNC1_IN     (1'b0) // Unused
+		             ,   .TILE0_RXENCHANSYNC1_IN     (1'b0) // Unused  !!lap */
 		                 // Analog signal generation settings
 		             ,   .TILE0_RXEQMIX0_IN              (B2B_RXEQMIX)
 		             ,   .TILE0_RXEQMIX1_IN              (B2B_RXEQMIX)
@@ -726,7 +727,7 @@ generate case ({NORTH_SOUTH_ON_FRONT, FPGA_ID})
 		             ,   .TILE0_TXN1_OUT             (HSS_TXN_OUT[1])
 		             ,   .TILE0_TXP0_OUT             (HSS_TXP_OUT[0])
 		             ,   .TILE0_TXP1_OUT             (HSS_TXP_OUT[1])
-		                 // Receive Ports - Channel Bonding (Unused)
+/* !!lap		                 // Receive Ports - Channel Bonding (Unused)
 		             ,   .TILE0_RXCHANBONDSEQ0_OUT   () // Unused
 		             ,   .TILE0_RXCHANBONDSEQ1_OUT   () // Unused
 		             ,   .TILE0_RXCHANISALIGNED0_OUT () // Unused
@@ -738,7 +739,7 @@ generate case ({NORTH_SOUTH_ON_FRONT, FPGA_ID})
 		             ,   .TILE0_RXCHBONDSLAVE0_IN    (1'b0) // Unused
 		             ,   .TILE0_RXCHBONDSLAVE1_IN    (1'b0) // Unused
 		             ,   .TILE0_RXENCHANSYNC0_IN     (1'b0) // Unused
-		             ,   .TILE0_RXENCHANSYNC1_IN     (1'b0) // Unused
+		             ,   .TILE0_RXENCHANSYNC1_IN     (1'b0) // Unused  !!lap */
 		                 // Analog signal generation settings
 		             ,   .TILE0_RXEQMIX0_IN              (   B2B_RXEQMIX)
 		             ,   .TILE0_RXEQMIX1_IN              (PERIPH_RXEQMIX)
@@ -814,7 +815,7 @@ generate case ({NORTH_SOUTH_ON_FRONT, FPGA_ID})
 		             ,   .TILE0_TXN1_OUT             (HSS_TXN_OUT[1])
 		             ,   .TILE0_TXP0_OUT             (HSS_TXP_OUT[0])
 		             ,   .TILE0_TXP1_OUT             (HSS_TXP_OUT[1])
-		                 // Receive Ports - Channel Bonding (Unused)
+/* !!lap		                 // Receive Ports - Channel Bonding (Unused)
 		             ,   .TILE0_RXCHANBONDSEQ0_OUT   () // Unused
 		             ,   .TILE0_RXCHANBONDSEQ1_OUT   () // Unused
 		             ,   .TILE0_RXCHANISALIGNED0_OUT () // Unused
@@ -826,7 +827,7 @@ generate case ({NORTH_SOUTH_ON_FRONT, FPGA_ID})
 		             ,   .TILE0_RXCHBONDSLAVE0_IN    (1'b0) // Unused
 		             ,   .TILE0_RXCHBONDSLAVE1_IN    (1'b0) // Unused
 		             ,   .TILE0_RXENCHANSYNC0_IN     (1'b0) // Unused
-		             ,   .TILE0_RXENCHANSYNC1_IN     (1'b0) // Unused
+		             ,   .TILE0_RXENCHANSYNC1_IN     (1'b0) // Unused  !!lap */
 		                 // Analog signal generation settings
 		             ,   .TILE0_RXEQMIX0_IN              (PERIPH_RXEQMIX)
 		             ,   .TILE0_RXEQMIX1_IN              (   B2B_RXEQMIX)
@@ -907,7 +908,7 @@ generate case ({NORTH_SOUTH_ON_FRONT, FPGA_ID})
 		             ,   .TILE0_TXN1_OUT             (HSS_TXN_OUT[3])
 		             ,   .TILE0_TXP0_OUT             (HSS_TXP_OUT[2])
 		             ,   .TILE0_TXP1_OUT             (HSS_TXP_OUT[3])
-		                 // Receive Ports - Channel Bonding (Unused)
+/* !!lap 		                 // Receive Ports - Channel Bonding (Unused)
 		             ,   .TILE0_RXCHANBONDSEQ0_OUT   () // Unused
 		             ,   .TILE0_RXCHANBONDSEQ1_OUT   () // Unused
 		             ,   .TILE0_RXCHANISALIGNED0_OUT () // Unused
@@ -919,7 +920,7 @@ generate case ({NORTH_SOUTH_ON_FRONT, FPGA_ID})
 		             ,   .TILE0_RXCHBONDSLAVE0_IN    (1'b0) // Unused
 		             ,   .TILE0_RXCHBONDSLAVE1_IN    (1'b0) // Unused
 		             ,   .TILE0_RXENCHANSYNC0_IN     (1'b0) // Unused
-		             ,   .TILE0_RXENCHANSYNC1_IN     (1'b0) // Unused
+		             ,   .TILE0_RXENCHANSYNC1_IN     (1'b0) // Unused  !!lap */
 		                 // Analog signal generation settings
 		             ,   .TILE0_RXEQMIX0_IN              (PERIPH_RXEQMIX)
 		             ,   .TILE0_RXEQMIX1_IN              (  RING_RXEQMIX)
@@ -995,7 +996,7 @@ generate case ({NORTH_SOUTH_ON_FRONT, FPGA_ID})
 		             ,   .TILE0_TXN1_OUT             (HSS_TXN_OUT[3])
 		             ,   .TILE0_TXP0_OUT             (HSS_TXP_OUT[2])
 		             ,   .TILE0_TXP1_OUT             (HSS_TXP_OUT[3])
-		                 // Receive Ports - Channel Bonding (Unused)
+/* !!lap		                 // Receive Ports - Channel Bonding (Unused)
 		             ,   .TILE0_RXCHANBONDSEQ0_OUT   () // Unused
 		             ,   .TILE0_RXCHANBONDSEQ1_OUT   () // Unused
 		             ,   .TILE0_RXCHANISALIGNED0_OUT () // Unused
@@ -1007,7 +1008,7 @@ generate case ({NORTH_SOUTH_ON_FRONT, FPGA_ID})
 		             ,   .TILE0_RXCHBONDSLAVE0_IN    (1'b0) // Unused
 		             ,   .TILE0_RXCHBONDSLAVE1_IN    (1'b0) // Unused
 		             ,   .TILE0_RXENCHANSYNC0_IN     (1'b0) // Unused
-		             ,   .TILE0_RXENCHANSYNC1_IN     (1'b0) // Unused
+		             ,   .TILE0_RXENCHANSYNC1_IN     (1'b0) // Unused  !!lap */
 		                 // Analog signal generation settings
 		             ,   .TILE0_RXEQMIX0_IN              ( B2B_RXEQMIX)
 		             ,   .TILE0_RXEQMIX1_IN              (RING_RXEQMIX)
@@ -1083,7 +1084,7 @@ generate case ({NORTH_SOUTH_ON_FRONT, FPGA_ID})
 		             ,   .TILE0_TXN1_OUT             (HSS_TXN_OUT[3])
 		             ,   .TILE0_TXP0_OUT             (HSS_TXP_OUT[2])
 		             ,   .TILE0_TXP1_OUT             (HSS_TXP_OUT[3])
-		                 // Receive Ports - Channel Bonding (Unused)
+/* !!lap		                 // Receive Ports - Channel Bonding (Unused)
 		             ,   .TILE0_RXCHANBONDSEQ0_OUT   () // Unused
 		             ,   .TILE0_RXCHANBONDSEQ1_OUT   () // Unused
 		             ,   .TILE0_RXCHANISALIGNED0_OUT () // Unused
@@ -1095,7 +1096,7 @@ generate case ({NORTH_SOUTH_ON_FRONT, FPGA_ID})
 		             ,   .TILE0_RXCHBONDSLAVE0_IN    (1'b0) // Unused
 		             ,   .TILE0_RXCHBONDSLAVE1_IN    (1'b0) // Unused
 		             ,   .TILE0_RXENCHANSYNC0_IN     (1'b0) // Unused
-		             ,   .TILE0_RXENCHANSYNC1_IN     (1'b0) // Unused
+		             ,   .TILE0_RXENCHANSYNC1_IN     (1'b0) // Unused  !!lap */
 		                 // Analog signal generation settings
 		             ,   .TILE0_RXEQMIX0_IN              ( B2B_RXEQMIX)
 		             ,   .TILE0_RXEQMIX1_IN              (RING_RXEQMIX)
