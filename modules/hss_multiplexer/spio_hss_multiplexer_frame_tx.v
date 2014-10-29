@@ -133,6 +133,7 @@ module spio_hss_multiplexer_frame_tx
   (
     .clk      (clk),
     .rst      (rst),
+    .crc_go   (hsl_rdy),
     .crc_last (crc_last),
     .crc_in   (crc_in),
     .crc_out  (crc_out)

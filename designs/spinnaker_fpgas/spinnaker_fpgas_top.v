@@ -101,7 +101,8 @@ localparam PERIPH_RXEQMIX = 2'b00;   // Default
 localparam   RING_RXEQMIX = 2'b00;   // Default
 
 // !!lap localparam    B2B_TXDIFFCTRL = 4'b0010; // 495 mV
-localparam    B2B_TXDIFFCTRL = 4'b1010; // 1054 mV
+localparam    B2B_TXDIFFCTRL = 4'b0110; // 762 mV
+// !!lap localparam    B2B_TXDIFFCTRL = 4'b1010; // 1054 mV
 localparam PERIPH_TXDIFFCTRL = 4'b0000; // Default
 localparam   RING_TXDIFFCTRL = 4'b0000; // Default
 

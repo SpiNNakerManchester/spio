@@ -224,6 +224,13 @@ module spio_hss_multiplexer_spinnlink
   //--------------------------- structure -------------------------
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   //---------------------------------------------------------------
+  // relay flow control information to the register bank
+  //---------------------------------------------------------------
+  assign reg_cfcl = cfc_loc;
+  assign reg_cfcr = cfc_rem;
+   
+
+  //---------------------------------------------------------------
   // instantiate the frame assembler
   //---------------------------------------------------------------
   spio_hss_multiplexer_frame_assembler fa

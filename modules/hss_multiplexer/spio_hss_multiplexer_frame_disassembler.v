@@ -163,6 +163,7 @@ module spio_hss_multiplexer_frame_disassembler
   (
     .clk      (clk),
     .rst      (rst),
+    .crc_go   (hsl_vld),
     .crc_last (crc_last),
     .crc_in   (crc_in),
     .crc_out  (crc_out)
