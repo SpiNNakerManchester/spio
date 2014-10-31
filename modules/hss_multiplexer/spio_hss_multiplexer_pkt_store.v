@@ -59,8 +59,8 @@ module spio_hss_multiplexer_pkt_store
   input  wire  [`SEQ_BITS - 1:0] bpkt_seq,
   output reg   [`PKT_BITS - 1:0] bpkt_data,
   output reg                     bpkt_pres,
-  output reg                     bpkt_vld,
-  input  wire                    bpkt_req
+  input  wire                    bpkt_rq,
+  output reg                     bpkt_gt
 );
 
   //---------------------------------------------------------------
@@ -111,8 +111,8 @@ module spio_hss_multiplexer_pkt_store
   // buffer operations in progress
   //---------------------------------------------------------------
   always @ (*)
-    reading = bpkt_req && valid;  // read request will succeed
-//#    reading = bpkt_req && valid && cfc_rem;  // read request will succeed
+    reading = bpkt_rq && valid;  // read request will succeed
+//#    reading = bpkt_rq && valid && cfc_rem;  // read request will succeed
 
   always @ (*)
     writing = pkt_vld && !full;   // write request will succeed
@@ -266,7 +266,7 @@ module spio_hss_multiplexer_pkt_store
   // sequence map writes
   //---------------------------------------------------------------
   always @ (posedge clk)
-    if (bpkt_req)
+    if (bpkt_rq)
       seq_map[bpkt_seq[`BUF_BITS - 1:0]] <= br;  // even if not valid!
   //---------------------------------------------------------------
 
@@ -291,7 +291,7 @@ module spio_hss_multiplexer_pkt_store
     if (rst)
       bpkt_pres <= 1'b0;
     else
-      if (bpkt_req)
+      if (bpkt_rq)
         bpkt_pres <= valid;
 //#        bpkt_pres <= valid && cfc_rem;
   //---------------------------------------------------------------
@@ -301,13 +301,13 @@ module spio_hss_multiplexer_pkt_store
   //---------------------------------------------------------------
   always @ (posedge clk or posedge rst)
     if (rst)
-      bpkt_vld <= 1'b0;
+      bpkt_gt <= 1'b0;
     else
-      if (bpkt_req)
-        bpkt_vld <= valid;
-//#        bpkt_vld <= valid && cfc_rem;
+      if (bpkt_rq)
+        bpkt_gt <= valid;
+//#        bpkt_gt <= valid && cfc_rem;
       else
-	bpkt_vld <= 1'b0;
+	bpkt_gt <= 1'b0;
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------

@@ -62,9 +62,6 @@ module frm_issue
   input  wire                    ipkt_go,
   output reg                     ipkt_done,
 
-  // local channel flow control interface
-  input  wire [`NUM_CHANS - 1:0] cfc_loc,
- 
   // frame interface
   output reg   [`FRM_BITS - 1:0] frm_data,
   output reg   [`KCH_BITS - 1:0] frm_kchr,
@@ -237,9 +234,7 @@ module frm_issue
     
           PLD7_ST: frm_data <= bpkt_data7[`PKT_PLD_RNG];
     
-          LAST_ST: frm_data <= {8'h00, cfc_loc, {(8 -`NUM_CHANS) {1'b0}},
-                                 `CRC_PAD
-                               };
+          LAST_ST: frm_data <= `ZERO_FRM;  // the last word is filled by frame_tx
     
           default: frm_data <= frm_data;  // no change!
         endcase
@@ -504,13 +499,8 @@ module spio_hss_multiplexer_frame_assembler
   input  wire 			 ack_vld,
 
   // channel flow control interface (from packet dispatcher)
-  // use remote cfc to mask local channels, send local cfc to remote side
+  // use remote cfc to mask local channels
   input  wire [`NUM_CHANS - 1:0] cfc_rem,
-  input  wire [`NUM_CHANS - 1:0] cfc_loc,
- 
-  // channel flow control interface (to frame transmitter)
-  // report channel flow state to remote side
-  output reg 			 cfc_vld,
  
   // frame interface (to frame transmitter)
   // assembled data frame
@@ -539,8 +529,8 @@ module spio_hss_multiplexer_frame_assembler
   //---------------------------------------------------------------
   reg  [STATE_BITS - 1:0] state;
 
-  reg                     bpkt_req;
-  wire [`NUM_CHANS - 1:0] bpkt_vld;
+  reg                     bpkt_rq;
+  wire [`NUM_CHANS - 1:0] bpkt_gt;
 
   wire  [`PKT_BITS - 1:0] bpkt_data [0 : `NUM_CHANS - 1];
   wire [`NUM_CHANS - 1:0] bpkt_pres;
@@ -559,7 +549,6 @@ module spio_hss_multiplexer_frame_assembler
   reg                     crdt_out;
 
   reg  [`O_CNT_BITS -1:0] ooc_snd_ctr;
-  reg  [`C_CNT_BITS -1:0] cfc_snd_ctr;
    
 
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -587,11 +576,10 @@ module spio_hss_multiplexer_frame_assembler
     .bpkt_data6    (bpkt_data[6]),
     .bpkt_data7    (bpkt_data[7]),
     .bpkt_pres     (bpkt_pres),
+
     .ipkt_go       (ipkt_go),
     .ipkt_done     (ipkt_done),
 
-    .cfc_loc       (cfc_loc),
- 
     .frm_data      (frm_data),
     .frm_kchr      (frm_kchr),
     .frm_last      (frm_last),
@@ -625,8 +613,8 @@ module spio_hss_multiplexer_frame_assembler
     .bpkt_seq  (seq),
     .bpkt_data (bpkt_data[0]),
     .bpkt_pres (bpkt_pres[0]),
-    .bpkt_vld  (bpkt_vld[0]),
-    .bpkt_req  (bpkt_req)
+    .bpkt_gt   (bpkt_gt[0]),
+    .bpkt_rq   (bpkt_rq)
   );
 
   spio_hss_multiplexer_pkt_store ps1
@@ -651,8 +639,8 @@ module spio_hss_multiplexer_frame_assembler
     .bpkt_seq  (seq),
     .bpkt_data (bpkt_data[1]),
     .bpkt_pres (bpkt_pres[1]),
-    .bpkt_vld  (bpkt_vld[1]),
-    .bpkt_req  (bpkt_req)
+    .bpkt_gt   (bpkt_gt[1]),
+    .bpkt_rq   (bpkt_rq)
   );
 
   spio_hss_multiplexer_pkt_store ps2
@@ -677,8 +665,8 @@ module spio_hss_multiplexer_frame_assembler
     .bpkt_seq  (seq),
     .bpkt_data (bpkt_data[2]),
     .bpkt_pres (bpkt_pres[2]),
-    .bpkt_vld  (bpkt_vld[2]),
-    .bpkt_req  (bpkt_req)
+    .bpkt_gt   (bpkt_gt[2]),
+    .bpkt_rq   (bpkt_rq)
   );
 
   spio_hss_multiplexer_pkt_store ps3
@@ -703,8 +691,8 @@ module spio_hss_multiplexer_frame_assembler
     .bpkt_seq  (seq),
     .bpkt_data (bpkt_data[3]),
     .bpkt_pres (bpkt_pres[3]),
-    .bpkt_vld  (bpkt_vld[3]),
-    .bpkt_req  (bpkt_req)
+    .bpkt_gt   (bpkt_gt[3]),
+    .bpkt_rq   (bpkt_rq)
   );
 
   spio_hss_multiplexer_pkt_store ps4
@@ -729,8 +717,8 @@ module spio_hss_multiplexer_frame_assembler
     .bpkt_seq  (seq),
     .bpkt_data (bpkt_data[4]),
     .bpkt_pres (bpkt_pres[4]),
-    .bpkt_vld  (bpkt_vld[4]),
-    .bpkt_req  (bpkt_req)
+    .bpkt_gt   (bpkt_gt[4]),
+    .bpkt_rq   (bpkt_rq)
   );
 
   spio_hss_multiplexer_pkt_store ps5
@@ -755,8 +743,8 @@ module spio_hss_multiplexer_frame_assembler
     .bpkt_seq  (seq),
     .bpkt_data (bpkt_data[5]),
     .bpkt_pres (bpkt_pres[5]),
-    .bpkt_vld  (bpkt_vld[5]),
-    .bpkt_req  (bpkt_req)
+    .bpkt_gt   (bpkt_gt[5]),
+    .bpkt_rq   (bpkt_rq)
   );
 
   spio_hss_multiplexer_pkt_store ps6
@@ -781,8 +769,8 @@ module spio_hss_multiplexer_frame_assembler
     .bpkt_seq  (seq),
     .bpkt_data (bpkt_data[6]),
     .bpkt_pres (bpkt_pres[6]),
-    .bpkt_vld  (bpkt_vld[6]),
-    .bpkt_req  (bpkt_req)
+    .bpkt_gt   (bpkt_gt[6]),
+    .bpkt_rq   (bpkt_rq)
   );
 
   spio_hss_multiplexer_pkt_store ps7
@@ -807,8 +795,8 @@ module spio_hss_multiplexer_frame_assembler
     .bpkt_seq  (seq),
     .bpkt_data (bpkt_data[7]),
     .bpkt_pres (bpkt_pres[7]),
-    .bpkt_vld  (bpkt_vld[7]),
-    .bpkt_req  (bpkt_req)
+    .bpkt_gt   (bpkt_gt[7]),
+    .bpkt_rq   (bpkt_rq)
   );
   //---------------------------------------------------------------
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -821,18 +809,18 @@ module spio_hss_multiplexer_frame_assembler
   // frm_issue handshake (combinatorial)
   //---------------------------------------------------------------
   always @ (*)
-    if ((state == IDLE_ST) && (bpkt_vld != 0))
+    if ((state == IDLE_ST) && (bpkt_gt != 0))
       ipkt_go = 1'b1;
     else
       ipkt_go = 1'b0;
 
   always @ (*)
     if (!vld_nak && !crdt_out
-         && (ipkt_done || ((state == IDLE_ST) && (bpkt_vld == 0)))
+         && (ipkt_done || ((state == IDLE_ST) && (bpkt_gt == 0)))
        )
-      bpkt_req = 1'b1;
+      bpkt_rq = 1'b1;
     else
-      bpkt_req = 1'b0;
+      bpkt_rq = 1'b0;
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------
@@ -859,46 +847,6 @@ module spio_hss_multiplexer_frame_assembler
 	2'b1x:   seq <= ack_seq;  // resend nack'd frame
 	2'b01:   seq <= seq + 1;  // next in sequence!
 	default: seq <= seq;      // no change!	
-      endcase
-  //---------------------------------------------------------------
-  //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
-
-  //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-  //---------------- channel flow control interface ---------------
-  //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-  //---------------------------------------------------------------
-  // channel flow control handshake
-  //---------------------------------------------------------------
-  always @ (posedge clk or posedge rst)
-    if (rst)
-      cfc_vld <= 1'b0;
-    else
-//#      if ((cfc_snd_ctr == 0)                         // turn to send cfc
-//#           && (state == IDLE_ST) && (bpkt_go == 0)   // not sending a dfrm
-//#           && (!crdt_out || (ooc_snd_ctr != 0))      // not sending ooc
-//#         )
-//#        cfc_vld <= 1'b1;
-//#      else
-        cfc_vld <= 1'b0;
-  //---------------------------------------------------------------
-
-  //---------------------------------------------------------------
-  // cfc send counter
-  //---------------------------------------------------------------
-  always @ (posedge clk or posedge rst)
-    if (rst)
-      cfc_snd_ctr <= `CFC_CNT;
-    else
-      casex ({(state == IDLE_ST), (bpkt_vld == 0), (cfc_snd_ctr == 0),
-               crdt_out, (ooc_snd_ctr == 0)
-             }
-            )
-        5'b110xx: cfc_snd_ctr <= cfc_snd_ctr - 1;
-
-        5'b11111: cfc_snd_ctr <= cfc_snd_ctr;  // wait for ooc!
-
-        default:  cfc_snd_ctr <= `CFC_CNT;
       endcase
   //---------------------------------------------------------------
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

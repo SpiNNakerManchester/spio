@@ -51,10 +51,9 @@ module spio_hss_multiplexer_frame_tx
   output reg                     frm_rdy,
 
   // channel flow control interface
-  // (from frame assembler & packet dispatcher)
+  // from packet dispatcher
   // report channel flow state to remote side
-  input wire [`NUM_CHANS - 1:0] cfc_loc,
-  input wire 			cfc_vld,
+  input wire  [`NUM_CHANS - 1:0] cfc_loc,
  
   // out-of-credit interface (from frame assembler)
   // out-of-credit report
@@ -143,21 +142,13 @@ module spio_hss_multiplexer_frame_tx
   //---------------------------------------------------------------
   always @ (*)
     casex ({send_nak, send_ack, send_ooc, send_cfc})
-      4'b1xxx:  crc_in = {`KCH_NAK, ack_colour_i, ack_seq_i, 
-                           {(`FRM_BYTES - 2) {8'h00}}
-                         };
+      4'b1xxx:  crc_in = `NAK_FRM;
 
-      4'bx1xx:  crc_in = {`KCH_ACK, ack_colour_i, ack_seq_i,
-                           {(`FRM_BYTES - 2) {8'h00}}
-                         };
+      4'bx1xx:  crc_in = `ACK_FRM;
 
-      4'b001x:  crc_in = {`KCH_OOC, ooc_colour, {(8 - `CLR_BITS) {1'b0}}, 
-                           {(`FRM_BYTES - 2) {8'h00}}
-                         };
+      4'b001x:  crc_in = `OOC_FRM;
 
-      4'b00x1:  crc_in = {`KCH_CFC, cfc_loc, {(8 -`NUM_CHANS) {1'b0}},
-                           {(`FRM_BYTES - 2) {8'h00}}
-                         };
+      4'b00x1:  crc_in = `CFC_FRM;
 
       default:  crc_in = frm_data_i;
     endcase
@@ -174,7 +165,7 @@ module spio_hss_multiplexer_frame_tx
   //---------------------------------------------------------------
   always @ (posedge clk or posedge rst)
     if (rst)
-      hsl_data <= {`FRM_BITS {1'b0}}; // not really necessary!
+      hsl_data <= `ZERO_FRM; // not really necessary!
     else
       if (hsl_rdy)
         if (send_idle)
@@ -253,16 +244,23 @@ module spio_hss_multiplexer_frame_tx
         park_frm <= 1'b0;
 
   always @ (*)
+    if (frm_last_i)
+      frm_data_i = `CFC_FRM;
+    else
+      if (park_frm)
+        frm_data_i = frm_data_l;
+      else
+        frm_data_i = frm_data;
+
+  always @ (*)
     if (park_frm)
     begin
-      frm_data_i = frm_data_l;
       frm_kchr_i = frm_kchr_l;
       frm_last_i = frm_last_l;
       frm_vld_i  = frm_vld_l;
     end
     else
     begin
-      frm_data_i = frm_data;
       frm_kchr_i = frm_kchr;
       frm_last_i = frm_last;
       frm_vld_i  = frm_vld;
@@ -347,10 +345,10 @@ module spio_hss_multiplexer_frame_tx
    
   always @ (*)
     casex ({hsl_rdy, (state == DFRM_ST),
-              vld_ack, vld_nak, ooc_vld, cfc_vld, frm_vld_i
+              vld_ack, vld_nak, ooc_vld, frm_vld_i
            }
           )
-      7'b0xxxxxx:  // high-speed link not ready, don't send!
+      6'b0xxxxx:  // high-speed link not ready, don't send!
         begin
           send_ack  = 1'b0;
           send_nak  = 1'b0;
@@ -361,7 +359,7 @@ module spio_hss_multiplexer_frame_tx
         end
 
       // second priority
-      7'b101xxxx:  // ack frame requested
+      6'b101xxx:  // ack frame requested
         begin
           send_ack  = 1'b1;
           send_nak  = 1'b0;
@@ -372,7 +370,7 @@ module spio_hss_multiplexer_frame_tx
         end
 
       // second priority
-      7'b10x1xxx:  // nak frame requested
+      6'b10x1xx:  // nak frame requested
         begin
           send_ack  = 1'b0;
           send_nak  = 1'b1;
@@ -383,7 +381,7 @@ module spio_hss_multiplexer_frame_tx
         end
 
       // third priority
-      7'b10001xx:  // out-of-credit frame requested
+      6'b10001x:  // out-of-credit frame requested
         begin
           send_ack  = 1'b0;
           send_nak  = 1'b0;
@@ -394,19 +392,8 @@ module spio_hss_multiplexer_frame_tx
         end
 
       // third priority
-      7'b1000x1x:  // channel-flow control frame requested
-        begin
-          send_ack  = 1'b0;
-          send_nak  = 1'b0;
-          send_ooc  = 1'b0;
-          send_cfc  = 1'b1;
-          send_frm  = 1'b0;
-          send_idle = 1'b0;
-        end
-
-      // third priority
-      7'b11xxxxx,  // in the middle of a data frame, keep going
-      7'b1000xx1:  // new data frame requested
+      6'b11xxxx,  // in the middle of a data frame, keep going
+      6'b1000x1:  // new data frame requested
         begin
           send_ack  = 1'b0;
           send_nak  = 1'b0;
