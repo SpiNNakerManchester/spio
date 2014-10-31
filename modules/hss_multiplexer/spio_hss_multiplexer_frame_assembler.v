@@ -45,21 +45,22 @@ module frm_issue
   // register interface
   output reg                     reg_sfrm,
 
+  // incoming packet interface
+  input  wire  [`PKT_BITS - 1:0] bpkt_data0,
+  input  wire  [`PKT_BITS - 1:0] bpkt_data1,
+  input  wire  [`PKT_BITS - 1:0] bpkt_data2,
+  input  wire  [`PKT_BITS - 1:0] bpkt_data3,
+  input  wire  [`PKT_BITS - 1:0] bpkt_data4,
+  input  wire  [`PKT_BITS - 1:0] bpkt_data5,
+  input  wire  [`PKT_BITS - 1:0] bpkt_data6,
+  input  wire  [`PKT_BITS - 1:0] bpkt_data7,
+  input  wire [`NUM_CHANS - 1:0] bpkt_pres,
+
   input  wire  [`CLR_BITS - 1:0] colour,
   input  wire  [`SEQ_BITS - 1:0] seq,
 
-  // incoming packet interface
-  input  wire  [`PKT_BITS - 1:0] ipkt_data0,
-  input  wire  [`PKT_BITS - 1:0] ipkt_data1,
-  input  wire  [`PKT_BITS - 1:0] ipkt_data2,
-  input  wire  [`PKT_BITS - 1:0] ipkt_data3,
-  input  wire  [`PKT_BITS - 1:0] ipkt_data4,
-  input  wire  [`PKT_BITS - 1:0] ipkt_data5,
-  input  wire  [`PKT_BITS - 1:0] ipkt_data6,
-  input  wire  [`PKT_BITS - 1:0] ipkt_data7,
-  input  wire [`NUM_CHANS - 1:0] ipkt_pres,
-  input  wire                    ipkt_vld,
-  output reg                     ipkt_rdy,
+  input  wire                    ipkt_go,
+  output reg                     ipkt_done,
 
   // local channel flow control interface
   input  wire [`NUM_CHANS - 1:0] cfc_loc,
@@ -96,11 +97,15 @@ module frm_issue
   localparam KEY7_ST = PLD6_ST + 1;
   localparam PLD7_ST = KEY7_ST + 1;
   localparam LAST_ST = PLD7_ST + 1;
+  localparam PARK_ST = LAST_ST + 1;
 
 
   //---------------------------------------------------------------
   // internal signals
   //---------------------------------------------------------------
+  reg   [`CLR_BITS - 1:0] park_colour;
+  reg   [`SEQ_BITS - 1:0] park_seq;
+
   reg  [STATE_BITS - 1:0] state;
   reg  [STATE_BITS - 1:0] nxp_state;
   reg  [`NUM_CHANS - 1:0] nxp_mask;
@@ -111,11 +116,14 @@ module frm_issue
   // packet interface handshake (combinatorial)
   //---------------------------------------------------------------
   always @ (*)
-    case (state)
-      LAST_ST:   ipkt_rdy = 1'b1;
+    if (frm_rdy)
+      case (state)
+        LAST_ST:   ipkt_done = 1'b1;
 
-      default:   ipkt_rdy = 1'b0;
-    endcase
+        default:   ipkt_done = 1'b0;
+      endcase
+    else
+      ipkt_done = 1'b0;
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------
@@ -125,7 +133,7 @@ module frm_issue
     if (rst)
       reg_sfrm <= 1'b0;
     else
-      reg_sfrm <= (state == STRT_ST) && ipkt_vld;
+      reg_sfrm <= ipkt_done;
 
   //---------------------------------------------------------------
   // frame interface handshake
@@ -134,13 +142,16 @@ module frm_issue
     if (rst)
       frm_vld  <= 1'b0;
     else
-      case (state)
-        STRT_ST: if (ipkt_vld)
-                   frm_vld  <= 1'b1;
-	         else
-                   frm_vld  <= 1'b0;
+      if (frm_rdy)
+        case (state)
+          STRT_ST: if (ipkt_go)
+                     frm_vld  <= 1'b1;
+                   else
+                     frm_vld  <= 1'b0;
 
-        default:   frm_vld <= frm_vld;  // no change!
+          PARK_ST:   frm_vld  <= 1'b1;
+
+          default:   frm_vld <= frm_vld;  // no change!
       endcase
   //---------------------------------------------------------------
 
@@ -151,73 +162,87 @@ module frm_issue
     if (rst)
       frm_data <= `ZERO_FRM;    // not really necessary!
     else
-      case (state)
-        STRT_ST: if (ipkt_vld)
-                   frm_data <= {`KCH_DATA,
-                                 colour,
-                                 seq,
-                                 ipkt_data7[1],
-                                 ipkt_data6[1],
-                                 ipkt_data5[1],
-                                 ipkt_data4[1],
-                                 ipkt_data3[1],
-                                 ipkt_data2[1],
-                                 ipkt_data1[1],
-                                 ipkt_data0[1],
-                                 ipkt_pres
+      if (frm_rdy)
+        case (state)
+          STRT_ST: if (ipkt_go)
+                     frm_data <= {`KCH_DATA,
+                                   colour,
+                                   seq,
+                                   bpkt_data7[1],
+                                   bpkt_data6[1],
+                                   bpkt_data5[1],
+                                   bpkt_data4[1],
+                                   bpkt_data3[1],
+                                   bpkt_data2[1],
+                                   bpkt_data1[1],
+                                   bpkt_data0[1],
+                                   bpkt_pres
+                                 };
+    
+          PARK_ST:   frm_data <= {`KCH_DATA,
+                                   park_colour,
+                                   park_seq,
+                                   bpkt_data7[1],
+                                   bpkt_data6[1],
+                                   bpkt_data5[1],
+                                   bpkt_data4[1],
+                                   bpkt_data3[1],
+                                   bpkt_data2[1],
+                                   bpkt_data1[1],
+                                   bpkt_data0[1],
+                                   bpkt_pres
+                                 };
+    
+          HDR0_ST:   frm_data <= {bpkt_data3[`PKT_HDR_RNG],
+                                   bpkt_data2[`PKT_HDR_RNG],
+                                   bpkt_data1[`PKT_HDR_RNG],
+                                   bpkt_data0[`PKT_HDR_RNG]
+                                 };
+    
+          HDR1_ST:   frm_data <= {bpkt_data7[`PKT_HDR_RNG],
+                                   bpkt_data6[`PKT_HDR_RNG],
+                                   bpkt_data5[`PKT_HDR_RNG],
+                                   bpkt_data4[`PKT_HDR_RNG]
+                                 };
+    
+          KEY0_ST: frm_data <= bpkt_data0[`PKT_KEY_RNG];
+    
+          PLD0_ST: frm_data <= bpkt_data0[`PKT_PLD_RNG];
+    
+          KEY1_ST: frm_data <= bpkt_data1[`PKT_KEY_RNG];
+    
+          PLD1_ST: frm_data <= bpkt_data1[`PKT_PLD_RNG];
+    
+          KEY2_ST: frm_data <= bpkt_data2[`PKT_KEY_RNG];
+    
+          PLD2_ST: frm_data <= bpkt_data2[`PKT_PLD_RNG];
+    
+          KEY3_ST: frm_data <= bpkt_data3[`PKT_KEY_RNG];
+    
+          PLD3_ST: frm_data <= bpkt_data3[`PKT_PLD_RNG];
+    
+          KEY4_ST: frm_data <= bpkt_data4[`PKT_KEY_RNG];
+    
+          PLD4_ST: frm_data <= bpkt_data4[`PKT_PLD_RNG];
+    
+          KEY5_ST: frm_data <= bpkt_data5[`PKT_KEY_RNG];
+    
+          PLD5_ST: frm_data <= bpkt_data5[`PKT_PLD_RNG];
+    
+          KEY6_ST: frm_data <= bpkt_data6[`PKT_KEY_RNG];
+    
+          PLD6_ST: frm_data <= bpkt_data6[`PKT_PLD_RNG];
+    
+          KEY7_ST: frm_data <= bpkt_data7[`PKT_KEY_RNG];
+    
+          PLD7_ST: frm_data <= bpkt_data7[`PKT_PLD_RNG];
+    
+          LAST_ST: frm_data <= {8'h00, cfc_loc, {(8 -`NUM_CHANS) {1'b0}},
+                                 `CRC_PAD
                                };
-
-        HDR0_ST:   frm_data <= {ipkt_data3[`PKT_HDR_RNG],
-                                 ipkt_data2[`PKT_HDR_RNG],
-                                 ipkt_data1[`PKT_HDR_RNG],
-                                 ipkt_data0[`PKT_HDR_RNG]
-                               };
-
-        HDR1_ST: if (frm_rdy)
-                   frm_data <= {ipkt_data7[`PKT_HDR_RNG],
-                                 ipkt_data6[`PKT_HDR_RNG],
-                                 ipkt_data5[`PKT_HDR_RNG],
-                                 ipkt_data4[`PKT_HDR_RNG]
-                               };
-
-        KEY0_ST: frm_data <= ipkt_data0[`PKT_KEY_RNG];
-
-        PLD0_ST: frm_data <= ipkt_data0[`PKT_PLD_RNG];
-
-        KEY1_ST: frm_data <= ipkt_data1[`PKT_KEY_RNG];
-
-        PLD1_ST: frm_data <= ipkt_data1[`PKT_PLD_RNG];
-
-        KEY2_ST: frm_data <= ipkt_data2[`PKT_KEY_RNG];
-
-        PLD2_ST: frm_data <= ipkt_data2[`PKT_PLD_RNG];
-
-        KEY3_ST: frm_data <= ipkt_data3[`PKT_KEY_RNG];
-
-        PLD3_ST: frm_data <= ipkt_data3[`PKT_PLD_RNG];
-
-        KEY4_ST: frm_data <= ipkt_data4[`PKT_KEY_RNG];
-
-        PLD4_ST: frm_data <= ipkt_data4[`PKT_PLD_RNG];
-
-        KEY5_ST: frm_data <= ipkt_data5[`PKT_KEY_RNG];
-
-        PLD5_ST: frm_data <= ipkt_data5[`PKT_PLD_RNG];
-
-        KEY6_ST: frm_data <= ipkt_data6[`PKT_KEY_RNG];
-
-        PLD6_ST: frm_data <= ipkt_data6[`PKT_PLD_RNG];
-
-        KEY7_ST: frm_data <= ipkt_data7[`PKT_KEY_RNG];
-
-        PLD7_ST: frm_data <= ipkt_data7[`PKT_PLD_RNG];
-
-        LAST_ST: frm_data <= {8'h00, cfc_loc, {(8 -`NUM_CHANS) {1'b0}},
-                               `CRC_PAD
-                             };
-
-        default: frm_data <= frm_data;  // no change!
-      endcase
+    
+          default: frm_data <= frm_data;  // no change!
+        endcase
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------
@@ -227,10 +252,15 @@ module frm_issue
     if (rst)
       frm_kchr <= `ZERO_KBITS;  // not really necessary!
     else
-      case (state)
-        STRT_ST: frm_kchr <= `DATA_KBITS;
-        default: frm_kchr <= `ZERO_KBITS;
-      endcase
+      if (frm_rdy)
+        case (state)
+          STRT_ST: if (ipkt_go)
+                     frm_kchr <= `DATA_KBITS;
+
+          PARK_ST:   frm_kchr <= `DATA_KBITS;
+
+          default:   frm_kchr <= `ZERO_KBITS;
+        endcase
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------
@@ -240,10 +270,30 @@ module frm_issue
     if (rst)
       frm_last <= 1'b0;
     else
-      case (state)
-        LAST_ST: frm_last <= 1'b1;
-        default: frm_last <= 1'b0;
-      endcase
+      if (frm_rdy)
+        case (state)
+          LAST_ST: frm_last <= 1'b1;
+          default: frm_last <= 1'b0;
+        endcase
+  //---------------------------------------------------------------
+
+
+  //---------------------------------------------------------------
+  // remember seq and colour when parking
+  //---------------------------------------------------------------
+  always @ (posedge clk or posedge rst)
+    if (rst)
+      park_seq <= 0;  // not really necessary!
+    else
+      if ((state == STRT_ST) && ipkt_go && !frm_rdy)
+        park_seq <= seq;
+
+  always @ (posedge clk or posedge rst)
+    if (rst)
+      park_colour <= 0;  // not really necessary!
+    else
+      if ((state == STRT_ST) && ipkt_go && !frm_rdy)
+        park_colour <= colour;
   //---------------------------------------------------------------
 
 
@@ -255,7 +305,7 @@ module frm_issue
   // (combinatorial)
   //---------------------------------------------------------------
   always @ (*)
-    casex (ipkt_pres & nxp_mask)
+    casex (bpkt_pres & nxp_mask)
       8'bxxxxxxx1: nxp_state = KEY0_ST;
       8'bxxxxxx10: nxp_state = KEY1_ST;
       8'bxxxxx100: nxp_state = KEY2_ST;
@@ -294,6 +344,7 @@ module frm_issue
       KEY7_ST: nxp_mask = 8'b11111111;
       PLD7_ST: nxp_mask = 8'b11111111;
       LAST_ST: nxp_mask = 8'b11111111;
+      PARK_ST: nxp_mask = 8'b11111111;
       default: nxp_mask = 8'bxxxxxxxx;
     endcase
   //---------------------------------------------------------------
@@ -305,79 +356,88 @@ module frm_issue
     if (rst)
       state <= STRT_ST;
     else
-      case (state)
-        STRT_ST: if (ipkt_vld)
-                   state <= HDR0_ST;
-                 else
-		   state <= STRT_ST;  // no change!
+      if (frm_rdy)
+        case (state)
+          STRT_ST: if (ipkt_go)
+                     state <= HDR0_ST;
+                   else
+                     state <= STRT_ST;  // no change!
+    
+          PARK_ST:   state <= HDR0_ST;
+    
+          HDR0_ST:   state <= HDR1_ST;
+    
+          HDR1_ST:   state <= nxp_state;
+    
+          KEY0_ST: if (bpkt_data0[1])
+                     state <= PLD0_ST;
+                   else
+                     state <= nxp_state;
+    
+          PLD0_ST:   state <= nxp_state;
+    
+          KEY1_ST: if (bpkt_data1[1])
+                     state <= PLD1_ST;
+                   else
+    		   state <= nxp_state;
+    
+          PLD1_ST:   state <= nxp_state;
+    
+          KEY2_ST: if (bpkt_data2[1])
+                     state <= PLD2_ST;
+                   else
+    		   state <= nxp_state;
+    
+          PLD2_ST:   state <= nxp_state;
+    
+          KEY3_ST: if (bpkt_data3[1])
+                     state <= PLD3_ST;
+                   else
+    		   state <= nxp_state;
+    
+          PLD3_ST:   state <= nxp_state;
+    
+          KEY4_ST: if (bpkt_data4[1])
+                     state <= PLD4_ST;
+                   else
+    		   state <= nxp_state;
+    
+          PLD4_ST:   state <= nxp_state;
+    
+          KEY5_ST: if (bpkt_data5[1])
+                     state <= PLD5_ST;
+                   else
+    		   state <= nxp_state;
+    
+          PLD5_ST:   state <= nxp_state;
+    
+          KEY6_ST: if (bpkt_data6[1])
+                     state <= PLD6_ST;
+                   else
+    		   state <= nxp_state;
+    
+          PLD6_ST:   state <= nxp_state;
+    
+          KEY7_ST: if (bpkt_data7[1])
+                     state <= PLD7_ST;
+                   else
+    		   state <= LAST_ST;
+    
+          PLD7_ST:   state <= LAST_ST;
+    
+          LAST_ST:   state <= STRT_ST;
+    
+          default:   state <= state;    // no change!
+        endcase
+      else
+        case (state)
+          STRT_ST: if (ipkt_go)
+                     state <= PARK_ST;
+                   else
+                     state <= STRT_ST;  // no change!
 
-        HDR0_ST:   state <= HDR1_ST;
-
-        HDR1_ST: if (frm_rdy)
-                   state <= nxp_state;
-                 else
-		   state <= HDR1_ST;  // no change!
-
-        KEY0_ST: if (ipkt_data0[1])
-                   state <= PLD0_ST;
-                 else
-                   state <= nxp_state;
-
-        PLD0_ST:   state <= nxp_state;
-
-        KEY1_ST: if (ipkt_data1[1])
-                   state <= PLD1_ST;
-                 else
-		   state <= nxp_state;
-
-        PLD1_ST:   state <= nxp_state;
-
-        KEY2_ST: if (ipkt_data2[1])
-                   state <= PLD2_ST;
-                 else
-		   state <= nxp_state;
-
-        PLD2_ST:   state <= nxp_state;
-
-        KEY3_ST: if (ipkt_data3[1])
-                   state <= PLD3_ST;
-                 else
-		   state <= nxp_state;
-
-        PLD3_ST:   state <= nxp_state;
-
-        KEY4_ST: if (ipkt_data4[1])
-                   state <= PLD4_ST;
-                 else
-		   state <= nxp_state;
-
-        PLD4_ST:   state <= nxp_state;
-
-        KEY5_ST: if (ipkt_data5[1])
-                   state <= PLD5_ST;
-                 else
-		   state <= nxp_state;
-
-        PLD5_ST:   state <= nxp_state;
-
-        KEY6_ST: if (ipkt_data6[1])
-                   state <= PLD6_ST;
-                 else
-		   state <= nxp_state;
-
-        PLD6_ST:   state <= nxp_state;
-
-        KEY7_ST: if (ipkt_data7[1])
-                   state <= PLD7_ST;
-                 else
-		   state <= LAST_ST;
-
-        PLD7_ST:   state <= LAST_ST;
-
-        LAST_ST:   state <= STRT_ST;
-
-        default:   state <= state;    // no change!
-      endcase
+          default:   state <= state;    // no change!
+        endcase
   //---------------------------------------------------------------
 endmodule
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -482,10 +542,10 @@ module spio_hss_multiplexer_frame_assembler
   reg                     bpkt_req;
   wire [`NUM_CHANS - 1:0] bpkt_vld;
 
-  wire  [`PKT_BITS - 1:0] ipkt_data [0 : `NUM_CHANS - 1];
-  wire [`NUM_CHANS - 1:0] ipkt_pres;
-  reg                     ipkt_vld;
-  wire                    ipkt_rdy;
+  wire  [`PKT_BITS - 1:0] bpkt_data [0 : `NUM_CHANS - 1];
+  wire [`NUM_CHANS - 1:0] bpkt_pres;
+  reg                     ipkt_go;
+  wire                    ipkt_done;
 
   reg   [`CLR_BITS - 1:0] colour; 
   reg   [`SEQ_BITS - 1:0] seq; 
@@ -518,17 +578,17 @@ module spio_hss_multiplexer_frame_assembler
     .colour        (colour),
     .seq           (seq),
 
-    .ipkt_data0    (ipkt_data[0]),
-    .ipkt_data1    (ipkt_data[1]),
-    .ipkt_data2    (ipkt_data[2]),
-    .ipkt_data3    (ipkt_data[3]),
-    .ipkt_data4    (ipkt_data[4]),
-    .ipkt_data5    (ipkt_data[5]),
-    .ipkt_data6    (ipkt_data[6]),
-    .ipkt_data7    (ipkt_data[7]),
-    .ipkt_pres     (ipkt_pres),
-    .ipkt_vld      (ipkt_vld),
-    .ipkt_rdy      (ipkt_rdy),
+    .bpkt_data0    (bpkt_data[0]),
+    .bpkt_data1    (bpkt_data[1]),
+    .bpkt_data2    (bpkt_data[2]),
+    .bpkt_data3    (bpkt_data[3]),
+    .bpkt_data4    (bpkt_data[4]),
+    .bpkt_data5    (bpkt_data[5]),
+    .bpkt_data6    (bpkt_data[6]),
+    .bpkt_data7    (bpkt_data[7]),
+    .bpkt_pres     (bpkt_pres),
+    .ipkt_go       (ipkt_go),
+    .ipkt_done     (ipkt_done),
 
     .cfc_loc       (cfc_loc),
  
@@ -563,8 +623,8 @@ module spio_hss_multiplexer_frame_assembler
     .rep_seq   (ack_seq == pre_ack),
 
     .bpkt_seq  (seq),
-    .bpkt_data (ipkt_data[0]),
-    .bpkt_pres (ipkt_pres[0]),
+    .bpkt_data (bpkt_data[0]),
+    .bpkt_pres (bpkt_pres[0]),
     .bpkt_vld  (bpkt_vld[0]),
     .bpkt_req  (bpkt_req)
   );
@@ -589,8 +649,8 @@ module spio_hss_multiplexer_frame_assembler
     .rep_seq   (ack_seq == pre_ack),
 
     .bpkt_seq  (seq),
-    .bpkt_data (ipkt_data[1]),
-    .bpkt_pres (ipkt_pres[1]),
+    .bpkt_data (bpkt_data[1]),
+    .bpkt_pres (bpkt_pres[1]),
     .bpkt_vld  (bpkt_vld[1]),
     .bpkt_req  (bpkt_req)
   );
@@ -615,8 +675,8 @@ module spio_hss_multiplexer_frame_assembler
     .rep_seq   (ack_seq == pre_ack),
 
     .bpkt_seq  (seq),
-    .bpkt_data (ipkt_data[2]),
-    .bpkt_pres (ipkt_pres[2]),
+    .bpkt_data (bpkt_data[2]),
+    .bpkt_pres (bpkt_pres[2]),
     .bpkt_vld  (bpkt_vld[2]),
     .bpkt_req  (bpkt_req)
   );
@@ -641,8 +701,8 @@ module spio_hss_multiplexer_frame_assembler
     .rep_seq   (ack_seq == pre_ack),
 
     .bpkt_seq  (seq),
-    .bpkt_data (ipkt_data[3]),
-    .bpkt_pres (ipkt_pres[3]),
+    .bpkt_data (bpkt_data[3]),
+    .bpkt_pres (bpkt_pres[3]),
     .bpkt_vld  (bpkt_vld[3]),
     .bpkt_req  (bpkt_req)
   );
@@ -667,8 +727,8 @@ module spio_hss_multiplexer_frame_assembler
     .rep_seq   (ack_seq == pre_ack),
 
     .bpkt_seq  (seq),
-    .bpkt_data (ipkt_data[4]),
-    .bpkt_pres (ipkt_pres[4]),
+    .bpkt_data (bpkt_data[4]),
+    .bpkt_pres (bpkt_pres[4]),
     .bpkt_vld  (bpkt_vld[4]),
     .bpkt_req  (bpkt_req)
   );
@@ -693,8 +753,8 @@ module spio_hss_multiplexer_frame_assembler
     .rep_seq   (ack_seq == pre_ack),
 
     .bpkt_seq  (seq),
-    .bpkt_data (ipkt_data[5]),
-    .bpkt_pres (ipkt_pres[5]),
+    .bpkt_data (bpkt_data[5]),
+    .bpkt_pres (bpkt_pres[5]),
     .bpkt_vld  (bpkt_vld[5]),
     .bpkt_req  (bpkt_req)
   );
@@ -719,8 +779,8 @@ module spio_hss_multiplexer_frame_assembler
     .rep_seq   (ack_seq == pre_ack),
 
     .bpkt_seq  (seq),
-    .bpkt_data (ipkt_data[6]),
-    .bpkt_pres (ipkt_pres[6]),
+    .bpkt_data (bpkt_data[6]),
+    .bpkt_pres (bpkt_pres[6]),
     .bpkt_vld  (bpkt_vld[6]),
     .bpkt_req  (bpkt_req)
   );
@@ -745,8 +805,8 @@ module spio_hss_multiplexer_frame_assembler
     .rep_seq   (ack_seq == pre_ack),
 
     .bpkt_seq  (seq),
-    .bpkt_data (ipkt_data[7]),
-    .bpkt_pres (ipkt_pres[7]),
+    .bpkt_data (bpkt_data[7]),
+    .bpkt_pres (bpkt_pres[7]),
     .bpkt_vld  (bpkt_vld[7]),
     .bpkt_req  (bpkt_req)
   );
@@ -762,13 +822,13 @@ module spio_hss_multiplexer_frame_assembler
   //---------------------------------------------------------------
   always @ (*)
     if ((state == IDLE_ST) && (bpkt_vld != 0))
-      ipkt_vld = 1'b1;
+      ipkt_go = 1'b1;
     else
-      ipkt_vld = 1'b0;
+      ipkt_go = 1'b0;
 
   always @ (*)
     if (!vld_nak && !crdt_out
-         && (ipkt_rdy || ((state == IDLE_ST) && (bpkt_vld == 0)))
+         && (ipkt_done || ((state == IDLE_ST) && (bpkt_vld == 0)))
        )
       bpkt_req = 1'b1;
     else
@@ -795,7 +855,7 @@ module spio_hss_multiplexer_frame_assembler
     if (rst)
       seq <= `SEQ_BITS'd0;
     else
-      casex ({vld_nak, ipkt_vld})
+      casex ({vld_nak, ipkt_go})
 	2'b1x:   seq <= ack_seq;  // resend nack'd frame
 	2'b01:   seq <= seq + 1;  // next in sequence!
 	default: seq <= seq;      // no change!	
@@ -815,7 +875,7 @@ module spio_hss_multiplexer_frame_assembler
       cfc_vld <= 1'b0;
     else
 //#      if ((cfc_snd_ctr == 0)                         // turn to send cfc
-//#           && (state == IDLE_ST) && (bpkt_vld == 0)  // not sending a dfrm
+//#           && (state == IDLE_ST) && (bpkt_go == 0)   // not sending a dfrm
 //#           && (!crdt_out || (ooc_snd_ctr != 0))      // not sending ooc
 //#         )
 //#        cfc_vld <= 1'b1;
@@ -880,7 +940,7 @@ module spio_hss_multiplexer_frame_assembler
     if (rst)
       credit <= `CRDT_CNT;
     else
-      casex ({vld_nak, vld_ack, ipkt_vld})
+      casex ({vld_nak, vld_ack, ipkt_go})
 	3'b1xx:  credit <= `CRDT_CNT;
 	3'bx10:  credit <= credit + ack_seq - pre_ack;
 	3'bx11:  credit <= credit - 1 + ack_seq - pre_ack;
@@ -933,7 +993,7 @@ module spio_hss_multiplexer_frame_assembler
     if (rst)
       reg_looc <= 1'b0;
     else
-      reg_looc <= ipkt_rdy && crdt_out;
+      reg_looc <= ipkt_done && crdt_out;
 
   always @ (posedge clk or posedge rst)
     if (rst)
@@ -994,12 +1054,12 @@ module spio_hss_multiplexer_frame_assembler
       state <= IDLE_ST;
     else
       case (state)
-        IDLE_ST: if (ipkt_vld)
+        IDLE_ST: if (ipkt_go)
                    state <= BUSY_ST;
                  else
                    state <= state;  // no change!
 
-        BUSY_ST: if (ipkt_rdy)
+        BUSY_ST: if (ipkt_done)
                    state <= IDLE_ST;
                  else
 	           state <= state;  // no change!
