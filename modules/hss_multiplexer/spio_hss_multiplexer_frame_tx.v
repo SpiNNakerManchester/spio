@@ -99,7 +99,6 @@ module spio_hss_multiplexer_frame_tx
   reg   [`KCH_BITS - 1:0] frm_kchr_l;
   reg 	                  frm_last_l;
   reg 	                  frm_vld_l;
-  reg	                  frm_sel_l;
 
   reg   [`FRM_BITS - 1:0] frm_data_i;
   reg   [`KCH_BITS - 1:0] frm_kchr_i;
@@ -108,6 +107,8 @@ module spio_hss_multiplexer_frame_tx
 
   reg  [STATE_BITS - 1:0] state;
   
+  reg	                  park_frm;
+
   reg 			  send_idle;
   reg 			  send_clkc;
   reg 			  send_frm;
@@ -178,34 +179,36 @@ module spio_hss_multiplexer_frame_tx
     if (rst)
       hsl_data <= {`FRM_BITS {1'b0}}; // not really necessary!
     else
-      casex ({send_clkc, send_idle})
-        2'b1x:   hsl_data <= `CLKC_FRM;
-
-        // When idle send a comma and an externally specified sentinel value
-        2'bx1:   hsl_data <= {`KCH_IDLE, reg_idso};
-
-        default: hsl_data <= crc_out;
-      endcase
+      if (hsl_rdy)
+        casex ({send_clkc, send_idle})
+          2'b1x:   hsl_data <= `CLKC_FRM;
+    
+          // When idle send a comma and an externally specified sentinel value
+          2'bx1:   hsl_data <= {`KCH_IDLE, reg_idso};
+    
+          default: hsl_data <= crc_out;
+        endcase
 
   always @ (posedge clk or posedge rst)
     if (rst)
       hsl_kchr <= {`KCH_BITS {1'b0}}; // not really necessary!
     else
-      casex ({send_clkc, send_idle, send_nak, send_ack, send_ooc, send_cfc})
-        6'b1xxxxx: hsl_kchr <= `CLKC_KBITS;
-    
-        6'bx1xxxx: hsl_kchr <= `IDLE_KBITS;
-    
-        6'bxx1xxx: hsl_kchr <= `NAK_KBITS;
-    
-        6'bxxx1xx: hsl_kchr <= `ACK_KBITS;
-    
-        6'bxxxx1x: hsl_kchr <= `OOC_KBITS;
-    
-        6'bxxxxx1: hsl_kchr <= `CFC_KBITS;
-    
-        default:   hsl_kchr <= frm_kchr_i;
-      endcase
+      if (hsl_rdy)
+        casex ({send_clkc, send_idle, send_nak, send_ack, send_ooc, send_cfc})
+          6'b1xxxxx: hsl_kchr <= `CLKC_KBITS;
+      
+          6'bx1xxxx: hsl_kchr <= `IDLE_KBITS;
+      
+          6'bxx1xxx: hsl_kchr <= `NAK_KBITS;
+      
+          6'bxxx1xx: hsl_kchr <= `ACK_KBITS;
+      
+          6'bxxxx1x: hsl_kchr <= `OOC_KBITS;
+      
+          6'bxxxxx1: hsl_kchr <= `CFC_KBITS;
+      
+          default:   hsl_kchr <= frm_kchr_i;
+        endcase
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------
@@ -236,7 +239,7 @@ module spio_hss_multiplexer_frame_tx
       frm_vld_l  <= 1'b0;               // not really necessary!
     end
     else
-      if (frm_vld_i && !send_frm && !frm_sel_l)
+      if (frm_vld_i && !send_frm && !park_frm)
       begin
         frm_data_l <= frm_data;
         frm_kchr_l <= frm_kchr;
@@ -250,15 +253,15 @@ module spio_hss_multiplexer_frame_tx
   //---------------------------------------------------------------
   always @ (posedge clk or posedge rst)
     if (rst)
-      frm_sel_l  <= 1'b0;
+      park_frm <= 1'b0;
     else
       if (frm_vld_i && !send_frm)
-        frm_sel_l  <= 1'b1;
+        park_frm <= 1'b1;
       else
-        frm_sel_l  <= 1'b0;
+        park_frm <= 1'b0;
 
   always @ (*)
-    if (frm_sel_l)
+    if (park_frm)
     begin
       frm_data_i = frm_data_l;
       frm_kchr_i = frm_kchr_l;
@@ -481,7 +484,7 @@ module spio_hss_multiplexer_frame_tx
 	CHFR_ST: if (send_frm)
                    state <= DFRM_ST;
 
-	DFRM_ST: if (frm_last)
+	DFRM_ST: if (send_frm && frm_last_i)
                    state <= CHFR_ST;
       endcase
   //---------------------------------------------------------------
