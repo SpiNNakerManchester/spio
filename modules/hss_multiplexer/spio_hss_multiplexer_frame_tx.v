@@ -110,14 +110,11 @@ module spio_hss_multiplexer_frame_tx
   reg	                  park_frm;
 
   reg 			  send_idle;
-  reg 			  send_clkc;
   reg 			  send_frm;
   reg 			  send_nak;
   reg 			  send_ack;
   reg 			  send_ooc;
   reg 			  send_cfc;
-
-  reg  [`CLKC_BITS - 1:0] clkc_ctr;
 
 
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -180,34 +177,29 @@ module spio_hss_multiplexer_frame_tx
       hsl_data <= {`FRM_BITS {1'b0}}; // not really necessary!
     else
       if (hsl_rdy)
-        casex ({send_clkc, send_idle})
-          2'b1x:   hsl_data <= `CLKC_FRM;
-    
+        if (send_idle)
           // When idle send a comma and an externally specified sentinel value
-          2'bx1:   hsl_data <= {`KCH_IDLE, reg_idso};
-    
-          default: hsl_data <= crc_out;
-        endcase
+          hsl_data <= {`KCH_IDLE, reg_idso};
+        else    
+          hsl_data <= crc_out;
 
   always @ (posedge clk or posedge rst)
     if (rst)
       hsl_kchr <= {`KCH_BITS {1'b0}}; // not really necessary!
     else
       if (hsl_rdy)
-        casex ({send_clkc, send_idle, send_nak, send_ack, send_ooc, send_cfc})
-          6'b1xxxxx: hsl_kchr <= `CLKC_KBITS;
+        casex ({send_idle, send_nak, send_ack, send_ooc, send_cfc})
+          5'b1xxxx: hsl_kchr <= `IDLE_KBITS;
       
-          6'bx1xxxx: hsl_kchr <= `IDLE_KBITS;
+          5'bx1xxx: hsl_kchr <= `NAK_KBITS;
       
-          6'bxx1xxx: hsl_kchr <= `NAK_KBITS;
+          5'bxx1xx: hsl_kchr <= `ACK_KBITS;
       
-          6'bxxx1xx: hsl_kchr <= `ACK_KBITS;
+          5'bxxx1x: hsl_kchr <= `OOC_KBITS;
       
-          6'bxxxx1x: hsl_kchr <= `OOC_KBITS;
+          5'bxxxx1: hsl_kchr <= `CFC_KBITS;
       
-          6'bxxxxx1: hsl_kchr <= `CFC_KBITS;
-      
-          default:   hsl_kchr <= frm_kchr_i;
+          default:  hsl_kchr <= frm_kchr_i;
         endcase
   //---------------------------------------------------------------
 
@@ -327,23 +319,6 @@ module spio_hss_multiplexer_frame_tx
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------
-  // clock correction counter
-  //---------------------------------------------------------------
-  always @ (posedge clk or posedge rst)
-    if (rst)
-      clkc_ctr <= `CLKC_CNT;
-    else
-      case (state)
-	CHFR_ST: if (!clkc_ctr)
-                   clkc_ctr <= `CLKC_CNT;
-	         else
-                   clkc_ctr <= clkc_ctr - 1;
-
-	default: clkc_ctr <= clkc_ctr;
-      endcase
-  //---------------------------------------------------------------
-	 
-  //---------------------------------------------------------------
   // register interface
   //---------------------------------------------------------------
   always @ (posedge clk or posedge rst)
@@ -371,25 +346,12 @@ module spio_hss_multiplexer_frame_tx
     vld_nak = ack_vld_i && (ack_type_i == `NAK_T);
    
   always @ (*)
-    casex ({hsl_rdy, (state == DFRM_ST), (clkc_ctr == 0),
+    casex ({hsl_rdy, (state == DFRM_ST),
               vld_ack, vld_nak, ooc_vld, cfc_vld, frm_vld_i
            }
           )
-      8'b0xxxxxxx:  // high-speed link not ready, don't send!
+      7'b0xxxxxx:  // high-speed link not ready, don't send!
         begin
-          send_clkc = 1'b0;
-          send_ack  = 1'b0;
-          send_nak  = 1'b0;
-          send_ooc  = 1'b0;
-          send_cfc  = 1'b0;
-          send_frm  = 1'b0;
-          send_idle = 1'b0;
-        end
-
-      // top priority
-      8'b101xxxxx:  // time to send clock correction sequence
-        begin
-          send_clkc = 1'b1;
           send_ack  = 1'b0;
           send_nak  = 1'b0;
           send_ooc  = 1'b0;
@@ -399,9 +361,8 @@ module spio_hss_multiplexer_frame_tx
         end
 
       // second priority
-      8'b1001xxxx:  // ack frame requested
+      7'b101xxxx:  // ack frame requested
         begin
-          send_clkc = 1'b0;
           send_ack  = 1'b1;
           send_nak  = 1'b0;
           send_ooc  = 1'b0;
@@ -411,9 +372,8 @@ module spio_hss_multiplexer_frame_tx
         end
 
       // second priority
-      8'b100x1xxx:  // nak frame requested
+      7'b10x1xxx:  // nak frame requested
         begin
-          send_clkc = 1'b0;
           send_ack  = 1'b0;
           send_nak  = 1'b1;
           send_ooc  = 1'b0;
@@ -423,9 +383,8 @@ module spio_hss_multiplexer_frame_tx
         end
 
       // third priority
-      8'b100001xx:  // out-of-credit frame requested
+      7'b10001xx:  // out-of-credit frame requested
         begin
-          send_clkc = 1'b0;
           send_ack  = 1'b0;
           send_nak  = 1'b0;
           send_ooc  = 1'b1;
@@ -435,9 +394,8 @@ module spio_hss_multiplexer_frame_tx
         end
 
       // third priority
-      8'b10000x1x:  // channel-flow control frame requested
+      7'b1000x1x:  // channel-flow control frame requested
         begin
-          send_clkc = 1'b0;
           send_ack  = 1'b0;
           send_nak  = 1'b0;
           send_ooc  = 1'b0;
@@ -447,10 +405,9 @@ module spio_hss_multiplexer_frame_tx
         end
 
       // third priority
-      8'b11xxxxxx,  // in the middle of a data frame, keep going
-      8'b10000xx1:  // new data frame requested
+      7'b11xxxxx,  // in the middle of a data frame, keep going
+      7'b1000xx1:  // new data frame requested
         begin
-          send_clkc = 1'b0;
           send_ack  = 1'b0;
           send_nak  = 1'b0;
           send_ooc  = 1'b0;
@@ -462,7 +419,6 @@ module spio_hss_multiplexer_frame_tx
       // lowest priority
       default:  // if nothing requested, send sync frame
         begin
-          send_clkc = 1'b0;
           send_ack  = 1'b0;
           send_nak  = 1'b0;
           send_ooc  = 1'b0;
