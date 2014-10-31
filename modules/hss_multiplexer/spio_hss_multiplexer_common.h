@@ -91,10 +91,6 @@
 // Frames
 ////////////////////////////////////////////////////////////////////////////////
 
-`define NAK_FRM          {`KCH_NAK, ack_colour_i, ack_seq_i, `CRC_PAD}
-`define ACK_FRM          {`KCH_ACK, ack_colour_i, ack_seq_i, `CRC_PAD}
-`define OOC_FRM          {`KCH_OOC, ooc_colour, {(8 - `CLR_BITS) {1'b0}}, `CRC_PAD}
-`define CFC_FRM          {`KCH_CFC, cfc_loc, {(8 -`NUM_CHANS) {1'b0}}, `CRC_PAD}
 `define ZERO_FRM         {`FRM_BITS {1'b0}}
 
 `define FRM_KCH_RNG       31 -: 8

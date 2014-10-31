@@ -32,6 +32,15 @@
 `include "spio_hss_multiplexer_common.h"
 // ----------------------------------------------------------------
 
+//-----------------------------------------------------------------
+// useful macros (local to frame_tx)
+//-----------------------------------------------------------------
+`define NAK_FRM    {`KCH_NAK, ack_colour_i, ack_seq_i, `CRC_PAD}
+`define ACK_FRM    {`KCH_ACK, ack_colour_i, ack_seq_i, `CRC_PAD}
+`define OOC_FRM    {`KCH_OOC, ooc_colour, {(8 - `CLR_BITS) {1'b0}}, `CRC_PAD}
+`define CFC_FRM    {`KCH_CFC, cfc_loc, {(8 -`NUM_CHANS) {1'b0}}, `CRC_PAD}
+
+
 `timescale 1ns / 1ps
 module spio_hss_multiplexer_frame_tx
 (
@@ -138,18 +147,14 @@ module spio_hss_multiplexer_frame_tx
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------
-  // crc input multiplexor (combinatorial)
+  // crc input multiplexer (combinatorial)
   //---------------------------------------------------------------
   always @ (*)
     casex ({send_nak, send_ack, send_ooc, send_cfc})
       4'b1xxx:  crc_in = `NAK_FRM;
-
       4'bx1xx:  crc_in = `ACK_FRM;
-
       4'b001x:  crc_in = `OOC_FRM;
-
       4'b00x1:  crc_in = `CFC_FRM;
-
       default:  crc_in = frm_data_i;
     endcase
 
@@ -181,15 +186,10 @@ module spio_hss_multiplexer_frame_tx
       if (hsl_rdy)
         casex ({send_idle, send_nak, send_ack, send_ooc, send_cfc})
           5'b1xxxx: hsl_kchr <= `IDLE_KBITS;
-      
           5'bx1xxx: hsl_kchr <= `NAK_KBITS;
-      
           5'bxx1xx: hsl_kchr <= `ACK_KBITS;
-      
           5'bxxx1x: hsl_kchr <= `OOC_KBITS;
-      
           5'bxxxx1: hsl_kchr <= `CFC_KBITS;
-      
           default:  hsl_kchr <= frm_kchr_i;
         endcase
   //---------------------------------------------------------------
@@ -334,18 +334,20 @@ module spio_hss_multiplexer_frame_tx
   //---------------------------------------------------------------
   // frame type selection control (combinatorial)
   //---------------------------------------------------------------
-  reg vld_ack;
-  reg vld_nak;
+  reg rts_ack;
+  reg rts_nak;
+  reg rts_ooc;
+  reg rts_cfc;
 
   always @ (*)
-    vld_ack = ack_vld_i && (ack_type_i == `ACK_T);
+    rts_ack = ack_vld_i && (ack_type_i == `ACK_T);
    
   always @ (*)
-    vld_nak = ack_vld_i && (ack_type_i == `NAK_T);
+    rts_nak = ack_vld_i && (ack_type_i == `NAK_T);
    
   always @ (*)
     casex ({hsl_rdy, (state == DFRM_ST),
-              vld_ack, vld_nak, ooc_vld, frm_vld_i
+              rts_ack, rts_nak, ooc_vld, frm_vld_i
            }
           )
       6'b0xxxxx:  // high-speed link not ready, don't send!

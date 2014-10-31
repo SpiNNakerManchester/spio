@@ -947,7 +947,7 @@ module spio_hss_multiplexer_frame_assembler
     if (rst)
       reg_crdt <= 0;
     else
-        reg_crdt <= credit;
+      reg_crdt <= credit;
   //---------------------------------------------------------------
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
