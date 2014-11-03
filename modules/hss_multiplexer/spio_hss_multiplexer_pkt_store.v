@@ -79,14 +79,9 @@ module spio_hss_multiplexer_pkt_store
   reg   [`BUF_BITS - 1:0] nxt_br;
   reg   [`BUF_BITS - 1:0] nxt_bw;
 
-//#  reg   [`BUF_BITS - 1:0] buf_w4ack;
-//#  reg                     buf_sel;
-//#  reg                     buf_rsnd;
-
-//#  reg                     full;
   reg                     nxt_full;
 
-  reg                     valid;
+  reg                     valid;      // unread data present!
   reg                     nxt_valid;
 
   reg                     reading;
@@ -133,7 +128,6 @@ module spio_hss_multiplexer_pkt_store
       valid <= nxt_valid;
 
   always @ (*)
-//#    nxt_valid = (nxt_br != nxt_bw) || (valid && !reading);
     case ({vld_nak, vld_ack, reading, writing})
       4'b0001,  // writing
       4'b0011,  // reading and writing
@@ -165,8 +159,6 @@ module spio_hss_multiplexer_pkt_store
       full <= nxt_full;
 
   always @ (*)
-//#    nxt_full = (nxt_bw == nxt_ba) && (full || writing);
-//#    nxt_full = (nxt_bw == nxt_ba) && (full || writing) && (!full || valid);
     case ({vld_nak, vld_ack, reading, writing})
       4'b0001,  // writing
       4'b0011:  // reading and writing
@@ -292,22 +284,17 @@ module spio_hss_multiplexer_pkt_store
       bpkt_pres <= 1'b0;
     else
       if (bpkt_rq)
-        bpkt_pres <= valid;
-//#        bpkt_pres <= valid && cfc_rem;
+        bpkt_pres <= reading;
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------
-  // buffered packet data to frame issue handshake
+  // buffer to frame issue handshake
   //---------------------------------------------------------------
   always @ (posedge clk or posedge rst)
     if (rst)
       bpkt_gt <= 1'b0;
     else
-      if (bpkt_rq)
-        bpkt_gt <= valid;
-//#        bpkt_gt <= valid && cfc_rem;
-      else
-	bpkt_gt <= 1'b0;
+      bpkt_gt <= reading;
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------
