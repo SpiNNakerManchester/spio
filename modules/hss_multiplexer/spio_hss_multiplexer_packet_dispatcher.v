@@ -310,6 +310,9 @@ module spio_hss_multiplexer_packet_dispatcher
   //---------------------------------------------------------------
   // ack/nak interface
   //---------------------------------------------------------------
+  // to simplify ack/nak treatment, ack_seq is used in a similar
+  // in both: frame ack_seq is not ack'ed, all previous ones are.
+  // Additionally, a nak also requests that frame ack_seq is re-sent.
   always @ (posedge clk or posedge rst)
     if (rst)
     begin

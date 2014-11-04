@@ -81,8 +81,8 @@ module spio_hss_multiplexer_pkt_store
 
   reg                     nxt_full;
 
-  reg                     valid;      // unread data present!
-  reg                     nxt_valid;
+  reg                     unread;      // unread data present!
+  reg                     nxt_unread;
 
   reg                     reading;
   reg                     writing;
@@ -106,8 +106,8 @@ module spio_hss_multiplexer_pkt_store
   // buffer operations in progress
   //---------------------------------------------------------------
   always @ (*)
-    reading = bpkt_rq && valid;  // read request will succeed
-//#    reading = bpkt_rq && valid && cfc_rem;  // read request will succeed
+    reading = bpkt_rq && unread;  // read request will succeed
+//# reading = bpkt_rq && unread && cfc_rem;  // read request will succeed
 
   always @ (*)
     writing = pkt_vld && !full;   // write request will succeed
@@ -116,16 +116,16 @@ module spio_hss_multiplexer_pkt_store
   // buffer empty flag (used only for reporting)
   //---------------------------------------------------------------
   always @ (*)
-    empty = !valid;
+    empty = !unread;
 
   //---------------------------------------------------------------
-  // buffer valid flag
+  // buffer unread flag
   //---------------------------------------------------------------
   always @ (posedge clk or posedge rst)
     if (rst)
-      valid <= 1'b0;
+      unread <= 1'b0;
     else
-      valid <= nxt_valid;
+      unread <= nxt_unread;
 
   always @ (*)
     case ({vld_nak, vld_ack, reading, writing})
@@ -135,17 +135,17 @@ module spio_hss_multiplexer_pkt_store
       4'b0111,  // acked, reading and writing
       4'b1001,  // nacked and writing
       4'b1011:  // nacked, reading and writing
-               nxt_valid = 1;
+               nxt_unread = 1;
 
       4'b0010,  // reading
       4'b0110:  // acked and reading
-               nxt_valid = (nxt_br != bw);
+               nxt_unread = (nxt_br != bw);
 
       4'b1000,  // nacked
       4'b1010:  // nacked and reading
-               nxt_valid = (nxt_br != bw) || valid;
+               nxt_unread = (nxt_br != bw) || unread;
 
-      default: nxt_valid = valid;
+      default: nxt_unread = unread;
     endcase
   //---------------------------------------------------------------
 
@@ -158,22 +158,19 @@ module spio_hss_multiplexer_pkt_store
     else
       full <= nxt_full;
 
+  // reading does not free space in the buffer!
+  // ack/nack can free space, if not a repeat!
   always @ (*)
-    case ({vld_nak, vld_ack, reading, writing})
-      4'b0001,  // writing
-      4'b0011:  // reading and writing
+    case ({vld_nak, vld_ack, writing})
+      3'b001:  // writing
                nxt_full = (nxt_bw == ba);
 
-      4'b0100,  // acked
-      4'b0110,  // acked and reading
-      4'b1000,  // nacked
-      4'b1010:  // nacked and reading
+      3'b010,  // acked
+      3'b100:  // nacked
                nxt_full = full && rep_seq;
 
-      4'b0101,  // acked and writing
-      4'b0111,  // acked, reading and writing
-      4'b1001,  // nacked and writing
-      4'b1011:  // nacked, reading and writing
+      3'b011,  // acked and writing
+      3'b101:  // nacked and writing
                nxt_full = (nxt_bw == ba) && rep_seq;
 
       default: nxt_full = full;
@@ -222,6 +219,9 @@ module spio_hss_multiplexer_pkt_store
     else
       ba <= nxt_ba;
 
+  // to simplify ack/nak treatment, ack_seq is used in a similar
+  // in both: frame ack_seq is not ack'ed, all previous ones are.
+  // Additionally, a nak also requests that frame ack_seq is re-sent.
   always @ (*)
     casex ({vld_nak, vld_ack, (ack_seq == bpkt_seq)})
         3'b1xx,                        // nacks ack implicitly
@@ -259,7 +259,7 @@ module spio_hss_multiplexer_pkt_store
   //---------------------------------------------------------------
   always @ (posedge clk)
     if (bpkt_rq)
-      seq_map[bpkt_seq[`BUF_BITS - 1:0]] <= br;  // even if not valid!
+      seq_map[bpkt_seq[`BUF_BITS - 1:0]] <= br;  // even if not reading!
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------
