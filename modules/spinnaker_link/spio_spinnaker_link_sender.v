@@ -36,9 +36,6 @@ module spio_spinnaker_link_sender
   input                        CLK_IN,
   input                        RESET_IN,
 
-  // packet counter interface
-  output reg                   COUNT_PACKET_OUT,
-
   // synchronous packet interface
   input      [`PKT_BITS - 1:0] PKT_DATA_IN,
   input                        PKT_VLD_IN,
@@ -228,16 +225,6 @@ module spio_spinnaker_link_sender
 
         default:   long_pkt <= long_pkt;     // no change!
       endcase 
-  //---------------------------------------------------------------
-
-  //---------------------------------------------------------------
-  // packet counter interface
-  //---------------------------------------------------------------
-  always @ (posedge CLK_IN or posedge RESET_IN)
-    if (RESET_IN)
-      COUNT_PACKET_OUT <= 1'b0;
-    else
-      COUNT_PACKET_OUT <= (state == TRAN_ST) && (old_ack != SL_ACK_IN) && eop;
   //---------------------------------------------------------------
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 

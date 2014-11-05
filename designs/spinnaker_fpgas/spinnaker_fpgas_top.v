@@ -13,6 +13,7 @@
  */
 
 `include "../../modules/spinnaker_link/spio_spinnaker_link.h"
+`include "../../modules/packet_counter/spio_packet_counter.h"
 
 `include "../../modules/hss_multiplexer/spio_hss_multiplexer_common.h"
 `include "../../modules/hss_multiplexer/spio_hss_multiplexer_reg_bank.h"
@@ -145,6 +146,9 @@ wire spi_reset_i;
 // Reset for register bank
 wire reg_bank_reset_i;
 
+// Reset for packet counters
+wire pkt_ctr_reset_i;
+
 // LED signals
 wire red_led_i;
 wire grn_led_i;
@@ -185,6 +189,9 @@ wire spi_clk_i;
 
 // Register bank clock
 wire reg_bank_clk_i;
+
+// packet counters clock
+wire pkt_ctr_clk_i;
 
 // Are the user clocks stable?
 wire usrclks_stable_i;
@@ -293,6 +300,10 @@ wire [13:0] top_reg_addr_i;
 wire [31:0] top_reg_read_data_i;
 wire [31:0] top_reg_write_data_i;
 
+// packet counter signals
+wire [`CTRA_BITS-1:0] pkt_ctr_addr_i [1:0];
+wire [`CTRD_BITS-1:0] pkt_ctr_read_data_i [1:0];
+
 // Routing (spio_switch) status signals
 wire [1:0] switch_blocked_outputs_i  [`NUM_CHANS-1:0];
 wire [1:0] switch_selected_outputs_i [`NUM_CHANS-1:0];
@@ -334,6 +345,8 @@ assign led_reset_i = !usrclks_stable_i;
 assign spi_reset_i = !usrclks_stable_i;
 
 assign reg_bank_reset_i = !usrclks_stable_i;
+
+assign pkt_ctr_reset_i = !usrclks_stable_i;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -548,6 +561,8 @@ assign led_clk_i = clk_75_i;
 assign spi_clk_i = clk_75_i;
 
 assign reg_bank_clk_i = clk_75_i;
+
+assign pkt_ctr_clk_i = clk_75_i;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1288,8 +1303,6 @@ generate for (i = 0; i < 16; i = i + 1)
 		spio_spinnaker_link_sender
 		spio_spinnaker_link_sender_i( .CLK_IN           (spinnaker_link_clk1_i)
 		                            , .RESET_IN         (spinnaker_link_reset_i)
-		                              // Packet counter interface
-		                            , .COUNT_PACKET_OUT () // Unused
 		                              // Synchronous packet interface
 		                            , .PKT_DATA_IN      (sl_pkt_txdata_i[i])
 		                            , .PKT_VLD_IN       (sl_pkt_txvld_i[i])
@@ -1303,8 +1316,6 @@ generate for (i = 0; i < 16; i = i + 1)
 		spio_spinnaker_link_receiver
 		spio_spinnaker_link_receiver_i( .CLK_IN           (spinnaker_link_clk1_i)
 		                              , .RESET_IN         (spinnaker_link_reset_i)
-		                                // Packet counter interface
-		                              , .COUNT_PACKET_OUT () // Unused
 		                              // SpiNNaker link asynchronous interface
 		                              , .SL_DATA_2OF7_IN  (synced_sl_in_data_i)
 		                              , .SL_ACK_OUT       (sl_in_ack_i[i])
@@ -1562,18 +1573,23 @@ spinnaker_fpgas_spi_address_decode_i( // Un-decoded interface
                                     , .PERIPH_READ_OUT() // Unused
                                     ,   .RING_READ_OUT() // Unused
                                     ,    .TOP_READ_OUT() // Unused
+                                    ,    .CTR_READ_OUT() // Unused
                                     ,    .B2B_WRITE_OUT({ b2b_reg_write_i[1]
                                                         , b2b_reg_write_i[0]
                                                         })
                                     , .PERIPH_WRITE_OUT(periph_reg_write_i)
                                     ,   .RING_WRITE_OUT(ring_reg_write_i)
                                     ,    .TOP_WRITE_OUT(top_reg_write_i)
+                                    ,    .CTR_WRITE_OUT() // Unused
                                     ,    .B2B_READ_VALUE_IN({ b2b_reg_read_data_i[1]
                                                             , b2b_reg_read_data_i[0]
                                                             })
                                     , .PERIPH_READ_VALUE_IN(periph_reg_read_data_i)
                                     ,   .RING_READ_VALUE_IN(ring_reg_read_data_i)
                                     ,    .TOP_READ_VALUE_IN(top_reg_read_data_i)
+                                    ,    .CTR_READ_VALUE_IN({ pkt_ctr_read_data_i[1]
+                                                            , pkt_ctr_read_data_i[0]
+                                                            })
                                     );
 
 // Truncate decoded addresses and distribute to all devices
@@ -1582,6 +1598,8 @@ assign    b2b_reg_addr_i[0] = all_reg_addr_i[`REGA_BITS-1+2:2];
 assign periph_reg_addr_i    = all_reg_addr_i[`REGA_BITS-1+2:2];
 assign   ring_reg_addr_i    = all_reg_addr_i[`REGA_BITS-1+2:2];
 assign    top_reg_addr_i    = all_reg_addr_i;
+assign    pkt_ctr_addr_i[1] = all_reg_addr_i[`CTRA_BITS-1+2:2];
+assign    pkt_ctr_addr_i[0] = all_reg_addr_i[`CTRA_BITS-1+2:2];
 
 
 // Distribute write data to all devices
@@ -1610,6 +1628,89 @@ spinnaker_fpgas_reg_bank_i( .CLK_IN   (reg_bank_clk_i)
                           , .PERIPH_MC_KEY  (periph_mc_key_i)
                           , .PERIPH_MC_MASK (periph_mc_mask_i)
                           );
+
+
+////////////////////////////////////////////////////////////////////////////////
+// packet counters
+////////////////////////////////////////////////////////////////////////////////
+
+spio_packet_counter
+spio_pkt_ctr_tx( .CLK_IN    (pkt_ctr_clk_i)
+               , .RESET_IN  (pkt_ctr_reset_i)
+               , .pkt_vld0  (sl_pkt_txvld_i[0])
+               , .pkt_rdy0  (sl_pkt_txrdy_i[0])
+               , .pkt_vld1  (sl_pkt_txvld_i[1])
+               , .pkt_rdy1  (sl_pkt_txrdy_i[1])
+               , .pkt_vld2  (sl_pkt_txvld_i[2])
+               , .pkt_rdy2  (sl_pkt_txrdy_i[2])
+               , .pkt_vld3  (sl_pkt_txvld_i[3])
+               , .pkt_rdy3  (sl_pkt_txrdy_i[3])
+               , .pkt_vld4  (sl_pkt_txvld_i[4])
+               , .pkt_rdy4  (sl_pkt_txrdy_i[4])
+               , .pkt_vld5  (sl_pkt_txvld_i[5])
+               , .pkt_rdy5  (sl_pkt_txrdy_i[5])
+               , .pkt_vld6  (sl_pkt_txvld_i[6])
+               , .pkt_rdy6  (sl_pkt_txrdy_i[6])
+               , .pkt_vld7  (sl_pkt_txvld_i[7])
+               , .pkt_rdy7  (sl_pkt_txrdy_i[7])
+               , .pkt_vld8  (sl_pkt_txvld_i[8])
+               , .pkt_rdy8  (sl_pkt_txrdy_i[8])
+               , .pkt_vld9  (sl_pkt_txvld_i[9])
+               , .pkt_rdy9  (sl_pkt_txrdy_i[9])
+               , .pkt_vld10 (sl_pkt_txvld_i[10])
+               , .pkt_rdy10 (sl_pkt_txrdy_i[10])
+               , .pkt_vld11 (sl_pkt_txvld_i[11])
+               , .pkt_rdy11 (sl_pkt_txrdy_i[11])
+               , .pkt_vld12 (sl_pkt_txvld_i[12])
+               , .pkt_rdy12 (sl_pkt_txrdy_i[12])
+               , .pkt_vld13 (sl_pkt_txvld_i[13])
+               , .pkt_rdy13 (sl_pkt_txrdy_i[13])
+               , .pkt_vld14 (sl_pkt_txvld_i[14])
+               , .pkt_rdy14 (sl_pkt_txrdy_i[14])
+               , .pkt_vld15 (sl_pkt_txvld_i[15])
+               , .pkt_rdy15 (sl_pkt_txrdy_i[15])
+               , .ctr_addr  (pkt_ctr_addr_i[0])
+               , .ctr_data  (pkt_ctr_read_data_i[0])
+               );
+
+spio_packet_counter
+spio_pkt_ctr_rx( .CLK_IN    (pkt_ctr_clk_i)
+               , .RESET_IN  (pkt_ctr_reset_i)
+               , .pkt_vld0  (sl_pkt_rxvld_i[0])
+               , .pkt_rdy0  (sl_pkt_rxrdy_i[0])
+               , .pkt_vld1  (sl_pkt_rxvld_i[1])
+               , .pkt_rdy1  (sl_pkt_rxrdy_i[1])
+               , .pkt_vld2  (sl_pkt_rxvld_i[2])
+               , .pkt_rdy2  (sl_pkt_rxrdy_i[2])
+               , .pkt_vld3  (sl_pkt_rxvld_i[3])
+               , .pkt_rdy3  (sl_pkt_rxrdy_i[3])
+               , .pkt_vld4  (sl_pkt_rxvld_i[4])
+               , .pkt_rdy4  (sl_pkt_rxrdy_i[4])
+               , .pkt_vld5  (sl_pkt_rxvld_i[5])
+               , .pkt_rdy5  (sl_pkt_rxrdy_i[5])
+               , .pkt_vld6  (sl_pkt_rxvld_i[6])
+               , .pkt_rdy6  (sl_pkt_rxrdy_i[6])
+               , .pkt_vld7  (sl_pkt_rxvld_i[7])
+               , .pkt_rdy7  (sl_pkt_rxrdy_i[7])
+               , .pkt_vld8  (sl_pkt_rxvld_i[8])
+               , .pkt_rdy8  (sl_pkt_rxrdy_i[8])
+               , .pkt_vld9  (sl_pkt_rxvld_i[9])
+               , .pkt_rdy9  (sl_pkt_rxrdy_i[9])
+               , .pkt_vld10 (sl_pkt_rxvld_i[10])
+               , .pkt_rdy10 (sl_pkt_rxrdy_i[10])
+               , .pkt_vld11 (sl_pkt_rxvld_i[11])
+               , .pkt_rdy11 (sl_pkt_rxrdy_i[11])
+               , .pkt_vld12 (sl_pkt_rxvld_i[12])
+               , .pkt_rdy12 (sl_pkt_rxrdy_i[12])
+               , .pkt_vld13 (sl_pkt_rxvld_i[13])
+               , .pkt_rdy13 (sl_pkt_rxrdy_i[13])
+               , .pkt_vld14 (sl_pkt_rxvld_i[14])
+               , .pkt_rdy14 (sl_pkt_rxrdy_i[14])
+               , .pkt_vld15 (sl_pkt_rxvld_i[15])
+               , .pkt_rdy15 (sl_pkt_rxrdy_i[15])
+               , .ctr_addr  (pkt_ctr_addr_i[1])
+               , .ctr_data  (pkt_ctr_read_data_i[1])
+               );
 
 
 ////////////////////////////////////////////////////////////////////////////////

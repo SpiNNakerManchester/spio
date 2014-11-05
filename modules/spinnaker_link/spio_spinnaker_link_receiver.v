@@ -39,9 +39,6 @@ module pkt_reg
   input  wire 			 CLK_IN,
   input  wire 			 RESET_IN,
 
-  // packet counter interface
-  output reg                     COUNT_PACKET_OUT,
-
   // status
   output reg                     busy,
 
@@ -99,16 +96,6 @@ module pkt_reg
   always @ (*)
     busy = full && !PKT_RDY_IN;
   //---------------------------------------------------------------
-
-  //---------------------------------------------------------------
-  // packet counter interface
-  //---------------------------------------------------------------
-  always @ (posedge CLK_IN or posedge RESET_IN)
-    if (RESET_IN)
-      COUNT_PACKET_OUT <= 1'b0;
-    else
-      COUNT_PACKET_OUT <= PKT_VLD_OUT && PKT_RDY_IN;
-  //---------------------------------------------------------------
 endmodule
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -119,9 +106,6 @@ module spio_spinnaker_link_receiver
 (
   input                         CLK_IN,
   input                         RESET_IN,
-
-  // packet counter interface
-  output wire                   COUNT_PACKET_OUT,
 
   // SpiNNaker link asynchronous interface
   input                   [6:0] SL_DATA_2OF7_IN,
@@ -176,8 +160,6 @@ module spio_spinnaker_link_receiver
   (
     .CLK_IN       (CLK_IN),
     .RESET_IN       (RESET_IN),
-
-    .COUNT_PACKET_OUT   (COUNT_PACKET_OUT),
 
     .busy      (busy),
 
