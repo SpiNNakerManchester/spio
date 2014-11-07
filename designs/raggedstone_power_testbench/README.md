@@ -16,10 +16,16 @@ left-to-right:
 * RX & TX Powerdown Signals
 * Sticky PRBS Checker Error Flag
 
-The top button cycles through different combinations of PLL/RX&TX power-down
-settings as displayed on the LEDs.
+The 7-segment display shows (in hex) the number of 150 MHz cycles it took for the
+`rxvalid` signal to arrive from the GTP tile since the power-down mode was last
+changed. The counter saturates at 0xFFFF.
 
-The bottom button clears the PRBS checker flag.
+The top button cycles through different combinations of PLL/RX&TX power-down
+settings as displayed on the LEDs. These alternate between power-down and
+powered-up states.
+
+The bottom button clears the PRBS checker flag and also clears the 7-segment
+display to allow better power measurements to be taken.
 
 
 Authors

@@ -10,7 +10,8 @@ module raggedstone_power_testbench #( // Speed up simulated reset of GTP tile
                                       input wire [1:0] NBUTTON_IN
                                       
                                       // Status LEDs
-                                    , output wire [5:2] LEDS_OUT
+                                    , output wire [5:2]  LEDS_OUT
+                                    , output wire [13:0] SEVEN_SEG_OUT
                                       
                                       // Differential 150 MHz clock source
                                     , input wire REFCLK_PAD_P_IN
@@ -55,7 +56,15 @@ localparam BLINK_BITS = 22;
 reg [BLINK_BITS-1:0] blink_count_i;
 
 // LED signals
-wire [5:2] leds_i;
+wire [5:2]  leds_i;
+wire [13:0] seven_seg_i;
+reg         seven_seg_en_i;
+
+// 7-seg segments {DP G F E D C B A}, active high
+wire [6:0] seven_seg_segments_i;
+
+// 7-seg LED digit enables, active high
+wire [3:0] seven_seg_digits_i;
 
 // Button signals (including an active-high version)
 wire [1:0] nbutton_i;
@@ -88,11 +97,20 @@ reg sticky_prbserr_i;
 // A blinker at some human-visible frequency
 wire blink_i;
 
+// Power down mode cycle counter
+reg [2:0] pd_cycle_i;
+
 // PLL powerdown signal
 reg pll_pd_i;
 
 // TX/RX block powerdown signal
 reg rxtx_pd_i;
+
+// Is the receiver data valid
+wire rxvalid_i;
+
+// A timer between power-down state changes and rxvalid_i
+reg [15:0] valid_latency_i;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -129,6 +147,44 @@ assign leds_i[5:2] = {
 };
 
 
+// Buffer the 7-seg display pins
+OBUF seven_seg_buf_i [13:0] (.I(seven_seg_i & {14{seven_seg_en_i}}), .O(SEVEN_SEG_OUT));
+
+
+// Assign the pins accordingly
+assign seven_seg_i = {
+	~seven_seg_segments_i[5], // Pin 11 F
+	1'b0,                     // Pin 12 (Not-connected)
+	~seven_seg_segments_i[2], // Pin 13 C
+	~seven_seg_segments_i[0], // Pin 14 A
+	~seven_seg_segments_i[6], // Pin 15 G
+	~seven_seg_segments_i[1], // Pin 16 B
+	seven_seg_digits_i[0],    // Pin  8 DIGIT 4
+	1'b1,                     // Pin  7 DP (unused)
+	seven_seg_digits_i[1],    // Pin  6 DIGIT 3
+	~seven_seg_segments_i[4], // Pin  5 E
+	1'b0,                     // Pin  4 Unused (Colon + Apostrophe)
+	~seven_seg_segments_i[3], // Pin  3 D
+	seven_seg_digits_i[2],    // Pin  2 DIGIT 2
+	seven_seg_digits_i[3]     // Pin  1 DIGIT 1
+};
+
+
+////////////////////////////////////////////////////////////////////////////////
+// Seven Segment Display Driver
+////////////////////////////////////////////////////////////////////////////////
+
+seven_segment_scanner #( .NUM_DIGITS(4)
+                       , .CLK_DIV_BITS(14)
+                       )
+seven_segment_scanner_i( .CLK_IN(usrclk2_i)
+                       , .RESET_IN(1'b0)
+                       , .VALUE_IN(valid_latency_i)
+                       , .DISPLAY_OUT(seven_seg_segments_i)
+                       , .DIGIT_ENABLE_OUT(seven_seg_digits_i)
+                       );
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // Blinker
@@ -157,52 +213,100 @@ always @(posedge usrclk2_i)
 
 
 ////////////////////////////////////////////////////////////////////////////////
+// RX valid timer
+////////////////////////////////////////////////////////////////////////////////
+
+initial
+	begin
+		valid_latency_i = 16'b0;
+		seven_seg_en_i = 1'b0;
+	end
+
+always @(posedge usrclk_i)
+	begin
+		// Increment counter if not valid
+		if (!rxvalid_i && valid_latency_i != 16'hFFFF)
+			valid_latency_i <= valid_latency_i + 1;
+		
+		// Reset counter on mode change
+		if (button_sync_i[1][1] && blink_count_i == 0)
+			begin
+				valid_latency_i <= 1'b0;
+				seven_seg_en_i <= 1'b1;
+			end
+		
+		// Disable display on clear PRBS flag clear
+		if (button_sync_i[0][1])
+			seven_seg_en_i <= 1'b0;
+	end
+
+
+////////////////////////////////////////////////////////////////////////////////
 // Power-down mode selection
 ////////////////////////////////////////////////////////////////////////////////
 
 initial
 	begin
-		pll_pd_i  = 1'b0;
-		rxtx_pd_i = 1'b0;
+		pd_cycle_i = 3'd0;
+		pll_pd_i   = 1'b0;
+		rxtx_pd_i  = 1'b0;
 	end
 
 // Advance every time the blink occurs with SW2 held down
 always @(posedge usrclk2_i)
 	if (button_sync_i[1][1] && blink_count_i == 0)
 		begin
-			case ({pll_pd_i, rxtx_pd_i})
-				{1'b0, 1'b0}:
+			case (pd_cycle_i)
+				3'd0:
 					begin
+						pd_cycle_i = 3'd1;
 						pll_pd_i  = 1'b0;
 						rxtx_pd_i = 1'b1;
 					end
 				
-				{1'b0, 1'b1}:
+				3'd1:
 					begin
+						pd_cycle_i = 3'd2;
+						pll_pd_i  = 1'b0;
+						rxtx_pd_i = 1'b0;
+					end
+				
+				3'd2:
+					begin
+						pd_cycle_i = 3'd3;
 						pll_pd_i  = 1'b1;
 						rxtx_pd_i = 1'b0;
 					end
 				
-				{1'b1, 1'b0}:
+				3'd3:
 					begin
+						pd_cycle_i = 3'd4;
+						pll_pd_i  = 1'b0;
+						rxtx_pd_i = 1'b0;
+					end
+				
+				3'd4:
+					begin
+						pd_cycle_i = 3'd5;
 						pll_pd_i  = 1'b1;
 						rxtx_pd_i = 1'b1;
 					end
 				
-				{1'b1, 1'b1}:
+				3'd5:
 					begin
+						pd_cycle_i = 3'd0;
 						pll_pd_i  = 1'b0;
 						rxtx_pd_i = 1'b0;
 					end
 				
 				default:
 					begin
+						pd_cycle_i = 3'd0;
 						pll_pd_i  = 1'b0;
 						rxtx_pd_i = 1'b0;
 					end
 			endcase
 		end
-
 
 ////////////////////////////////////////////////////////////////////////////////
 // Clock generation/scaling
@@ -238,10 +342,7 @@ clock_scaler_i ( .CLK_IN1  (gtpclkout_i) // 150  Mhz (Input)
 
 assign usrclk_i   = clk_150_i;
 assign usrclk2_i  = clk_37_5_i;
-
-assign uart_clk_i = clk_75_i;
-
-assign led_clk_i  = clk_37_5_i;
+;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -526,8 +627,8 @@ gtpa1_dual_i( //---------------------- Loopback and Powerdown Ports ------------
              .GCLK01                         (1'b0),
              .GCLK10                         (1'b0),
              .GCLK11                         (1'b0),
-             .GTPRESET0                      (gtp_reset_i),
-             .GTPRESET1                      (gtp_reset_i),
+             .GTPRESET0                      (1'b0),
+             .GTPRESET1                      (1'b0),
              .GTPTEST0                       (8'b00010000),
              .GTPTEST1                       (8'b00010000),
              .INTDATAWIDTH0                  (1'b1),
@@ -663,7 +764,7 @@ gtpa1_dual_i( //---------------------- Loopback and Powerdown Ports ------------
              .PHYSTATUS0                     (),
              .PHYSTATUS1                     (),
              .RXVALID0                       (),
-             .RXVALID1                       (),
+             .RXVALID1                       (rxvalid_i),
              //------------------ Receive Ports - RX Polarity Control -------------------
              .RXPOLARITY0                    (1'b0),
              .RXPOLARITY1                    (1'b0),
