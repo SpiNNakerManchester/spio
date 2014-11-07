@@ -1,0 +1,41 @@
+################################################################################
+# Clock Constraints for "user clocks"
+################################################################################
+NET "clk_150_i"  TNM_NET = "clk_150_i";
+NET "clk_37_5_i" TNM_NET = "clk_37_5_i";
+TIMESPEC "TS_clk_150_i"  = PERIOD "clk_150_i"   6.666; # 150 MHz
+TIMESPEC "TS_clk_37_5_i" = PERIOD "clk_37_5_i" 26.666; # 37.5 MHz
+
+
+################################################################################
+# External clock source pins
+################################################################################
+NET REFCLK_PAD_P_IN LOC=C11;
+NET REFCLK_PAD_N_IN LOC=D11;
+
+# External clock is 150 MHz
+NET "gtpclkout_i" TNM_NET = "gtpclkout_i";
+TIMESPEC "TS_gtpclkout_i" = PERIOD "gtpclkout_i" 6.666 HIGH 50% INPUT_JITTER 66.66ps;
+
+
+################################################################################
+# LED Pins
+################################################################################
+NET "LEDS_OUT[2]" LOC = "W22" | IOSTANDARD = LVTTL | SLEW = SLOW ;
+NET "LEDS_OUT[3]" LOC = "W20" | IOSTANDARD = LVTTL | SLEW = SLOW ;
+NET "LEDS_OUT[4]" LOC = "Y22" | IOSTANDARD = LVTTL | SLEW = SLOW ;
+NET "LEDS_OUT[5]" LOC = "Y21" | IOSTANDARD = LVTTL | SLEW = SLOW ;
+
+
+########################################################################
+# Buttons
+########################################################################
+NET "NBUTTON_IN[1]" LOC = "W4" | IOSTANDARD = LVCMOS15  | PULLUP;
+NET "NBUTTON_IN[0]" LOC = "R7" | IOSTANDARD = LVCMOS15  | PULLUP;
+
+
+################################################################################
+# GTP Tile Positions
+################################################################################
+INST gtpa1_dual_i LOC=GTPA1_DUAL_X0Y0;
+
