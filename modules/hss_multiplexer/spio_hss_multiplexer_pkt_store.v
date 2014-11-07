@@ -34,33 +34,34 @@
 `timescale 1ns / 1ps
 module spio_hss_multiplexer_pkt_store
 (
-  input  wire 			 clk,
-  input  wire 			 rst,
+  input wire 		       clk,
+  input wire 		       rst,
 
   // status (for register interface)
-  output reg                     empty,
-  output reg                     full,
+  // empty means no unread data in buffer
+  // there can be unacked data in buffer!
+  output reg 		       empty,
+  output reg 		       full,
 
   // remote channel flow control interface
-  input  wire                    cfc_rem,
+  input wire 		       cfc_rem,
  
   // ack/nack interface
-  input  wire 			 vld_ack,
-  input  wire 			 vld_nak,
-  input  wire  [`SEQ_BITS - 1:0] ack_seq,
-  input  wire                    rep_seq,
+  input wire 		       vld_ack,
+  input wire 		       vld_nak,
+  input wire [`SEQ_BITS - 1:0] ack_seq,
 
   // incoming packet interface
-  input  wire  [`PKT_BITS - 1:0] pkt_data,
-  input  wire 			 pkt_vld,
-  output reg                     pkt_rdy,
+  input wire [`PKT_BITS - 1:0] pkt_data,
+  input wire 		       pkt_vld,
+  output reg 		       pkt_rdy,
 
   // outgoing packet interface
-  input  wire  [`SEQ_BITS - 1:0] bpkt_seq,
-  output reg   [`PKT_BITS - 1:0] bpkt_data,
-  output reg                     bpkt_pres,
-  input  wire                    bpkt_rq,
-  output reg                     bpkt_gt
+  input wire [`SEQ_BITS - 1:0] bpkt_seq,
+  output reg [`PKT_BITS - 1:0] bpkt_data,
+  output reg 		       bpkt_pres,
+  input wire 		       bpkt_rq,
+  output reg 		       bpkt_gt
 );
 
   //---------------------------------------------------------------
@@ -105,12 +106,13 @@ module spio_hss_multiplexer_pkt_store
   //---------------------------------------------------------------
   // buffer operations in progress
   //---------------------------------------------------------------
+  // read request will succeed
   always @ (*)
-    reading = bpkt_rq && unread;  // read request will succeed
-//# reading = bpkt_rq && unread && cfc_rem;  // read request will succeed
+    reading = bpkt_rq && unread && cfc_rem;
 
+  // write request will succeed
   always @ (*)
-    writing = pkt_vld && !full;   // write request will succeed
+    writing = pkt_vld && !full;
 
   //---------------------------------------------------------------
   // buffer empty flag (used only for reporting)
@@ -128,25 +130,7 @@ module spio_hss_multiplexer_pkt_store
       unread <= nxt_unread;
 
   always @ (*)
-    case ({vld_nak, vld_ack, reading, writing})
-      4'b0001,  // writing
-      4'b0011,  // reading and writing
-      4'b0101,  // acked and writing
-      4'b0111,  // acked, reading and writing
-      4'b1001,  // nacked and writing
-      4'b1011:  // nacked, reading and writing
-               nxt_unread = 1;
-
-      4'b0010,  // reading
-      4'b0110:  // acked and reading
-               nxt_unread = (nxt_br != bw);
-
-      4'b1000,  // nacked
-      4'b1010:  // nacked and reading
-               nxt_unread = (nxt_br != bw) || unread;
-
-      default: nxt_unread = unread;
-    endcase
+    nxt_unread = (nxt_br != nxt_bw);
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------
@@ -158,23 +142,13 @@ module spio_hss_multiplexer_pkt_store
     else
       full <= nxt_full;
 
-  // reading does not free space in the buffer!
-  // ack/nack can free space, if not a repeat!
+  // make sure that the comparison below has the right size operands!
+  reg [`BUF_BITS - 1:0] inc_bw;
   always @ (*)
-    case ({vld_nak, vld_ack, writing})
-      3'b001:  // writing
-               nxt_full = (nxt_bw == ba);
+   inc_bw = nxt_bw + 1;
 
-      3'b010,  // acked
-      3'b100:  // nacked
-               nxt_full = full && rep_seq;
-
-      3'b011,  // acked and writing
-      3'b101:  // nacked and writing
-               nxt_full = (nxt_bw == ba) && rep_seq;
-
-      default: nxt_full = full;
-    endcase
+  always @ (*)
+   nxt_full = (nxt_ba == inc_bw);
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------
@@ -219,9 +193,9 @@ module spio_hss_multiplexer_pkt_store
     else
       ba <= nxt_ba;
 
-  // to simplify ack/nak treatment, ack_seq is used in a similar
+  // to simplify ack/nak treatment, ack_seq is used in the same way
   // in both: frame ack_seq is not ack'ed, all previous ones are.
-  // Additionally, a nak also requests that frame ack_seq is re-sent.
+  // Additionally, a nak requests that frame ack_seq is re-sent.
   always @ (*)
     casex ({vld_nak, vld_ack, (ack_seq == bpkt_seq)})
         3'b1xx,                        // nacks ack implicitly

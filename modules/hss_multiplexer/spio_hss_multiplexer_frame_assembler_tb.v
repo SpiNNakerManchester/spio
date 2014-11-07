@@ -237,19 +237,11 @@ module spio_hss_multiplexer_frame_assembler_tb;
     end
     else
     begin
-      if ((tbs_cnt < 75) || (tbs_cnt > 300))
-      begin 
-        if (pkt_rdy[0]) tbs_key[0] <= tbs_key[0] + 1;
-        pkt_vld[0] <= 1'b1;
+      if (pkt_rdy[0]) tbs_key[0] <= tbs_key[0] + 1;
+      pkt_vld[0] <= 1'b1;
 
-        if (pkt_rdy[7]) tbs_key[7] <= tbs_key[7] + 1;
-        pkt_vld[7] <= 1'b1;
-      end
-      else
-      begin
-        pkt_vld[0] <= 1'b0;
-        pkt_vld[7] <= 1'b0;
-      end
+      if (pkt_rdy[7]) tbs_key[7] <= tbs_key[7] + 1;
+      pkt_vld[7] <= 1'b1;
     end
   //---------------------------------------------------------------
 
@@ -306,8 +298,10 @@ module spio_hss_multiplexer_frame_assembler_tb;
     if (tbr_rst)
       ack_seq <= 0;
     else
-      ack_seq <= tbr_seq;
-
+      if (ack_type == `NAK_T)
+        ack_seq <= tbr_seq;
+      else
+        ack_seq <= tbr_seq + 1;
 
   always @ (posedge tbr_clk or posedge tbr_rst)
     if (tbr_rst)

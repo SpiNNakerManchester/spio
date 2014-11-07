@@ -608,7 +608,6 @@ module spio_hss_multiplexer_frame_assembler
     .vld_ack   (vld_ack),
     .vld_nak   (vld_nak),
     .ack_seq   (ack_seq),
-    .rep_seq   (ack_seq == pre_ack),
 
     .bpkt_seq  (seq),
     .bpkt_data (bpkt_data[0]),
@@ -634,7 +633,6 @@ module spio_hss_multiplexer_frame_assembler
     .vld_ack   (vld_ack),
     .vld_nak   (vld_nak),
     .ack_seq   (ack_seq),
-    .rep_seq   (ack_seq == pre_ack),
 
     .bpkt_seq  (seq),
     .bpkt_data (bpkt_data[1]),
@@ -660,7 +658,6 @@ module spio_hss_multiplexer_frame_assembler
     .vld_ack   (vld_ack),
     .vld_nak   (vld_nak),
     .ack_seq   (ack_seq),
-    .rep_seq   (ack_seq == pre_ack),
 
     .bpkt_seq  (seq),
     .bpkt_data (bpkt_data[2]),
@@ -686,7 +683,6 @@ module spio_hss_multiplexer_frame_assembler
     .vld_ack   (vld_ack),
     .vld_nak   (vld_nak),
     .ack_seq   (ack_seq),
-    .rep_seq   (ack_seq == pre_ack),
 
     .bpkt_seq  (seq),
     .bpkt_data (bpkt_data[3]),
@@ -712,7 +708,6 @@ module spio_hss_multiplexer_frame_assembler
     .vld_ack   (vld_ack),
     .vld_nak   (vld_nak),
     .ack_seq   (ack_seq),
-    .rep_seq   (ack_seq == pre_ack),
 
     .bpkt_seq  (seq),
     .bpkt_data (bpkt_data[4]),
@@ -738,7 +733,6 @@ module spio_hss_multiplexer_frame_assembler
     .vld_ack   (vld_ack),
     .vld_nak   (vld_nak),
     .ack_seq   (ack_seq),
-    .rep_seq   (ack_seq == pre_ack),
 
     .bpkt_seq  (seq),
     .bpkt_data (bpkt_data[5]),
@@ -764,7 +758,6 @@ module spio_hss_multiplexer_frame_assembler
     .vld_ack   (vld_ack),
     .vld_nak   (vld_nak),
     .ack_seq   (ack_seq),
-    .rep_seq   (ack_seq == pre_ack),
 
     .bpkt_seq  (seq),
     .bpkt_data (bpkt_data[6]),
@@ -790,7 +783,6 @@ module spio_hss_multiplexer_frame_assembler
     .vld_ack   (vld_ack),
     .vld_nak   (vld_nak),
     .ack_seq   (ack_seq),
-    .rep_seq   (ack_seq == pre_ack),
 
     .bpkt_seq  (seq),
     .bpkt_data (bpkt_data[7]),
