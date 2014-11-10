@@ -35,6 +35,8 @@
 //-----------------------------------------------------------------
 // useful macros (local to frame_tx)
 //-----------------------------------------------------------------
+// When idle send a comma and an externally specified sentinel value
+`define IDL_FRM    {`KCH_IDLE, reg_idso}
 `define NAK_FRM    {`KCH_NAK, ack_colour_i, ack_seq_i, `CRC_PAD}
 `define ACK_FRM    {`KCH_ACK, ack_colour_i, ack_seq_i, `CRC_PAD}
 `define OOC_FRM    {`KCH_OOC, ooc_colour, {(8 - `CLR_BITS) {1'b0}}, `CRC_PAD}
@@ -170,18 +172,17 @@ module spio_hss_multiplexer_frame_tx
   //---------------------------------------------------------------
   always @ (posedge clk or posedge rst)
     if (rst)
-      hsl_data <= `ZERO_FRM; // not really necessary!
+      hsl_data <= `IDL_FRM;  // start with idle frames
     else
       if (hsl_rdy)
         if (send_idle)
-          // When idle send a comma and an externally specified sentinel value
-          hsl_data <= {`KCH_IDLE, reg_idso};
+          hsl_data <= `IDL_FRM;
         else    
           hsl_data <= crc_out;
 
   always @ (posedge clk or posedge rst)
     if (rst)
-      hsl_kchr <= {`KCH_BITS {1'b0}}; // not really necessary!
+      hsl_kchr <= `IDLE_KBITS;  // start with idle frames!
     else
       if (hsl_rdy)
         casex ({send_idle, send_nak, send_ack, send_ooc, send_cfc})
@@ -211,7 +212,7 @@ module spio_hss_multiplexer_frame_tx
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------
-  // latch incoming data frame flit if not ready to issue
+  // latch incoming data frame word if not ready to issue
   //---------------------------------------------------------------
   always @ (posedge clk or posedge rst)
     if (rst)
@@ -232,7 +233,7 @@ module spio_hss_multiplexer_frame_tx
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------
-  // select latched data frame flit, if appropriate (combinatorial)
+  // select latched data frame word, if appropriate (combinatorial)
   //---------------------------------------------------------------
   always @ (posedge clk or posedge rst)
     if (rst)
@@ -282,7 +283,6 @@ module spio_hss_multiplexer_frame_tx
       ack_vld_l    <= 1'b0;
     end
     else
-    begin
       if (send_ack || send_nak)
         ack_vld_l <= 1'b0;
       else
@@ -293,7 +293,6 @@ module spio_hss_multiplexer_frame_tx
           ack_seq_l    <= ack_seq;
           ack_vld_l    <= ack_vld;
         end
-    end    
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------
