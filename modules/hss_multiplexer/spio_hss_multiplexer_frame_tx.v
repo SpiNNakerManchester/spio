@@ -68,14 +68,14 @@ module spio_hss_multiplexer_frame_tx
   // out-of-credit interface (from frame assembler)
   // out-of-credit report
   input  wire  [`CLR_BITS - 1:0] ooc_colour,
-  input  wire 	                 ooc_vld,
+  input  wire 	                 ooc_rts,
 
   // ack/nack interface (from packet dispatcher)
   // send ack/nack back to remote side
   input  wire                    ack_type,
   input  wire  [`CLR_BITS - 1:0] ack_colour,
   input  wire  [`SEQ_BITS - 1:0] ack_seq,
-  input  wire 	                 ack_vld,
+  input  wire 	                 ack_rts,
 
   // high-speed link interface (to gtp)
   output reg   [`FRM_BITS - 1:0] hsl_data,
@@ -97,12 +97,12 @@ module spio_hss_multiplexer_frame_tx
   reg                     ack_type_l;
   reg   [`CLR_BITS - 1:0] ack_colour_l;
   reg   [`SEQ_BITS - 1:0] ack_seq_l;
-  reg  			  ack_vld_l;
+  reg  			  ack_rts_l;
    
   reg                     ack_type_i;
   reg   [`CLR_BITS - 1:0] ack_colour_i;
   reg   [`SEQ_BITS - 1:0] ack_seq_i;
-  reg  			  ack_vld_i;
+  reg  			  ack_rts_i;
 
   reg   [`FRM_BITS - 1:0] frm_data_l;
   reg   [`KCH_BITS - 1:0] frm_kchr_l;
@@ -116,14 +116,21 @@ module spio_hss_multiplexer_frame_tx
 
   reg  [STATE_BITS - 1:0] state;
   
-  reg	                  park_frm;
+  reg  park_frm;
 
-  reg 			  send_idle;
-  reg 			  send_frm;
-  reg 			  send_nak;
-  reg 			  send_ack;
-  reg 			  send_ooc;
-  reg 			  send_cfc;
+  reg  send_nak;
+  reg  send_ack;
+  reg  send_ooc;
+  reg  send_frm;
+  reg  send_cfc;
+  reg  send_idle;
+  reg  send_last;
+
+  reg  rts_nak;
+  reg  rts_ack;
+  reg  rts_ooc;
+  reg  rts_cfc;
+
 
 
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -187,7 +194,7 @@ module spio_hss_multiplexer_frame_tx
       hsl_kchr <= `IDLE_KBITS;  // start with idle frames!
     else
       if (hsl_rdy)
-        if (dfrm_lastw)
+        if (send_last)
           hsl_kchr <= `ZERO_KBITS;  // no kchrs in last data frame word
         else
           casex ({send_idle, send_nak, send_ack, send_ooc, send_cfc})
@@ -210,7 +217,7 @@ module spio_hss_multiplexer_frame_tx
     if (rst)
       frm_rdy <= 1'b1;
     else
-      if (frm_vld_i && !send_frm && !dfrm_lastw)
+      if (frm_vld_i && !send_frm && !send_last)
         frm_rdy <= 1'b0;
       else
         frm_rdy <= 1'b1;
@@ -228,7 +235,7 @@ module spio_hss_multiplexer_frame_tx
       frm_vld_l  <= 1'b0;
     end
     else
-      if (frm_vld_i && !send_frm && !dfrm_lastw && !park_frm)
+      if (frm_vld_i && !send_frm && !send_last && !park_frm)
       begin
         frm_data_l <= frm_data;
         frm_kchr_l <= frm_kchr;
@@ -244,7 +251,7 @@ module spio_hss_multiplexer_frame_tx
     if (rst)
       park_frm <= 1'b0;
     else
-      if (frm_vld_i && !send_frm && !dfrm_lastw)
+      if (frm_vld_i && !send_frm && !send_last)
         park_frm <= 1'b1;
       else
         park_frm <= 1'b0;
@@ -278,18 +285,18 @@ module spio_hss_multiplexer_frame_tx
       ack_type_l   <= `NAK_T;             // not really necessary!
       ack_colour_l <= {`CLR_BITS {1'b0}}; // not really necessary!
       ack_seq_l    <= `SEQ_BITS'd0;       // not really necessary!
-      ack_vld_l    <= 1'b0;
+      ack_rts_l    <= 1'b0;
     end
     else
       if (send_ack || send_nak)
-        ack_vld_l <= 1'b0;
+        ack_rts_l <= 1'b0;
       else
-        if (ack_vld)
+        if (ack_rts)
         begin
           ack_type_l   <= ack_type;
           ack_colour_l <= ack_colour;
           ack_seq_l    <= ack_seq;
-          ack_vld_l    <= ack_vld;
+          ack_rts_l    <= ack_rts;
         end
   //---------------------------------------------------------------
 
@@ -297,19 +304,19 @@ module spio_hss_multiplexer_frame_tx
   // select latched ack request, if appropriate (combinatorial)
   //---------------------------------------------------------------
   always @ (*)
-    if (ack_vld)
+    if (ack_rts)
     begin
       ack_type_i   = ack_type;
       ack_colour_i = ack_colour;
       ack_seq_i    = ack_seq;
-      ack_vld_i    = ack_vld;
+      ack_rts_i    = ack_rts;
     end
     else
     begin
       ack_type_i   = ack_type_l;
       ack_colour_i = ack_colour_l;
       ack_seq_i    = ack_seq_l;
-      ack_vld_i    = ack_vld_l;
+      ack_rts_i    = ack_rts_l;
     end
   //---------------------------------------------------------------
 
@@ -331,21 +338,14 @@ module spio_hss_multiplexer_frame_tx
   //---------------------------------------------------------------
   // frame type selection control (combinatorial)
   //---------------------------------------------------------------
-  reg dfrm_lastw;
-
-  reg rts_ack;
-  reg rts_nak;
-  reg rts_ooc;
-  reg rts_cfc;
-
   always @ (*)
-    dfrm_lastw = hsl_rdy && (state == DFRM_ST) && frm_last_i;
+    rts_nak = ack_rts_i && (ack_type_i == `NAK_T);
    
   always @ (*)
-    rts_ack = ack_vld_i && (ack_type_i == `ACK_T);
+    rts_ack = ack_rts_i && (ack_type_i == `ACK_T);
    
   always @ (*)
-    rts_nak = ack_vld_i && (ack_type_i == `NAK_T);
+    send_last = hsl_rdy && (state == DFRM_ST) && frm_last_i;
    
   always @ (*)
     if (!hsl_rdy)  // output not ready, don't send
@@ -353,8 +353,8 @@ module spio_hss_multiplexer_frame_tx
       send_nak  = 1'b0;
       send_ack  = 1'b0;
       send_ooc  = 1'b0;
-      send_cfc  = 1'b0;
       send_frm  = 1'b0;
+      send_cfc  = 1'b0;
       send_idle = 1'b0;
     end
     // in the middle of a data frame
@@ -363,53 +363,53 @@ module spio_hss_multiplexer_frame_tx
       send_nak  = 1'b0;
       send_ack  = 1'b0;
       send_ooc  = 1'b0;
-      send_cfc  = 1'b0;
       send_frm  = 1'b1;
+      send_cfc  = 1'b0;
       send_idle = 1'b0;
     end
     else  // last word of a data frame or idle
-      casex ({dfrm_lastw, rts_nak, rts_ack, ooc_vld, frm_vld_i})
-        // top priority
+      casex ({send_last, rts_nak, rts_ack, ooc_rts, frm_vld_i})
+        // joint top priority (mutually exclusive)
         5'b01xxx:  // nak frame requested
           begin
             send_nak  = 1'b1;
             send_ack  = 1'b0;
             send_ooc  = 1'b0;
-            send_cfc  = 1'b0;
             send_frm  = 1'b0;
+            send_cfc  = 1'b0;
             send_idle = 1'b0;
           end
       
-        // top priority
+        // joint top priority (mutually exclusive)
         5'b0x1xx:  // ack frame requested
           begin
             send_nak  = 1'b0;
             send_ack  = 1'b1;
             send_ooc  = 1'b0;
-            send_cfc  = 1'b0;
             send_frm  = 1'b0;
+            send_cfc  = 1'b0;
             send_idle = 1'b0;
           end
       
-        // second priority
+        // joint second priority (mutually exclusive)
         5'b0001x:  // out-of-credit frame requested
           begin
             send_nak  = 1'b0;
             send_ack  = 1'b0;
             send_ooc  = 1'b1;
-            send_cfc  = 1'b0;
             send_frm  = 1'b0;
+            send_cfc  = 1'b0;
             send_idle = 1'b0;
           end
       
-        // second priority
+        // joint second priority (mutually exclusive)
         5'b000x1:  // new data frame requested
           begin
             send_nak  = 1'b0;
             send_ack  = 1'b0;
             send_ooc  = 1'b0;
-            send_cfc  = 1'b0;
             send_frm  = 1'b1;
+            send_cfc  = 1'b0;
             send_idle = 1'b0;
           end
       
@@ -419,8 +419,8 @@ module spio_hss_multiplexer_frame_tx
             send_nak  = 1'b0;
             send_ack  = 1'b0;
             send_ooc  = 1'b0;
-            send_cfc  = 1'b1;
             send_frm  = 1'b0;
+            send_cfc  = 1'b1;
             send_idle = 1'b0;
           end
       
@@ -430,8 +430,8 @@ module spio_hss_multiplexer_frame_tx
             send_nak  = 1'b0;
             send_ack  = 1'b0;
             send_ooc  = 1'b0;
-            send_cfc  = 1'b0;
             send_frm  = 1'b0;
+            send_cfc  = 1'b0;
             send_idle = 1'b1;
           end
       endcase
@@ -448,7 +448,7 @@ module spio_hss_multiplexer_frame_tx
 	CHFR_ST: if (send_frm)
                    state <= DFRM_ST;
 
-	DFRM_ST: if (dfrm_lastw)
+	DFRM_ST: if (send_last)
                    state <= CHFR_ST;
       endcase
   //---------------------------------------------------------------

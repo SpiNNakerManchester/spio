@@ -88,7 +88,7 @@ module spio_hss_multiplexer_packet_dispatcher
   output reg                     ack_type,
   output reg   [`CLR_BITS - 1:0] ack_colour,
   output reg   [`SEQ_BITS - 1:0] ack_seq,
-  output reg  			 ack_vld,
+  output reg  			 ack_rts,
 
   // output packet interface
   output wire  [`PKT_BITS - 1:0] pkt_data0,
@@ -319,7 +319,7 @@ module spio_hss_multiplexer_packet_dispatcher
       ack_type   <= `NAK_T;        // not really necessary!
       ack_colour <= `CLR_BITS'd0;  // not really necessary!
       ack_seq    <= `SEQ_BITS'd0;  // not really necessary!
-      ack_vld    <= 1'b0;
+      ack_rts    <= 1'b0;
     end
     else
       casex ({ooc_vld, (ooc_colour == colour),
@@ -331,33 +331,33 @@ module spio_hss_multiplexer_packet_dispatcher
                       ack_type   <= `ACK_T;
                       ack_colour <= colour;
                       ack_seq    <= seq_exp;
-                      ack_vld    <= 1'b1;
+                      ack_rts    <= 1'b1;
                     end
         8'b0x11101x: begin  // ack next seq number if frame is OK
                        ack_type   <= `ACK_T;
                        ack_colour <= colour;
                        ack_seq    <= seq_exp + 1;
-                       ack_vld    <= 1'b1;
+                       ack_rts    <= 1'b1;
                      end
         8'b0x1111xx,        // nack seq number if busy or
         8'b0x110xxx: begin  // received seq not equal to expected
                        ack_type   <= `NAK_T;
                        ack_colour <= ~colour; // colour changes with nack! 
                        ack_seq    <= seq_exp;
-                       ack_vld    <= 1'b1;
+                       ack_rts    <= 1'b1;
                      end
         8'b10xxxxx1,        // resend nack if out-of-credit in wrong colour
         8'b0x10xxx1: begin  // resend nack if valid frame in wrong colour
                        ack_type   <= `NAK_T;
                        ack_colour <= colour; // colour not affected by resends! 
                        ack_seq    <= seq_exp;
-                       ack_vld    <= 1'b1;
+                       ack_rts    <= 1'b1;
                      end
         default:    begin  // no ack/nack
                        ack_type   <= ack_type;   // no change!
                        ack_colour <= ack_colour; // no change!
                        ack_seq    <= ack_seq;    // no change!
-                       ack_vld    <= 1'b0;
+                       ack_rts    <= 1'b0;
                      end
       endcase
   //---------------------------------------------------------------
@@ -381,13 +381,13 @@ module spio_hss_multiplexer_packet_dispatcher
     if (rst)
       reg_lnak <= 1'b0;
     else
-      reg_lnak <= ack_vld && (ack_type == `NAK_T);  // nak sent!
+      reg_lnak <= ack_rts && (ack_type == `NAK_T);  // nak sent!
 
   always @ (posedge clk or posedge rst)
     if (rst)
       reg_lack <= 1'b0;
     else
-      reg_lack <= ack_vld && (ack_type == `ACK_T);  // ack sent!
+      reg_lack <= ack_rts && (ack_type == `ACK_T);  // ack sent!
   //---------------------------------------------------------------
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 

@@ -513,7 +513,7 @@ module spio_hss_multiplexer_frame_assembler
   // out-of-credit interface (to frame transmitter)
   // out-of-credit report
   output reg   [`CLR_BITS - 1:0] ooc_colour,
-  output reg 			 ooc_vld
+  output reg 			 ooc_rts
 );
 
   //---------------------------------------------------------------
@@ -852,12 +852,12 @@ module spio_hss_multiplexer_frame_assembler
   //---------------------------------------------------------------
   always @ (posedge clk or posedge rst)
     if (rst)
-      ooc_vld <= 1'b0;
+      ooc_rts <= 1'b0;
     else
       if ((state == IDLE_ST) && crdt_out && (ooc_snd_ctr == 0))
-        ooc_vld <= 1'b1;
+        ooc_rts <= 1'b1;
       else
-	ooc_vld <= 1'b0;
+	ooc_rts <= 1'b0;
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------
