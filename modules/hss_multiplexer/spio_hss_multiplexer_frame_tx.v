@@ -118,18 +118,19 @@ module spio_hss_multiplexer_frame_tx
   
   reg  park_frm;
 
+  reg  send_last;
   reg  send_nak;
   reg  send_ack;
   reg  send_ooc;
   reg  send_frm;
   reg  send_cfc;
   reg  send_idle;
-  reg  send_last;
 
+  reg  rts_last;
   reg  rts_nak;
   reg  rts_ack;
   reg  rts_ooc;
-  reg  rts_cfc;
+  reg  rts_frm;
 
 
 
@@ -339,13 +340,22 @@ module spio_hss_multiplexer_frame_tx
   // frame type selection control (combinatorial)
   //---------------------------------------------------------------
   always @ (*)
+    rts_last = (state == DFRM_ST) && frm_last_i;
+   
+  always @ (*)
     rts_nak = ack_rts_i && (ack_type_i == `NAK_T);
    
   always @ (*)
     rts_ack = ack_rts_i && (ack_type_i == `ACK_T);
    
   always @ (*)
-    send_last = hsl_rdy && (state == DFRM_ST) && frm_last_i;
+    rts_ooc = ooc_rts;
+   
+  always @ (*)
+    rts_frm = frm_vld_i;
+  
+  always @ (*)
+    send_last = hsl_rdy && rts_last;
    
   always @ (*)
     if (!hsl_rdy)  // output not ready, don't send
@@ -357,7 +367,7 @@ module spio_hss_multiplexer_frame_tx
       send_cfc  = 1'b0;
       send_idle = 1'b0;
     end
-    // in the middle of a data frame
+    // in the middle of a data frame, keep going
     else if ((state == DFRM_ST) && !frm_last_i)
     begin
       send_nak  = 1'b0;
@@ -368,7 +378,7 @@ module spio_hss_multiplexer_frame_tx
       send_idle = 1'b0;
     end
     else  // last word of a data frame or idle
-      casex ({send_last, rts_nak, rts_ack, ooc_rts, frm_vld_i})
+      casex ({rts_last, rts_nak, rts_ack, rts_ooc, rts_frm})
         // joint top priority (mutually exclusive)
         5'b01xxx:  // nak frame requested
           begin
