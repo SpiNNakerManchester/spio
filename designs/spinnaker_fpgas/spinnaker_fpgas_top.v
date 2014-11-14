@@ -1423,7 +1423,7 @@ generate for (i = 0; i < `NUM_CHANS; i = i + 1)
 		// second board-to-board link.
 		assign b2b_pkt_txdata_i[1][i] = sl_pkt_rxdata_i[i+8];
 		assign b2b_pkt_txvld_i[1][i]  = sl_pkt_rxvld_i[i+8];
-		assign sl_pkt_rxrdy_i[i+8]    = b2b_pkt_txrdy_i[0][i];
+		assign sl_pkt_rxrdy_i[i+8]    = b2b_pkt_txrdy_i[1][i];
 	end
 endgenerate
 
