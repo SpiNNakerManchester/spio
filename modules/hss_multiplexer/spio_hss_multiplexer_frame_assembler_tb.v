@@ -86,16 +86,16 @@ module spio_hss_multiplexer_frame_assembler_tb;
 
   // drive out-of-credit signals
   wire  [`CLR_BITS - 1:0] ooc_colour;
-  wire                    ooc_vld;
+  wire                    ooc_rts;
 
   // drive the register bank signals
   wire                    reg_sfrm;
   wire                    reg_rnak;
   wire                    reg_rack;
   wire                    reg_looc;
-  wire                    reg_crdt;
-  wire                    reg_empt;
-  wire                    reg_full;
+  wire [`CRDT_BITS - 1:0] reg_crdt;
+  wire [`NUM_CHANS - 1:0] reg_empt;
+  wire [`NUM_CHANS - 1:0] reg_full;
    
 
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -166,7 +166,7 @@ module spio_hss_multiplexer_frame_assembler_tb;
 
     // out-of-credit interface
     .ooc_colour (ooc_colour),
-    .ooc_vld    (ooc_vld)
+    .ooc_rts    (ooc_rts)
   );
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -254,7 +254,8 @@ module spio_hss_multiplexer_frame_assembler_tb;
     if (tbr_rst)
       tbr_fwc <= 0;
     else
-      tbr_fwc <= tbr_fwc + 1;
+//#      tbr_fwc <= tbr_fwc + 1;
+      tbr_fwc <= 0;
 
   always @ (posedge tbr_clk or posedge tbr_rst)
     if (tbr_rst)
@@ -287,7 +288,7 @@ module spio_hss_multiplexer_frame_assembler_tb;
       ack_colour <= 0;
     else
       if ((tbr_cnt > 75) && (tbr_cnt < 300))
-        if (ooc_vld)
+        if (ooc_rts)
 	  ack_colour <= ~ack_colour;
         else
 	  ack_colour <= ack_colour;
@@ -298,17 +299,19 @@ module spio_hss_multiplexer_frame_assembler_tb;
     if (tbr_rst)
       ack_seq <= 0;
     else
-      if (ack_type == `NAK_T)
-        ack_seq <= tbr_seq;
-      else
-        ack_seq <= tbr_seq + 1;
+      if (ooc_rts)
+        if (ack_type == `NAK_T)
+          ack_seq <= tbr_seq;
+        else
+          ack_seq <= tbr_seq + 1;
 
   always @ (posedge tbr_clk or posedge tbr_rst)
     if (tbr_rst)
       ack_vld <= 0;
     else
-      if (ooc_vld)
+      if (ooc_rts)
         ack_vld <= 1;
+//#        ack_vld <= 0;
       else
         ack_vld <= 0;
   //---------------------------------------------------------------
