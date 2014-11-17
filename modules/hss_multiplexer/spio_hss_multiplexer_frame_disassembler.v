@@ -137,14 +137,14 @@ module spio_hss_multiplexer_frame_disassembler
   reg crc_error;
   reg frm_error;
 
-  reg vld_frm;
-  reg dat_frm;
-  reg dat_lst;
-  reg idl_frm;
-  reg ack_frm;
   reg nak_frm;
+  reg ack_frm;
   reg ooc_frm;
+  reg dat_frm;
+  reg lst_frm;
   reg cfc_frm;
+  reg idl_frm;
+  reg vld_frm;
   reg bad_frm;
 
 
@@ -175,7 +175,7 @@ module spio_hss_multiplexer_frame_disassembler
   //---------------------------------------------------------------
   always @ (*)
     if (crc_last)
-      crc_in = {hsl_data[31:16], {16 {1'b0}}};
+      crc_in = {hsl_data[31:16], `CRC_PAD};
     else
       crc_in = hsl_data;
   //---------------------------------------------------------------
@@ -184,7 +184,7 @@ module spio_hss_multiplexer_frame_disassembler
   // crc check and initialization (combinatorial)
   //---------------------------------------------------------------
   always @ (*)
-    crc_chk = ack_frm || nak_frm || ooc_frm || dat_lst;
+    crc_chk = nak_frm || ack_frm || ooc_frm || lst_frm || cfc_frm;
 
   always @ (*)
     crc_last = crc_chk || frm_error || idl_frm;
@@ -316,7 +316,7 @@ module spio_hss_multiplexer_frame_disassembler
     if (rst)
       frm_vld <= 1'b0;
     else
-      frm_vld <= dat_lst && !frm_error && !crc_error;
+      frm_vld <= lst_frm && !frm_error && !crc_error;
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------
@@ -386,7 +386,7 @@ module spio_hss_multiplexer_frame_disassembler
     if (rst)
       cfc_rem <= {`NUM_CHANS {1'b1}};
     else
-      if ((dat_lst || cfc_frm) && !frm_error && !crc_error)
+      if ((lst_frm || cfc_frm) && !frm_error && !crc_error)
         cfc_rem <= hsl_data[`DFRM_CFC_RNG];
       else
         cfc_rem <= cfc_rem;  // no change!
@@ -399,7 +399,7 @@ module spio_hss_multiplexer_frame_disassembler
     if (rst)
       reg_dfrm <= 1'b0;
     else
-      reg_dfrm <= dat_lst && !frm_error && !crc_error;
+      reg_dfrm <= lst_frm && !frm_error && !crc_error;
 
   always @ (posedge clk or posedge rst)
     if (rst)
@@ -457,7 +457,7 @@ module spio_hss_multiplexer_frame_disassembler
 
   // last word in a data frame
   always @ (*)
-    dat_lst = hsl_vld && (state == LAST_ST);
+    lst_frm = hsl_vld && (state == LAST_ST);
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------

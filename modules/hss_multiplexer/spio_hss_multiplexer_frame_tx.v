@@ -35,11 +35,13 @@
 //-----------------------------------------------------------------
 // useful macros (local to frame_tx)
 //-----------------------------------------------------------------
-`define IDL_FRM    {`KCH_IDLE, {`IDLE_BITS {1'b0}}}
+`define INIT_FRM   {`KCH_IDLE, {`IDLE_BITS {1'b0}}}
 `define NAK_FRM    {`KCH_NAK, ack_colour_i, ack_seq_i, `CRC_PAD}
 `define ACK_FRM    {`KCH_ACK, ack_colour_i, ack_seq_i, `CRC_PAD}
 `define OOC_FRM    {`KCH_OOC, ooc_colour, {(8 - `CLR_BITS) {1'b0}}, `CRC_PAD}
-`define CFC_FRM    {`KCH_CFC, cfc_loc, {(8 -`NUM_CHANS) {1'b0}}, `CRC_PAD}
+`define CFC_FRM    {`KCH_CFC, cfc_loc, `CRC_PAD}
+`define IDLE_FRM   {`KCH_IDLE, reg_idso}
+`define LAST_FRM   {ack_colour_i, ack_seq_i, cfc_loc, `CRC_PAD}
 
 
 `timescale 1ns / 1ps
@@ -126,9 +128,9 @@ module spio_hss_multiplexer_frame_tx
   reg  send_cfc;
   reg  send_idle;
 
-  reg  rts_last;
   reg  rts_nak;
   reg  rts_ack;
+  reg  rts_cfc;
   reg  rts_ooc;
   reg  rts_frm;
 
@@ -159,11 +161,12 @@ module spio_hss_multiplexer_frame_tx
   // crc input multiplexer (combinatorial)
   //---------------------------------------------------------------
   always @ (*)
-    casex ({send_nak, send_ack, send_ooc, send_cfc})
-      4'b1xxx:  crc_in = `NAK_FRM;
-      4'bx1xx:  crc_in = `ACK_FRM;
-      4'b001x:  crc_in = `OOC_FRM;
-      4'b00x1:  crc_in = `CFC_FRM;
+    casex ({send_nak, send_ack, send_ooc, send_cfc, send_last})
+      5'b1xxxx: crc_in = `NAK_FRM;
+      5'bx1xxx: crc_in = `ACK_FRM;
+      5'bxx1xx: crc_in = `OOC_FRM;
+      5'bxxx1x: crc_in = `CFC_FRM;
+      5'bxxxx1: crc_in = `LAST_FRM;
       default:  crc_in = frm_data_i;
     endcase
 
@@ -179,33 +182,29 @@ module spio_hss_multiplexer_frame_tx
   //---------------------------------------------------------------
   always @ (posedge clk or posedge rst)
     if (rst)
-      hsl_data <= `IDL_FRM;  // start with idle frames
+      hsl_data <= `INIT_FRM;  // start with idle frames
     else
       if (hsl_rdy)
         if (send_idle)
           // When idle send an externally specified sentinel value
-          hsl_data <= `IDL_FRM | reg_idso;
+          hsl_data <= `IDLE_FRM;
         else    
           hsl_data <= crc_out;
-      else
-          hsl_data <= hsl_data;  // no change!
 
   always @ (posedge clk or posedge rst)
     if (rst)
       hsl_kchr <= `IDLE_KBITS;  // start with idle frames!
     else
       if (hsl_rdy)
-        if (send_last)
-          hsl_kchr <= `ZERO_KBITS;  // no kchrs in last data frame word
-        else
-          casex ({send_idle, send_nak, send_ack, send_ooc, send_cfc})
-            5'b1xxxx: hsl_kchr <= `IDLE_KBITS;
-            5'bx1xxx: hsl_kchr <= `NAK_KBITS;
-            5'bxx1xx: hsl_kchr <= `ACK_KBITS;
-            5'bxxx1x: hsl_kchr <= `OOC_KBITS;
-            5'bxxxx1: hsl_kchr <= `CFC_KBITS;
-            default:  hsl_kchr <= frm_kchr_i;
-          endcase
+        casex ({send_idle, send_nak, send_ack, send_ooc, send_cfc, send_last})
+          6'b1xxxxx: hsl_kchr <= `IDLE_KBITS;
+          6'bx1xxxx: hsl_kchr <= `NAK_KBITS;
+          6'bxx1xxx: hsl_kchr <= `ACK_KBITS;
+          6'bxxx1xx: hsl_kchr <= `OOC_KBITS;
+          6'bxxxx1x: hsl_kchr <= `CFC_KBITS;
+          6'bxxxxx1: hsl_kchr <= `ZERO_KBITS;
+          default:   hsl_kchr <= frm_kchr_i;
+        endcase
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------
@@ -322,6 +321,19 @@ module spio_hss_multiplexer_frame_tx
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------
+  // channel-flow control
+  //---------------------------------------------------------------
+  reg  [`NUM_CHANS - 1:0] prev_cfc;
+   
+  always @ (posedge clk or posedge rst)
+    if (rst)
+      prev_cfc <= {`NUM_CHANS {1'b1}};
+    else
+      if (send_cfc || send_last)
+        prev_cfc <= cfc_loc;
+  //---------------------------------------------------------------
+
+  //---------------------------------------------------------------
   // register interface
   //---------------------------------------------------------------
   always @ (posedge clk or posedge rst)
@@ -340,14 +352,14 @@ module spio_hss_multiplexer_frame_tx
   // frame type selection control (combinatorial)
   //---------------------------------------------------------------
   always @ (*)
-    rts_last = (state == DFRM_ST) && frm_last_i;
-   
-  always @ (*)
     rts_nak = ack_rts_i && (ack_type_i == `NAK_T);
    
   always @ (*)
     rts_ack = ack_rts_i && (ack_type_i == `ACK_T);
    
+  always @ (*)
+    rts_cfc = (cfc_loc != prev_cfc);
+  
   always @ (*)
     rts_ooc = ooc_rts;
    
@@ -355,82 +367,97 @@ module spio_hss_multiplexer_frame_tx
     rts_frm = frm_vld_i;
   
   always @ (*)
-    send_last = hsl_rdy && rts_last;
-   
-  always @ (*)
     if (!hsl_rdy)  // output not ready, don't send
     begin
       send_nak  = 1'b0;
       send_ack  = 1'b0;
       send_ooc  = 1'b0;
       send_frm  = 1'b0;
+      send_last = 1'b0;
       send_cfc  = 1'b0;
       send_idle = 1'b0;
     end
     // in the middle of a data frame, keep going
-    else if ((state == DFRM_ST) && !frm_last_i)
-    begin
-      send_nak  = 1'b0;
-      send_ack  = 1'b0;
-      send_ooc  = 1'b0;
-      send_frm  = 1'b1;
-      send_cfc  = 1'b0;
-      send_idle = 1'b0;
-    end
-    else  // last word of a data frame or idle
-      casex ({rts_last, rts_nak, rts_ack, rts_ooc, rts_frm})
-        // joint top priority (mutually exclusive)
-        5'b01xxx:  // nak frame requested
+    else if (state == DFRM_ST)
+      if (frm_last_i)  // send last word in frame (special)
+      begin
+        send_nak  = 1'b0;
+        send_ack  = 1'b0;
+        send_ooc  = 1'b0;
+        send_frm  = 1'b0;
+        send_last = 1'b1;
+        send_cfc  = 1'b0;
+        send_idle = 1'b0;
+      end
+      else             // send next word in frame
+      begin
+        send_nak  = 1'b0;
+        send_ack  = 1'b0;
+        send_ooc  = 1'b0;
+        send_frm  = 1'b1;
+        send_last = 1'b0;
+        send_cfc  = 1'b0;
+        send_idle = 1'b0;
+      end
+    else  // idle: choose frame to send
+      casex ({rts_nak, rts_cfc, rts_ack, rts_ooc, rts_frm})
+        // top priority
+        5'b1xxxx:  // nak frame requested (m.e. with ack)
           begin
             send_nak  = 1'b1;
             send_ack  = 1'b0;
             send_ooc  = 1'b0;
             send_frm  = 1'b0;
+            send_last = 1'b0;
             send_cfc  = 1'b0;
             send_idle = 1'b0;
           end
       
-        // joint top priority (mutually exclusive)
-        5'b0x1xx:  // ack frame requested
+        // second priority
+        5'b01xxx:  // cfc frame requested
+          begin
+            send_nak  = 1'b0;
+            send_ack  = 1'b0;
+            send_ooc  = 1'b0;
+            send_frm  = 1'b0;
+            send_last = 1'b0;
+            send_cfc  = 1'b1;
+            send_idle = 1'b0;
+          end
+      
+        // third priority
+        5'bx01xx:  // ack frame requested (m.e. with nack)
           begin
             send_nak  = 1'b0;
             send_ack  = 1'b1;
             send_ooc  = 1'b0;
             send_frm  = 1'b0;
+            send_last = 1'b0;
             send_cfc  = 1'b0;
             send_idle = 1'b0;
           end
       
-        // joint second priority (mutually exclusive)
-        5'b0001x:  // out-of-credit frame requested
+        // joint fourth priority
+        5'b0001x:  // out-of-credit frame requested (m.e. with frm)
           begin
             send_nak  = 1'b0;
             send_ack  = 1'b0;
             send_ooc  = 1'b1;
             send_frm  = 1'b0;
+            send_last = 1'b0;
             send_cfc  = 1'b0;
             send_idle = 1'b0;
           end
       
-        // joint second priority (mutually exclusive)
-        5'b000x1:  // new data frame requested
+        // joint fourth priority
+        5'b000x1:  // new data frame requested (m.e. with ooc)
           begin
             send_nak  = 1'b0;
             send_ack  = 1'b0;
             send_ooc  = 1'b0;
             send_frm  = 1'b1;
+            send_last = 1'b0;
             send_cfc  = 1'b0;
-            send_idle = 1'b0;
-          end
-      
-        // third priority
-        5'b1xxxx:  // send cfc on last data frame word
-          begin
-            send_nak  = 1'b0;
-            send_ack  = 1'b0;
-            send_ooc  = 1'b0;
-            send_frm  = 1'b0;
-            send_cfc  = 1'b1;
             send_idle = 1'b0;
           end
       
@@ -441,6 +468,7 @@ module spio_hss_multiplexer_frame_tx
             send_ack  = 1'b0;
             send_ooc  = 1'b0;
             send_frm  = 1'b0;
+            send_last = 1'b0;
             send_cfc  = 1'b0;
             send_idle = 1'b1;
           end
