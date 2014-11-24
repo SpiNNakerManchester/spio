@@ -548,7 +548,7 @@ module spio_hss_multiplexer_frame_assembler
   reg  [`CRDT_BITS - 1:0] credit;
   reg                     crdt_out;
 
-  reg  [`O_CNT_BITS -1:0] ooc_snd_ctr;
+  reg  [`OOCC_BITS - 1:0] ooc_snd_ctr;
    
 
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

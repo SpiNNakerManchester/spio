@@ -130,8 +130,10 @@ module spio_hss_multiplexer_packet_dispatcher
   reg   [`CLR_BITS - 1:0] colour; 
   reg   [`SEQ_BITS - 1:0] seq_exp; 
 
-  reg  [`A_CNT_BITS -1:0] ack_snd_ctr;
-  reg  [`N_CNT_BITS -1:0] nak_rsn_ctr;
+  reg  [`ACKC_BITS - 1:0] ack_snd_ctr;
+  reg  [`NAKC_BITS - 1:0] nak_rsn_ctr;
+
+  reg  [`OCNC_BITS - 1:0] ooc_nak_ctr;
    
   reg                     ok_colour;
   reg                     ok_frm;
@@ -322,43 +324,44 @@ module spio_hss_multiplexer_packet_dispatcher
       ack_rts    <= 1'b0;
     end
     else
-      casex ({ooc_vld, (ooc_colour == colour),
+      casex ({ooc_vld, (ooc_colour == colour), (ooc_nak_ctr == 0),
               frm_vld, (frm_colour == colour), (frm_seq == seq_exp),
               rjct_frm, (ack_snd_ctr == 0), (nak_rsn_ctr == 0)
              }
             )
-        8'b11xxxxxx: begin  // ack expected seq number if out-of-credit
-                      ack_type   <= `ACK_T;
-                      ack_colour <= colour;
-                      ack_seq    <= seq_exp;
-                      ack_rts    <= 1'b1;
-                    end
-        8'b0x11101x: begin  // ack next seq number if frame is OK
-                       ack_type   <= `ACK_T;
-                       ack_colour <= colour;
-                       ack_seq    <= seq_exp + 1;
-                       ack_rts    <= 1'b1;
-                     end
-        8'b0x1111xx,        // nack seq number if busy or
-        8'b0x110xxx: begin  // received seq not equal to expected
-                       ack_type   <= `NAK_T;
-                       ack_colour <= ~colour; // colour changes with nack! 
-                       ack_seq    <= seq_exp;
-                       ack_rts    <= 1'b1;
-                     end
-        8'b10xxxxx1,        // resend nack if out-of-credit in wrong colour
-        8'b0x10xxx1: begin  // resend nack if valid frame in wrong colour
-                       ack_type   <= `NAK_T;
-                       ack_colour <= colour; // colour not affected by resends! 
-                       ack_seq    <= seq_exp;
-                       ack_rts    <= 1'b1;
-                     end
-        default:    begin  // no ack/nack
-                       ack_type   <= ack_type;   // no change!
-                       ack_colour <= ack_colour; // no change!
-                       ack_seq    <= ack_seq;    // no change!
-                       ack_rts    <= 1'b0;
-                     end
+        9'b110xxxxxx: begin  // ack expected seq number if out-of-credit
+                        ack_type   <= `ACK_T;
+                        ack_colour <= colour;
+                        ack_seq    <= seq_exp;
+                        ack_rts    <= 1'b1;
+                      end
+        9'b0xx11101x: begin  // ack next seq number if frame is OK
+                        ack_type   <= `ACK_T;
+                        ack_colour <= colour;
+                        ack_seq    <= seq_exp + 1;
+                        ack_rts    <= 1'b1;
+                      end
+        9'b111xxxxxx,        // nack if too many out-of-credit frames or
+        9'b0xx1111xx,        // nack seq number if busy or
+        9'b0xx110xxx: begin  // received seq not equal to expected
+                        ack_type   <= `NAK_T;
+                        ack_colour <= ~colour; // colour changes with nack! 
+                        ack_seq    <= seq_exp;
+                        ack_rts    <= 1'b1;
+                      end
+        9'b10xxxxxx1,        // resend nack if out-of-credit in wrong colour
+        9'b0xx10xxx1: begin  // resend nack if valid frame in wrong colour
+                        ack_type   <= `NAK_T;
+                        ack_colour <= colour; // colour not affected by resends! 
+                        ack_seq    <= seq_exp;
+                        ack_rts    <= 1'b1;
+                      end
+        default:      begin  // no ack/nack
+                        ack_type   <= ack_type;   // no change!
+                        ack_colour <= ack_colour; // no change!
+                        ack_seq    <= ack_seq;    // no change!
+                        ack_rts    <= 1'b0;
+                      end
       endcase
   //---------------------------------------------------------------
 
@@ -402,7 +405,9 @@ module spio_hss_multiplexer_packet_dispatcher
     if (rst)
       colour <= `CLR_BITS'd0;
     else
-      if (ok_colour && (rjct_frm || (frm_seq != seq_exp)))
+      if ((ok_colour && (rjct_frm || (frm_seq != seq_exp)))
+           || (ooc_vld && (ooc_colour == colour) && (ooc_nak_ctr == 0))
+	 )
         colour <= ~colour;  // change colour for initial nack!
       else
         colour <= colour;   // no change!
@@ -479,6 +484,23 @@ module spio_hss_multiplexer_packet_dispatcher
         5'bxx100: nak_rsn_ctr <= nak_rsn_ctr - 1;
 
         default:  nak_rsn_ctr <= nak_rsn_ctr;  // no change!
+      endcase
+  //---------------------------------------------------------------
+
+  //---------------------------------------------------------------
+  // ooc/nak counter (nak after a number of consecutive ooc frames)
+  //---------------------------------------------------------------
+  always @ (posedge clk or posedge rst)
+    if (rst)
+      ooc_nak_ctr <= `OCN_CNT;
+    else
+      casex ({frm_vld,ooc_vld, (ooc_colour == colour), (ooc_nak_ctr == 0)})
+        4'bx110: ooc_nak_ctr <= ooc_nak_ctr - 1;
+
+        4'bx111,
+        4'b10xx: ooc_nak_ctr <= 16 * `OCN_CNT;
+
+        default: ooc_nak_ctr <= ooc_nak_ctr;
       endcase
   //---------------------------------------------------------------
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
