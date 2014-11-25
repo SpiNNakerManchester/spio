@@ -39,9 +39,6 @@ module pkt_reg
   input  wire 			 CLK_IN,
   input  wire 			 RESET_IN,
 
-  // packet counter interface
-  output reg                     COUNT_PACKET_OUT,
-
   // status
   output reg                     busy,
 
@@ -99,16 +96,6 @@ module pkt_reg
   always @ (*)
     busy = full && !PKT_RDY_IN;
   //---------------------------------------------------------------
-
-  //---------------------------------------------------------------
-  // packet counter interface
-  //---------------------------------------------------------------
-  always @ (posedge CLK_IN or posedge RESET_IN)
-    if (RESET_IN)
-      COUNT_PACKET_OUT <= 1'b0;
-    else
-      COUNT_PACKET_OUT <= PKT_VLD_OUT && PKT_RDY_IN;
-  //---------------------------------------------------------------
 endmodule
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -119,9 +106,6 @@ module spio_spinnaker_link_receiver
 (
   input                         CLK_IN,
   input                         RESET_IN,
-
-  // packet counter interface
-  output wire                   COUNT_PACKET_OUT,
 
   // SpiNNaker link asynchronous interface
   input                   [6:0] SL_DATA_2OF7_IN,
@@ -154,6 +138,7 @@ module spio_spinnaker_link_receiver
   reg                     oob;  // out-of-band symbol (error)
 
   reg               [6:0] old_data_2of7;
+  reg                     tgl_ack;
 
   reg               [3:0] symbol;
   reg                     long_pkt;
@@ -175,17 +160,15 @@ module spio_spinnaker_link_receiver
   pkt_reg prg
   (
     .CLK_IN       (CLK_IN),
-    .RESET_IN       (RESET_IN),
+    .RESET_IN     (RESET_IN),
 
-    .COUNT_PACKET_OUT   (COUNT_PACKET_OUT),
+    .busy         (busy),
 
-    .busy      (busy),
+    .ipkt_data    (ipkt_data),
+    .ipkt_vld     (ipkt_vld),
 
-    .ipkt_data (ipkt_data),
-    .ipkt_vld  (ipkt_vld),
-
-    .PKT_DATA_OUT  (PKT_DATA_OUT),
-    .PKT_VLD_OUT   (PKT_VLD_OUT),
+    .PKT_DATA_OUT (PKT_DATA_OUT),
+    .PKT_VLD_OUT  (PKT_VLD_OUT),
     .PKT_RDY_IN   (PKT_RDY_IN)
   );
   //---------------------------------------------------------------
@@ -232,54 +215,68 @@ module spio_spinnaker_link_receiver
   //---------------------------------------------------------------
   // SpiNNaker link interface
   //---------------------------------------------------------------
-  always @(posedge CLK_IN or posedge RESET_IN)
+  always @(posedge tgl_ack or posedge RESET_IN)
     if (RESET_IN)
-    begin
-      old_data_2of7 <= 7'd0;  // not really necessary!
-      SL_ACK_OUT           <= 1'b0;
-    end
+      SL_ACK_OUT <= 1'b0;
+    else
+      SL_ACK_OUT <= ~SL_ACK_OUT;
+
+  always @(*)
+    if (RESET_IN)
+      tgl_ack = 1'b0;
     else
       case (state)
-	REST_ST: begin
-                   old_data_2of7 <= SL_DATA_2OF7_IN;  // remember 2of7 data
-	           SL_ACK_OUT           <= 1'b1;       // mimic SpiNNaker behaviour
-                 end
+	REST_ST:   tgl_ack = 1'b1;   // mimic SpiNNaker behaviour
 
 	TRAN_ST: casex ({dat, oob, eop, exp_eop, busy})
 	           5'b1xxxx,  // data symbol: SL_ACK_OUT and wait for next symbol
 		   5'bx1xxx,  // oob symbol: SL_ACK_OUT and go to error state
 	           5'bxx10x,  // unexpected eop: SL_ACK_OUT and start new packet
 	           5'bxx110:  // expected eop and not busy: SL_ACK_OUT and send packet 
-                     begin
-                       old_data_2of7 <= SL_DATA_2OF7_IN;  // remember 2of7 data
-                       SL_ACK_OUT           <= ~SL_ACK_OUT;       // SL_ACK_OUT new symbol
-                     end
+                       tgl_ack = 1'b1;       // SL_ACK_OUT new symbol
 
 		   // 5'bxx111,  // expected eop but busy: don't SL_ACK_OUT yet
 		   // 5'b000xx,  // no symbol arrived: don't SL_ACK_OUT
 		   default:
-                     begin
-                       old_data_2of7 <= old_data_2of7;  // no change!
-	               SL_ACK_OUT           <= SL_ACK_OUT;            // no change!
-	             end
+	               tgl_ack = 1'b0;       // no change!
                  endcase
 
         IDLE_ST,
         ERR_ST:  if (nsb)  
-                 begin
-                   old_data_2of7 <= SL_DATA_2OF7_IN;      // remember 2of7 data
-	           SL_ACK_OUT           <= ~SL_ACK_OUT;           // SL_ACK_OUT new symbol
-	         end
+	           tgl_ack = 1'b1;           // SL_ACK_OUT new symbol
                  else
-                 begin
-                   old_data_2of7 <= old_data_2of7;  // no change!
-                   SL_ACK_OUT           <= SL_ACK_OUT;            // no change!
-                 end
+                   tgl_ack = 1'b0;           // no change!
 
-        default: begin
+        default:   tgl_ack = 1'b0;           // no change!
+      endcase 
+
+  always @(posedge CLK_IN or posedge RESET_IN)
+    if (RESET_IN)
+      old_data_2of7 <= 7'd0;  // not really necessary!
+    else
+      case (state)
+	REST_ST:   old_data_2of7 <= SL_DATA_2OF7_IN;  // remember 2of7 data
+
+	TRAN_ST: casex ({dat, oob, eop, exp_eop, busy})
+	           5'b1xxxx,  // data symbol: lacth and wait for next symbol
+		   5'bx1xxx,  // oob symbol: latch and go to error state
+	           5'bxx10x,  // unexpected eop: latch and start new packet
+	           5'bxx110:  // expected eop and not busy: latch and send packet 
+                       old_data_2of7 <= SL_DATA_2OF7_IN;  // remember 2of7 data
+
+		   // 5'bxx111,  // expected eop but busy: wait
+		   // 5'b000xx,  // no symbol arrived: wait
+		   default:
+                       old_data_2of7 <= old_data_2of7;  // no change!
+                 endcase
+
+        IDLE_ST,
+        ERR_ST:  if (nsb)  
+                   old_data_2of7 <= SL_DATA_2OF7_IN;    // remember 2of7 data
+                 else
                    old_data_2of7 <= old_data_2of7;  // no change!
-                   SL_ACK_OUT           <= SL_ACK_OUT;            // no change!
-                 end
+
+        default:   old_data_2of7 <= old_data_2of7;  // no change!
       endcase 
   //---------------------------------------------------------------
 

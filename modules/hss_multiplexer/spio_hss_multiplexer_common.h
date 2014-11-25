@@ -30,10 +30,7 @@
 // 16 bits of the frame may be arbitrary data)
 `define KCH_IDLE 16'h5CFB
 
-`define CLKC              8'h1c   // K28.0
-`define COMMA             8'hbc   // K28.5
-
-`define KCH_DATA          `COMMA
+`define KCH_DATA          `KCH_COMMA
 `define KCH_OOC           8'hf7   // K23.7
 `define KCH_ACK           8'h7c   // K28.3
 `define KCH_NAK           8'h9c   // K28.4
@@ -77,22 +74,27 @@
 `define CRC_BITS         16
 `define CRC_PAD          {`CRC_BITS {1'b0}}
 
-`define A_CNT_BITS       3
+`define ACKC_BITS        3
 //#`define ACK_CNT          2
 `define ACK_CNT          0
 
-`define N_CNT_BITS       3
+`define NAKC_BITS        3
 `define NAK_CNT          7
 
-`define O_CNT_BITS       3
+`define OOCC_BITS        3
 `define OOC_CNT          7
 
-`define C_CNT_BITS       3
+`define CFCC_BITS        3
 `define CFC_CNT          7
+
+`define OCNC_BITS        (`CRDT_BITS + 4)
+`define OCN_CNT          (16 * `CRDT_CNT)
 
 ////////////////////////////////////////////////////////////////////////////////
 // Frames
 ////////////////////////////////////////////////////////////////////////////////
+
+`define ZERO_FRM         {`FRM_BITS {1'b0}}
 
 `define FRM_KCH_RNG       31 -: 8
 `define FRM_CLR_RNG       23 -: `CLR_BITS
@@ -121,18 +123,12 @@
 `define CLKC_KBITS       4'b1111
 `define ZERO_KBITS       {`KCH_BITS {1'b0}}
 
-// XXX: Clock correction now done by tx_control/rx_control, should eventually be
-// removed.
-`define CLKC_FRM         {`FRM_BYTES {`KCH_CLKC}}
-
 // "Idle" frames k-characters (one for the leading comma and another for the
 // idle frame indicator)
 `define IDLE_KBITS       4'b1100
 
 // Number of bits in the idle frame sentinel value
-`define IDLE_BITS 16
-
-`define ZERO_FRM         {`FRM_BITS {1'b0}}
+`define IDLE_BITS        16
 
 
 `endif

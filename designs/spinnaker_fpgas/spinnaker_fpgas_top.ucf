@@ -10,6 +10,9 @@ TIMESPEC "TS_clk_150_i"  = PERIOD "clk_150_i"   6.666; # 150 MHz
 TIMESPEC "TS_clk_75_i"   = PERIOD "clk_75_i"   13.333; # 75 MHz
 TIMESPEC "TS_clk_37_5_i" = PERIOD "clk_37_5_i" 26.666; # 37.5 MHz
 
+# set false path for the SpiNNaker link FIFO synchonizers
+TIMESPEC TS_01 = FROM "clk_150_i" TO "clk_75_i"  TIG;
+TIMESPEC TS_02 = FROM "clk_75_i"  TO "clk_150_i" TIG;
 
 ################################################################################
 # External clock source pins

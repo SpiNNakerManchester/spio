@@ -257,40 +257,40 @@ module spio_hss_multiplexer_reg_bank
   //---------------------------------------------------------------
   always @ (*)
     case (reg_addr)
-      `VERS_REG: reg_read_data <= {`HSS_MULTIPLEXER_VERSION,`PROTOCOL_VERSION};
-      `CRCE_REG: reg_read_data <= crce_ctr;
-      `FRME_REG: reg_read_data <= frme_ctr;
-      `BUSY_REG: reg_read_data <= busy_ctr;
-      `LNAK_REG: reg_read_data <= lnak_ctr;
-      `RNAK_REG: reg_read_data <= rnak_ctr;
-      `LACK_REG: reg_read_data <= lack_ctr;
-      `RACK_REG: reg_read_data <= rack_ctr;
-      `LOOC_REG: reg_read_data <= looc_ctr;
-      `ROOC_REG: reg_read_data <= rooc_ctr;
-      `CRDT_REG: reg_read_data <= {{(`REGD_BITS - `CRDT_BITS) {1'b0}},
+      `VERS_REG: reg_read_data = {`HSS_MULTIPLEXER_VERSION,`PROTOCOL_VERSION};
+      `CRCE_REG: reg_read_data = crce_ctr;
+      `FRME_REG: reg_read_data = frme_ctr;
+      `BUSY_REG: reg_read_data = busy_ctr;
+      `LNAK_REG: reg_read_data = lnak_ctr;
+      `RNAK_REG: reg_read_data = rnak_ctr;
+      `LACK_REG: reg_read_data = lack_ctr;
+      `RACK_REG: reg_read_data = rack_ctr;
+      `LOOC_REG: reg_read_data = looc_ctr;
+      `ROOC_REG: reg_read_data = rooc_ctr;
+      `CRDT_REG: reg_read_data = {{(`REGD_BITS - `CRDT_BITS) {1'b0}},
                                     reg_crdt
                                   };  // not a counter!
-      `SFRM_REG: reg_read_data <= sfrm_ctr;
-      `TFRM_REG: reg_read_data <= tfrm_ctr;
-      `DFRM_REG: reg_read_data <= dfrm_ctr;
-      `RFRM_REG: reg_read_data <= rfrm_ctr;
-      `EMPT_REG: reg_read_data <= {{(`REGD_BITS - `NUM_CHANS) {1'b0}},
+      `SFRM_REG: reg_read_data = sfrm_ctr;
+      `TFRM_REG: reg_read_data = tfrm_ctr;
+      `DFRM_REG: reg_read_data = dfrm_ctr;
+      `RFRM_REG: reg_read_data = rfrm_ctr;
+      `EMPT_REG: reg_read_data = {{(`REGD_BITS - `NUM_CHANS) {1'b0}},
                                     reg_empt
                                   };  // not a counter!
-      `FULL_REG: reg_read_data <= {{(`REGD_BITS - `NUM_CHANS) {1'b0}},
+      `FULL_REG: reg_read_data = {{(`REGD_BITS - `NUM_CHANS) {1'b0}},
                                     reg_full
                                   };  // not a counter!
-      `CFCL_REG: reg_read_data <= {{(`REGD_BITS - `NUM_CHANS) {1'b0}},
+      `CFCL_REG: reg_read_data = {{(`REGD_BITS - `NUM_CHANS) {1'b0}},
                                     reg_cfcl
                                   };  // not a counter!
-      `CFCR_REG: reg_read_data <= {{(`REGD_BITS - `NUM_CHANS) {1'b0}},
+      `CFCR_REG: reg_read_data = {{(`REGD_BITS - `NUM_CHANS) {1'b0}},
                                reg_cfcr
                              };  // not a counter!
-      `IDSO_REG: reg_read_data <= {{(`REGD_BITS-`IDLE_BITS){1'b0}}, reg_idso};
-      `IDSI_REG: reg_read_data <= {{(`REGD_BITS-`IDLE_BITS){1'b0}}, reg_idsi};
-      `HAND_REG: reg_read_data <= {{(`REGD_BITS-2){1'b0}}, reg_hand};
-      `RECO_REG: reg_read_data <= reco_ctr;
-      default:   reg_read_data <= {`REGD_BITS {1'b1}};
+      `IDSO_REG: reg_read_data = {{(`REGD_BITS-`IDLE_BITS){1'b0}}, reg_idso};
+      `IDSI_REG: reg_read_data = {{(`REGD_BITS-`IDLE_BITS){1'b0}}, reg_idsi};
+      `HAND_REG: reg_read_data = {{(`REGD_BITS-2){1'b0}}, reg_hand};
+      `RECO_REG: reg_read_data = reco_ctr;
+      default:   reg_read_data = {`REGD_BITS {1'b1}};
     endcase
   //---------------------------------------------------------------
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

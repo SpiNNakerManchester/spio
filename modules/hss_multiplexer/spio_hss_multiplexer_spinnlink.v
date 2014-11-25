@@ -160,12 +160,9 @@ module spio_hss_multiplexer_spinnlink
   wire                    frm_vld;
   wire                    frm_rdy;
 
-  // channel flow control interface (fa -> ft)
-  wire                    cfc_vld;
-
   // out-of-credit interface (fa -> ft)
   wire                    ooc_colour;
-  wire                    ooc_vld;
+  wire                    ooc_rts;
 
   // remote ack/nack interface (fd -> fa)
   wire                    rack_type;
@@ -177,7 +174,7 @@ module spio_hss_multiplexer_spinnlink
   wire                    lack_type;
   wire  [`CLR_BITS - 1:0] lack_colour;
   wire  [`SEQ_BITS - 1:0] lack_seq;
-  wire                    lack_vld;
+  wire                    lack_rts;
 
   // remote channel flow control (fd -> fa)
   wire [`NUM_CHANS - 1:0] cfc_rem;
@@ -223,6 +220,13 @@ module spio_hss_multiplexer_spinnlink
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   //--------------------------- structure -------------------------
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+  //---------------------------------------------------------------
+  // relay flow control information to the register bank
+  //---------------------------------------------------------------
+  assign reg_cfcl = cfc_loc;
+  assign reg_cfcr = cfc_rem;
+   
+
   //---------------------------------------------------------------
   // instantiate the frame assembler
   //---------------------------------------------------------------
@@ -281,8 +285,6 @@ module spio_hss_multiplexer_spinnlink
 
     // channel flow control interface
     .cfc_rem    (cfc_rem),
-    .cfc_loc    (cfc_loc),
-    .cfc_vld    (cfc_vld),
  
     // frame interface
     .frm_data   (frm_data),
@@ -293,7 +295,7 @@ module spio_hss_multiplexer_spinnlink
 
    // out-of-credit interface
     .ooc_colour (ooc_colour),
-    .ooc_vld    (ooc_vld)
+    .ooc_rts    (ooc_rts)
   );
   //---------------------------------------------------------------
 
@@ -319,17 +321,16 @@ module spio_hss_multiplexer_spinnlink
 
     // channel flow control interface
     .cfc_loc    (cfc_loc),
-    .cfc_vld    (cfc_vld),
  
     // out-of-credit interface
     .ooc_colour (ooc_colour),
-    .ooc_vld    (ooc_vld),
+    .ooc_rts    (ooc_rts),
 
     // ack/nack interface
     .ack_type   (lack_type),
     .ack_colour (lack_colour),
     .ack_seq    (lack_seq),
-    .ack_vld    (lack_vld),
+    .ack_rts    (lack_rts),
 
     // high-speed link interface
     .hsl_data   (hsl_data),
@@ -454,13 +455,13 @@ module spio_hss_multiplexer_spinnlink
     .ooc_vld    (iooc_vld),
 
     // local channel flow control interface
-    .cfc_loc (cfc_loc),
+    .cfc_loc    (cfc_loc),
 
     // ack/nack interface
     .ack_type   (lack_type),
     .ack_colour (lack_colour),
     .ack_seq    (lack_seq),
-    .ack_vld    (lack_vld),
+    .ack_rts    (lack_rts),
 
     // packet interface (to packet dispatcher)
     .pkt_data0 (opkt_data0),

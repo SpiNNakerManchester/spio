@@ -39,6 +39,7 @@ module spio_hss_multiplexer_crc_gen
   input wire 	    rst,
 
   // CRC data interface
+  input wire 	    crc_go,
   input wire 	    crc_last,
   input wire [31:0] crc_in,
   output reg [31:0] crc_out
@@ -78,7 +79,7 @@ module spio_hss_multiplexer_crc_gen
   // crc output (combinatorial)
   //---------------------------------------------------------------
   always @(*)
-     if (crc_last)
+     if (crc_last && crc_go)
        // substitute crc in last flit of every frame
        crc_out = {crc_in[31:16], new_chksum};
      else
@@ -92,10 +93,11 @@ module spio_hss_multiplexer_crc_gen
      if (rst)
        chksum <= CHKSUM_RST;
      else
-       if (crc_last)
-         chksum <= CHKSUM_RST;
-       else
-         chksum <= new_chksum;
+       if (crc_go)
+         if (crc_last)
+           chksum <= CHKSUM_RST;
+         else
+           chksum <= new_chksum;
   //---------------------------------------------------------------
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 endmodule

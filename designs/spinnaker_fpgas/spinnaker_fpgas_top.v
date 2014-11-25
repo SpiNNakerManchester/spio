@@ -13,6 +13,7 @@
  */
 
 `include "../../modules/spinnaker_link/spio_spinnaker_link.h"
+`include "../../modules/packet_counter/spio_packet_counter.h"
 
 `include "../../modules/hss_multiplexer/spio_hss_multiplexer_common.h"
 `include "../../modules/hss_multiplexer/spio_hss_multiplexer_reg_bank.h"
@@ -27,6 +28,9 @@ module spinnaker_fpgas_top #( // Version number for top-level design
                               // Enable chip-scope Virtual I/O interface (e.g.
                               // to access HSS multiplexer debug register banks)
                             , parameter DEBUG_CHIPSCOPE_VIO = 0
+                              // include switch and arbiter modules for peripheral
+                              // port (also doubler and halver modules).
+                            , parameter INCLUDE_PERIPH_SUPPORT = 0
                               // Which FPGA should this module be compiled for
                             , parameter FPGA_ID = 1
                               // Should North and South connections be connected
@@ -100,7 +104,9 @@ localparam    B2B_RXEQMIX = 2'b10;   // 5.4 dB
 localparam PERIPH_RXEQMIX = 2'b00;   // Default
 localparam   RING_RXEQMIX = 2'b00;   // Default
 
-localparam    B2B_TXDIFFCTRL = 4'b0010; // 495 mV
+// !!lap localparam    B2B_TXDIFFCTRL = 4'b0010; // 495 mV
+localparam    B2B_TXDIFFCTRL = 4'b0110; // 762 mV
+// !!lap localparam    B2B_TXDIFFCTRL = 4'b1010; // 1054 mV
 localparam PERIPH_TXDIFFCTRL = 4'b0000; // Default
 localparam   RING_TXDIFFCTRL = 4'b0000; // Default
 
@@ -143,6 +149,9 @@ wire spi_reset_i;
 // Reset for register bank
 wire reg_bank_reset_i;
 
+// Reset for packet counters
+wire pkt_ctr_reset_i;
+
 // LED signals
 wire red_led_i;
 wire grn_led_i;
@@ -183,6 +192,9 @@ wire spi_clk_i;
 
 // Register bank clock
 wire reg_bank_clk_i;
+
+// packet counters clock
+wire pkt_ctr_clk_i;
 
 // Are the user clocks stable?
 wire usrclks_stable_i;
@@ -291,6 +303,10 @@ wire [13:0] top_reg_addr_i;
 wire [31:0] top_reg_read_data_i;
 wire [31:0] top_reg_write_data_i;
 
+// packet counter signals
+wire [`CTRA_BITS-1:0] pkt_ctr_addr_i [1:0];
+wire [`CTRD_BITS-1:0] pkt_ctr_read_data_i [1:0];
+
 // Routing (spio_switch) status signals
 wire [1:0] switch_blocked_outputs_i  [`NUM_CHANS-1:0];
 wire [1:0] switch_selected_outputs_i [`NUM_CHANS-1:0];
@@ -332,6 +348,8 @@ assign led_reset_i = !usrclks_stable_i;
 assign spi_reset_i = !usrclks_stable_i;
 
 assign reg_bank_reset_i = !usrclks_stable_i;
+
+assign pkt_ctr_reset_i = !usrclks_stable_i;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -547,6 +565,8 @@ assign spi_clk_i = clk_75_i;
 
 assign reg_bank_clk_i = clk_75_i;
 
+assign pkt_ctr_clk_i = clk_75_i;
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // GTP Block
@@ -638,7 +658,7 @@ generate case ({NORTH_SOUTH_ON_FRONT, FPGA_ID})
 		             ,   .TILE0_TXN1_OUT             (HSS_TXN_OUT[1])
 		             ,   .TILE0_TXP0_OUT             (HSS_TXP_OUT[0])
 		             ,   .TILE0_TXP1_OUT             (HSS_TXP_OUT[1])
-		                 // Receive Ports - Channel Bonding (Unused)
+/* !!lap		                 // Receive Ports - Channel Bonding (Unused)
 		             ,   .TILE0_RXCHANBONDSEQ0_OUT   () // Unused
 		             ,   .TILE0_RXCHANBONDSEQ1_OUT   () // Unused
 		             ,   .TILE0_RXCHANISALIGNED0_OUT () // Unused
@@ -650,7 +670,7 @@ generate case ({NORTH_SOUTH_ON_FRONT, FPGA_ID})
 		             ,   .TILE0_RXCHBONDSLAVE0_IN    (1'b0) // Unused
 		             ,   .TILE0_RXCHBONDSLAVE1_IN    (1'b0) // Unused
 		             ,   .TILE0_RXENCHANSYNC0_IN     (1'b0) // Unused
-		             ,   .TILE0_RXENCHANSYNC1_IN     (1'b0) // Unused
+		             ,   .TILE0_RXENCHANSYNC1_IN     (1'b0) // Unused  !!lap */
 		                 // Analog signal generation settings
 		             ,   .TILE0_RXEQMIX0_IN              (B2B_RXEQMIX)
 		             ,   .TILE0_RXEQMIX1_IN              (B2B_RXEQMIX)
@@ -726,7 +746,7 @@ generate case ({NORTH_SOUTH_ON_FRONT, FPGA_ID})
 		             ,   .TILE0_TXN1_OUT             (HSS_TXN_OUT[1])
 		             ,   .TILE0_TXP0_OUT             (HSS_TXP_OUT[0])
 		             ,   .TILE0_TXP1_OUT             (HSS_TXP_OUT[1])
-		                 // Receive Ports - Channel Bonding (Unused)
+/* !!lap		                 // Receive Ports - Channel Bonding (Unused)
 		             ,   .TILE0_RXCHANBONDSEQ0_OUT   () // Unused
 		             ,   .TILE0_RXCHANBONDSEQ1_OUT   () // Unused
 		             ,   .TILE0_RXCHANISALIGNED0_OUT () // Unused
@@ -738,7 +758,7 @@ generate case ({NORTH_SOUTH_ON_FRONT, FPGA_ID})
 		             ,   .TILE0_RXCHBONDSLAVE0_IN    (1'b0) // Unused
 		             ,   .TILE0_RXCHBONDSLAVE1_IN    (1'b0) // Unused
 		             ,   .TILE0_RXENCHANSYNC0_IN     (1'b0) // Unused
-		             ,   .TILE0_RXENCHANSYNC1_IN     (1'b0) // Unused
+		             ,   .TILE0_RXENCHANSYNC1_IN     (1'b0) // Unused  !!lap */
 		                 // Analog signal generation settings
 		             ,   .TILE0_RXEQMIX0_IN              (   B2B_RXEQMIX)
 		             ,   .TILE0_RXEQMIX1_IN              (PERIPH_RXEQMIX)
@@ -814,7 +834,7 @@ generate case ({NORTH_SOUTH_ON_FRONT, FPGA_ID})
 		             ,   .TILE0_TXN1_OUT             (HSS_TXN_OUT[1])
 		             ,   .TILE0_TXP0_OUT             (HSS_TXP_OUT[0])
 		             ,   .TILE0_TXP1_OUT             (HSS_TXP_OUT[1])
-		                 // Receive Ports - Channel Bonding (Unused)
+/* !!lap		                 // Receive Ports - Channel Bonding (Unused)
 		             ,   .TILE0_RXCHANBONDSEQ0_OUT   () // Unused
 		             ,   .TILE0_RXCHANBONDSEQ1_OUT   () // Unused
 		             ,   .TILE0_RXCHANISALIGNED0_OUT () // Unused
@@ -826,7 +846,7 @@ generate case ({NORTH_SOUTH_ON_FRONT, FPGA_ID})
 		             ,   .TILE0_RXCHBONDSLAVE0_IN    (1'b0) // Unused
 		             ,   .TILE0_RXCHBONDSLAVE1_IN    (1'b0) // Unused
 		             ,   .TILE0_RXENCHANSYNC0_IN     (1'b0) // Unused
-		             ,   .TILE0_RXENCHANSYNC1_IN     (1'b0) // Unused
+		             ,   .TILE0_RXENCHANSYNC1_IN     (1'b0) // Unused  !!lap */
 		                 // Analog signal generation settings
 		             ,   .TILE0_RXEQMIX0_IN              (PERIPH_RXEQMIX)
 		             ,   .TILE0_RXEQMIX1_IN              (   B2B_RXEQMIX)
@@ -907,7 +927,7 @@ generate case ({NORTH_SOUTH_ON_FRONT, FPGA_ID})
 		             ,   .TILE0_TXN1_OUT             (HSS_TXN_OUT[3])
 		             ,   .TILE0_TXP0_OUT             (HSS_TXP_OUT[2])
 		             ,   .TILE0_TXP1_OUT             (HSS_TXP_OUT[3])
-		                 // Receive Ports - Channel Bonding (Unused)
+/* !!lap 		                 // Receive Ports - Channel Bonding (Unused)
 		             ,   .TILE0_RXCHANBONDSEQ0_OUT   () // Unused
 		             ,   .TILE0_RXCHANBONDSEQ1_OUT   () // Unused
 		             ,   .TILE0_RXCHANISALIGNED0_OUT () // Unused
@@ -919,7 +939,7 @@ generate case ({NORTH_SOUTH_ON_FRONT, FPGA_ID})
 		             ,   .TILE0_RXCHBONDSLAVE0_IN    (1'b0) // Unused
 		             ,   .TILE0_RXCHBONDSLAVE1_IN    (1'b0) // Unused
 		             ,   .TILE0_RXENCHANSYNC0_IN     (1'b0) // Unused
-		             ,   .TILE0_RXENCHANSYNC1_IN     (1'b0) // Unused
+		             ,   .TILE0_RXENCHANSYNC1_IN     (1'b0) // Unused  !!lap */
 		                 // Analog signal generation settings
 		             ,   .TILE0_RXEQMIX0_IN              (PERIPH_RXEQMIX)
 		             ,   .TILE0_RXEQMIX1_IN              (  RING_RXEQMIX)
@@ -995,7 +1015,7 @@ generate case ({NORTH_SOUTH_ON_FRONT, FPGA_ID})
 		             ,   .TILE0_TXN1_OUT             (HSS_TXN_OUT[3])
 		             ,   .TILE0_TXP0_OUT             (HSS_TXP_OUT[2])
 		             ,   .TILE0_TXP1_OUT             (HSS_TXP_OUT[3])
-		                 // Receive Ports - Channel Bonding (Unused)
+/* !!lap		                 // Receive Ports - Channel Bonding (Unused)
 		             ,   .TILE0_RXCHANBONDSEQ0_OUT   () // Unused
 		             ,   .TILE0_RXCHANBONDSEQ1_OUT   () // Unused
 		             ,   .TILE0_RXCHANISALIGNED0_OUT () // Unused
@@ -1007,7 +1027,7 @@ generate case ({NORTH_SOUTH_ON_FRONT, FPGA_ID})
 		             ,   .TILE0_RXCHBONDSLAVE0_IN    (1'b0) // Unused
 		             ,   .TILE0_RXCHBONDSLAVE1_IN    (1'b0) // Unused
 		             ,   .TILE0_RXENCHANSYNC0_IN     (1'b0) // Unused
-		             ,   .TILE0_RXENCHANSYNC1_IN     (1'b0) // Unused
+		             ,   .TILE0_RXENCHANSYNC1_IN     (1'b0) // Unused  !!lap */
 		                 // Analog signal generation settings
 		             ,   .TILE0_RXEQMIX0_IN              ( B2B_RXEQMIX)
 		             ,   .TILE0_RXEQMIX1_IN              (RING_RXEQMIX)
@@ -1083,7 +1103,7 @@ generate case ({NORTH_SOUTH_ON_FRONT, FPGA_ID})
 		             ,   .TILE0_TXN1_OUT             (HSS_TXN_OUT[3])
 		             ,   .TILE0_TXP0_OUT             (HSS_TXP_OUT[2])
 		             ,   .TILE0_TXP1_OUT             (HSS_TXP_OUT[3])
-		                 // Receive Ports - Channel Bonding (Unused)
+/* !!lap		                 // Receive Ports - Channel Bonding (Unused)
 		             ,   .TILE0_RXCHANBONDSEQ0_OUT   () // Unused
 		             ,   .TILE0_RXCHANBONDSEQ1_OUT   () // Unused
 		             ,   .TILE0_RXCHANISALIGNED0_OUT () // Unused
@@ -1095,7 +1115,7 @@ generate case ({NORTH_SOUTH_ON_FRONT, FPGA_ID})
 		             ,   .TILE0_RXCHBONDSLAVE0_IN    (1'b0) // Unused
 		             ,   .TILE0_RXCHBONDSLAVE1_IN    (1'b0) // Unused
 		             ,   .TILE0_RXENCHANSYNC0_IN     (1'b0) // Unused
-		             ,   .TILE0_RXENCHANSYNC1_IN     (1'b0) // Unused
+		             ,   .TILE0_RXENCHANSYNC1_IN     (1'b0) // Unused  !!lap */
 		                 // Analog signal generation settings
 		             ,   .TILE0_RXEQMIX0_IN              ( B2B_RXEQMIX)
 		             ,   .TILE0_RXEQMIX1_IN              (RING_RXEQMIX)
@@ -1282,16 +1302,24 @@ generate for (i = 0; i < 16; i = i + 1)
 		wire       synced_sl_out_ack_i;
 		wire [6:0] synced_sl_in_data_i;
 		
+		// SpiNNaker link (synchronous) fast clock packet interfaces
+		wire [`PKT_BITS-1:0] slfc_pkt_rxdata_i;
+		wire                 slfc_pkt_rxvld_i;
+		wire                 slfc_pkt_rxrdy_i;
+		wire [`PKT_BITS-1:0] slfc_pkt_txdata_i;
+		wire                 slfc_pkt_txvld_i;
+		wire                 slfc_pkt_txrdy_i;
+
+
+
 		// FPGA -> SpiNNaker
 		spio_spinnaker_link_sender
-		spio_spinnaker_link_sender_i( .CLK_IN           (spinnaker_link_clk1_i)
+		spio_spinnaker_link_sender_i( .CLK_IN           (spinnaker_link_clk0_i)
 		                            , .RESET_IN         (spinnaker_link_reset_i)
-		                              // Packet counter interface
-		                            , .COUNT_PACKET_OUT () // Unused
 		                              // Synchronous packet interface
-		                            , .PKT_DATA_IN      (sl_pkt_txdata_i[i])
-		                            , .PKT_VLD_IN       (sl_pkt_txvld_i[i])
-		                            , .PKT_RDY_OUT      (sl_pkt_txrdy_i[i])
+		                            , .PKT_DATA_IN      (slfc_pkt_txdata_i)
+		                            , .PKT_VLD_IN       (slfc_pkt_txvld_i)
+		                            , .PKT_RDY_OUT      (slfc_pkt_txrdy_i)
 		                            // SpiNNaker link asynchronous interface
 		                            , .SL_DATA_2OF7_OUT (sl_out_data_i[i])
 		                            , .SL_ACK_IN        (synced_sl_out_ack_i)
@@ -1299,29 +1327,55 @@ generate for (i = 0; i < 16; i = i + 1)
 		
 		// SpiNNaker -> FPGA
 		spio_spinnaker_link_receiver
-		spio_spinnaker_link_receiver_i( .CLK_IN           (spinnaker_link_clk1_i)
+		spio_spinnaker_link_receiver_i( .CLK_IN           (spinnaker_link_clk0_i)
 		                              , .RESET_IN         (spinnaker_link_reset_i)
-		                                // Packet counter interface
-		                              , .COUNT_PACKET_OUT () // Unused
 		                              // SpiNNaker link asynchronous interface
 		                              , .SL_DATA_2OF7_IN  (synced_sl_in_data_i)
 		                              , .SL_ACK_OUT       (sl_in_ack_i[i])
 		                                // Synchronous packet interface
-		                              , .PKT_DATA_OUT     (sl_pkt_rxdata_i[i])
-		                              , .PKT_VLD_OUT      (sl_pkt_rxvld_i[i])
-		                              , .PKT_RDY_IN       (sl_pkt_rxrdy_i[i])
+		                              , .PKT_DATA_OUT     (slfc_pkt_rxdata_i)
+		                              , .PKT_VLD_OUT      (slfc_pkt_rxvld_i)
+		                              , .PKT_RDY_IN       (slfc_pkt_rxrdy_i)
 		                              );
 		
-		// Synchronisers
+		// packet synchronisers (fast clock <-> normal clock)
+		spio_hss_multiplexer_pkt_fifo_sync
+		spio_hss_multiplexer_pkt_fifo_sync_i ( .WCLK_IN          (spinnaker_link_clk0_i)
+		                                     , .RCLK_IN          (spinnaker_link_clk1_i)
+		                                     , .RESET_IN         (spinnaker_link_reset_i)
+						     // fast clock (write) packet interface
+ 						     , .SFI_DATA_IN      (slfc_pkt_rxdata_i)
+						     , .SFI_VLD_IN       (slfc_pkt_rxvld_i)
+						     , .SFI_RDY_OUT      (slfc_pkt_rxrdy_i)
+						     // normal clock (read) packet interface
+ 						     , .SFO_DATA_OUT     (sl_pkt_rxdata_i[i])
+						     , .SFO_VLD_OUT      (sl_pkt_rxvld_i[i])
+						     , .SFO_RDY_IN       (sl_pkt_rxrdy_i[i])
+						     );
+
+		spio_hss_multiplexer_pkt_fifo_sync
+		spio_hss_multiplexer_pkt_fifo_sync2_i ( .WCLK_IN          (spinnaker_link_clk1_i)
+		                                      , .RCLK_IN          (spinnaker_link_clk0_i)
+		                                      , .RESET_IN         (spinnaker_link_reset_i)
+						      // normal clock (write) packet interface
+ 				     		      , .SFI_DATA_IN      (sl_pkt_txdata_i[i])
+						      , .SFI_VLD_IN       (sl_pkt_txvld_i[i])
+						      , .SFI_RDY_OUT      (sl_pkt_txrdy_i[i])
+						      // fast clock (read) packet interface
+ 						      , .SFO_DATA_OUT     (slfc_pkt_txdata_i)
+						      , .SFO_VLD_OUT      (slfc_pkt_txvld_i)
+						      , .SFO_RDY_IN       (slfc_pkt_txrdy_i)
+						      );
+
+		// async flit synchronisers
 		spio_spinnaker_link_sync#(.SIZE(1))
 		spio_spinnaker_link_sync_i( .CLK_IN (spinnaker_link_clk0_i)
 		                          , .IN     (sl_out_ack_i[i])
 		                          , .OUT    (synced_sl_out_ack_i)
 		                          );
 		
-		spio_spinnaker_link_sync2#(.SIZE(7))
-		spio_spinnaker_link_sync2_i( .CLK0_IN (spinnaker_link_clk0_i)
-		                           , .CLK1_IN (spinnaker_link_clk1_i)
+		spio_spinnaker_link_sync#(.SIZE(7))
+		spio_spinnaker_link_sync2_i( .CLK_IN (spinnaker_link_clk0_i)
 		                           , .IN      (sl_in_data_i[i])
 		                           , .OUT     (synced_sl_in_data_i)
 		                           );
@@ -1336,95 +1390,110 @@ endgenerate
 
 // Route all packets from chips to the first board-to-board link rather than
 // peripheral except those with a certain key when a peripheral is connected.
-generate for (i = 0; i < `NUM_CHANS; i = i + 1)
-	begin : spinnaker_rx_link_routing
-		// Add an interface between the 75 MHz board-to-board links and 37.5 MHz
-		// peripheral links 
-		wire [`PKT_BITS-1:0] fast_periph_pkt_txdata_i;
-		wire                 fast_periph_pkt_txvld_i;
-		wire                 fast_periph_pkt_txrdy_i;
-		spio_link_speed_halver #( .PKT_BITS(`PKT_BITS))
-		spio_link_speed_halver_i( .RESET_IN(arbiter_reset_i)
-		                        , .SCLK_IN(periph_usrclk2_i)
-		                        , .FCLK_IN(   b2b_usrclk2_i)
-		                          // Incoming signals (on CLK_IN)
-		                        , .DATA_IN(fast_periph_pkt_txdata_i)
-		                        , .VLD_IN( fast_periph_pkt_txvld_i)
-		                        , .RDY_OUT(fast_periph_pkt_txrdy_i)
-		                          // Outgoing signals (on CLK2_IN)
-		                        , .DATA_OUT(periph_pkt_txdata_i[i])
-		                        , .VLD_OUT( periph_pkt_txvld_i[i])
-		                        , .RDY_IN(  periph_pkt_txrdy_i[i])
-		                        );
+generate if (INCLUDE_PERIPH_SUPPORT)
+	for (i = 0; i < `NUM_CHANS; i = i + 1)
+		begin : spinnaker_rx_link_routing
+			// Add an interface between the 75 MHz board-to-board links and 37.5 MHz
+			// peripheral links 
+			wire [`PKT_BITS-1:0] fast_periph_pkt_txdata_i;
+			wire                 fast_periph_pkt_txvld_i;
+			wire                 fast_periph_pkt_txrdy_i;
+			spio_link_speed_halver #( .PKT_BITS(`PKT_BITS))
+			spio_link_speed_halver_i( .RESET_IN(arbiter_reset_i)
+			                        , .SCLK_IN(periph_usrclk2_i)
+			                        , .FCLK_IN(   b2b_usrclk2_i)
+			                          // Incoming signals (on CLK_IN)
+			                        , .DATA_IN(fast_periph_pkt_txdata_i)
+			                        , .VLD_IN( fast_periph_pkt_txvld_i)
+			                        , .RDY_OUT(fast_periph_pkt_txrdy_i)
+			                          // Outgoing signals (on CLK2_IN)
+			                        , .DATA_OUT(periph_pkt_txdata_i[i])
+			                        , .VLD_OUT( periph_pkt_txvld_i[i])
+			                        , .RDY_IN(  periph_pkt_txrdy_i[i])
+			                        );
+			
+			// Only match non-emergency routed multicast packets
+			wire is_mc_packet_i = (sl_pkt_rxdata_i[i][0+:8]  & 8'b11110000) == 8'b00000000;
+			wire key_matches_i  = (sl_pkt_rxdata_i[i][8+:32] & periph_mc_mask_i) == periph_mc_key_i;
+			
+			// The output ports from the switch (which must be broken onto their various
+			// buses)
+			wire [(`PKT_BITS*2)-1:0] switch_out_data_i;
+			wire [1:0]               switch_out_vld_i;
+			wire [1:0]               switch_out_rdy_i;
+			
+			// Cause the switch to drop the current packet.
+			wire drop_i;
+			
+			// Route packets arriving from the first bank of spinnaker chips.
+			spio_switch #( .PKT_BITS(`PKT_BITS)
+			             , .NUM_PORTS(2)
+			             )
+			spio_switch_i( .CLK_IN(b2b_usrclk2_i)
+			             , .RESET_IN(arbiter_reset_i)
+			             // Input port (from SpiNNaker chips)
+			             , .IN_DATA_IN           (sl_pkt_rxdata_i[i])
+			             , .IN_OUTPUT_SELECT_IN  ( ( is_mc_packet_i
+			                                       & key_matches_i
+			                                       & periph_handshake_complete_i
+			                                       ) ? 2'b10 : 2'b01 
+			                                     )
+			             , .IN_VLD_IN            (sl_pkt_rxvld_i[i])
+			             , .IN_RDY_OUT           (sl_pkt_rxrdy_i[i])
+			             // Output ports (to b2b and periph links)
+			             , .OUT_DATA_OUT         (switch_out_data_i)
+			             , .OUT_VLD_OUT          (switch_out_vld_i)
+			             , .OUT_RDY_IN           (switch_out_rdy_i)
+			             // Output blocking status
+			             , .BLOCKED_OUTPUTS_OUT  (switch_blocked_outputs_i[i])
+			             , .SELECTED_OUTPUTS_OUT (switch_selected_outputs_i[i])
+			             // Force packet drop (disabled, for now)
+			             , .DROP_IN              (drop_i)
+			             // Dropped packet port
+			             , .DROPPED_DATA_OUT     (switch_dropped_data_i[i])
+			             , .DROPPED_OUTPUTS_OUT  (switch_dropped_outputs_i[i])
+			             , .DROPPED_VLD_OUT      (switch_dropped_vld_i[i])
+			             );
+			
+			
+			// XXX: Tempoary solution to preventing blocked streams due to disconnected
+			// devices: drop packets whenever blocked while also being known to be
+			// disconnected.
+			assign drop_i = |(switch_blocked_outputs_i[i] & { !periph_handshake_complete_i
+			                                                , !b2b_handshake_complete_i[0]
+			                                                });
+			
+			
+			// Connect switch's first output port to b2b link
+			assign b2b_pkt_txdata_i[0][i] = switch_out_data_i[0*`PKT_BITS+:`PKT_BITS];
+			assign b2b_pkt_txvld_i[0][i]  = switch_out_vld_i[0];
+			assign switch_out_rdy_i[0]    = b2b_pkt_txrdy_i[0][i];
+			
+			// Connect switch's second output port to peripheral link
+			assign fast_periph_pkt_txdata_i = switch_out_data_i[1*`PKT_BITS+:`PKT_BITS];
+			assign fast_periph_pkt_txvld_i  = switch_out_vld_i[1];
+			assign switch_out_rdy_i[1]      = fast_periph_pkt_txrdy_i;
+			
+			// Connect the second bank of spinnaker chips straight back to the
+			// second board-to-board link.
+			assign b2b_pkt_txdata_i[1][i] = sl_pkt_rxdata_i[i+8];
+			assign b2b_pkt_txvld_i[1][i]  = sl_pkt_rxvld_i[i+8];
+			assign sl_pkt_rxrdy_i[i+8]    = b2b_pkt_txrdy_i[1][i];
+		end
+else
+	for (i = 0; i < `NUM_CHANS; i = i + 1)
+		begin : spinnaker_rx_link_bypass_routing
+			// Connect the spinnaker chips straight to the board-to-board link
+			assign b2b_pkt_txdata_i[0][i] = sl_pkt_rxdata_i[i];
+			assign b2b_pkt_txvld_i[0][i]  = sl_pkt_rxvld_i[i];
+			assign sl_pkt_rxrdy_i[i]      = b2b_pkt_txrdy_i[0][i];
+			assign b2b_pkt_txdata_i[1][i] = sl_pkt_rxdata_i[i+8];
+			assign b2b_pkt_txvld_i[1][i]  = sl_pkt_rxvld_i[i+8];
+			assign sl_pkt_rxrdy_i[i+8]    = b2b_pkt_txrdy_i[1][i];
 		
-		// Only match non-emergency routed multicast packets
-		wire is_mc_packet_i = (sl_pkt_rxdata_i[i][0+:8]  & 8'b11110000) == 8'b00000000;
-		wire key_matches_i  = (sl_pkt_rxdata_i[i][8+:32] & periph_mc_mask_i) == periph_mc_key_i;
-		
-		// The output ports from the switch (which must be broken onto their various
-		// buses)
-		wire [(`PKT_BITS*2)-1:0] switch_out_data_i;
-		wire [1:0]               switch_out_vld_i;
-		wire [1:0]               switch_out_rdy_i;
-		
-		// Cause the switch to drop the current packet.
-		wire drop_i;
-		
-		// Route packets arriving from the first bank of spinnaker chips.
-		spio_switch #( .PKT_BITS(`PKT_BITS)
-		             , .NUM_PORTS(2)
-		             )
-		spio_switch_i( .CLK_IN(b2b_usrclk2_i)
-		             , .RESET_IN(arbiter_reset_i)
-		             // Input port (from SpiNNaker chips)
-		             , .IN_DATA_IN           (sl_pkt_rxdata_i[i])
-		             , .IN_OUTPUT_SELECT_IN  ( ( is_mc_packet_i
-		                                       & key_matches_i
-		                                       & periph_handshake_complete_i
-		                                       ) ? 2'b10 : 2'b01 
-		                                     )
-		             , .IN_VLD_IN            (sl_pkt_rxvld_i[i])
-		             , .IN_RDY_OUT           (sl_pkt_rxrdy_i[i])
-		             // Output ports (to b2b and periph links)
-		             , .OUT_DATA_OUT         (switch_out_data_i)
-		             , .OUT_VLD_OUT          (switch_out_vld_i)
-		             , .OUT_RDY_IN           (switch_out_rdy_i)
-		             // Output blocking status
-		             , .BLOCKED_OUTPUTS_OUT  (switch_blocked_outputs_i[i])
-		             , .SELECTED_OUTPUTS_OUT (switch_selected_outputs_i[i])
-		             // Force packet drop (disabled, for now)
-		             , .DROP_IN              (drop_i)
-		             // Dropped packet port
-		             , .DROPPED_DATA_OUT     (switch_dropped_data_i[i])
-		             , .DROPPED_OUTPUTS_OUT  (switch_dropped_outputs_i[i])
-		             , .DROPPED_VLD_OUT      (switch_dropped_vld_i[i])
-		             );
-		
-		
-		// XXX: Tempoary solution to preventing blocked streams due to disconnected
-		// devices: drop packets whenever blocked while also being known to be
-		// disconnected.
-		assign drop_i = |(switch_blocked_outputs_i[i] & { !periph_handshake_complete_i
-		                                                , !b2b_handshake_complete_i[0]
-		                                                });
-		
-		
-		// Connect switch's first output port to b2b link
-		assign b2b_pkt_txdata_i[0][i] = switch_out_data_i[0*`PKT_BITS+:`PKT_BITS];
-		assign b2b_pkt_txvld_i[0][i]  = switch_out_vld_i[0];
-		assign switch_out_rdy_i[0]    = b2b_pkt_txrdy_i[0][i];
-		
-		// Connect switch's second output port to peripheral link
-		assign fast_periph_pkt_txdata_i = switch_out_data_i[1*`PKT_BITS+:`PKT_BITS];
-		assign fast_periph_pkt_txvld_i  = switch_out_vld_i[1];
-		assign switch_out_rdy_i[1]      = fast_periph_pkt_txrdy_i;
-		
-		// Connect the second bank of spinnaker chips to straight back to the
-		// second board-to-board link.
-		assign b2b_pkt_txdata_i[1][i] = sl_pkt_rxdata_i[i+8];
-		assign b2b_pkt_txvld_i[1][i]  = sl_pkt_rxvld_i[i+8];
-		assign sl_pkt_rxrdy_i[i+8]    = b2b_pkt_txrdy_i[1][i];
-	end
+			// and invalidate the periph links
+			assign periph_pkt_txvld_i[i]  = 1'b0;
+		end
 endgenerate
 
 
@@ -1432,50 +1501,65 @@ endgenerate
 // Arbitration of packets for SpiNNaker chip outputs
 ////////////////////////////////////////////////////////////////////////////////
 
-generate for (i = 0; i < `NUM_CHANS; i = i + 1)
-	begin : spinnaker_tx_link_arbitration
-		// Add an interface between the 37.5 MHz peripheral links and 75 MHz
-		// board-to-board links
-		wire [`PKT_BITS-1:0] fast_periph_pkt_rxdata_i;
-		wire                 fast_periph_pkt_rxvld_i;
-		wire                 fast_periph_pkt_rxrdy_i;
-		spio_link_speed_doubler #( .PKT_BITS(`PKT_BITS))
-		spio_link_speed_doubler_i( .RESET_IN(arbiter_reset_i)
-		                         , .SCLK_IN(periph_usrclk2_i)
-		                         , .FCLK_IN(   b2b_usrclk2_i)
-		                           // Incoming signals (on CLK_IN)
-		                         , .DATA_IN(periph_pkt_rxdata_i[i])
-		                         , .VLD_IN( periph_pkt_rxvld_i[i])
-		                         , .RDY_OUT(periph_pkt_rxrdy_i[i])
-		                           // Outgoing signals (on CLK2_IN)
-		                         , .DATA_OUT(fast_periph_pkt_rxdata_i)
-		                         , .VLD_OUT( fast_periph_pkt_rxvld_i)
-		                         , .RDY_IN(  fast_periph_pkt_rxrdy_i)
-		                         );
+generate if (INCLUDE_PERIPH_SUPPORT)
+	for (i = 0; i < `NUM_CHANS; i = i + 1)
+		begin : spinnaker_tx_link_arbitration
+			// Add an interface between the 37.5 MHz peripheral links and 75 MHz
+			// board-to-board links
+			wire [`PKT_BITS-1:0] fast_periph_pkt_rxdata_i;
+			wire                 fast_periph_pkt_rxvld_i;
+			wire                 fast_periph_pkt_rxrdy_i;
+			spio_link_speed_doubler #( .PKT_BITS(`PKT_BITS))
+			spio_link_speed_doubler_i( .RESET_IN(arbiter_reset_i)
+			                         , .SCLK_IN(periph_usrclk2_i)
+			                         , .FCLK_IN(   b2b_usrclk2_i)
+			                           // Incoming signals (on CLK_IN)
+			                         , .DATA_IN(periph_pkt_rxdata_i[i])
+			                         , .VLD_IN( periph_pkt_rxvld_i[i])
+			                         , .RDY_OUT(periph_pkt_rxrdy_i[i])
+			                           // Outgoing signals (on CLK2_IN)
+			                         , .DATA_OUT(fast_periph_pkt_rxdata_i)
+			                         , .VLD_OUT( fast_periph_pkt_rxvld_i)
+			                         , .RDY_IN(  fast_periph_pkt_rxrdy_i)
+			                         );
+			
+			// Arbitrate the first board-to-board link with the peripheral link
+			spio_rr_arbiter #( .PKT_BITS(`PKT_BITS))
+			spio_rr_arbiter_i( .CLK_IN(b2b_usrclk2_i)
+			                 , .RESET_IN(arbiter_reset_i)
+			                   // Input ports
+			                 , .DATA0_IN(   b2b_pkt_rxdata_i[0][i])
+			                 , .VLD0_IN(    b2b_pkt_rxvld_i[0][i])
+			                 , .RDY0_OUT(   b2b_pkt_rxrdy_i[0][i])
+			                 , .DATA1_IN(fast_periph_pkt_rxdata_i)
+			                 , .VLD1_IN( fast_periph_pkt_rxvld_i)
+			                 , .RDY1_OUT(fast_periph_pkt_rxrdy_i)
+			                   // Output port where the merged stream will be sent
+			                 , .DATA_OUT(sl_pkt_txdata_i[i])
+			                 , .VLD_OUT(sl_pkt_txvld_i[i])
+			                 , .RDY_IN(sl_pkt_txrdy_i[i])
+			                 );
+			
+			// The second board-to-board connection worth of links should be directly
+			// connected since there is currently no contention for these link.
+			assign sl_pkt_txdata_i[i+8]  = b2b_pkt_rxdata_i[1][i];
+			assign sl_pkt_txvld_i[i+8]   = b2b_pkt_rxvld_i[1][i];
+			assign b2b_pkt_rxrdy_i[1][i] = sl_pkt_txrdy_i[i+8];
+		end
+else
+	for (i = 0; i < `NUM_CHANS; i = i + 1)
+		begin : spinnaker_tx_link_bypass_arbitration
+			// Connect the spinnaker chips straight to the board-to-board link
+			assign sl_pkt_txdata_i[i]    = b2b_pkt_rxdata_i[0][i];
+			assign sl_pkt_txvld_i[i]     = b2b_pkt_rxvld_i[0][i];
+			assign b2b_pkt_rxrdy_i[0][i] = sl_pkt_txrdy_i[i];
+			assign sl_pkt_txdata_i[i+8]  = b2b_pkt_rxdata_i[1][i];
+			assign sl_pkt_txvld_i[i+8]   = b2b_pkt_rxvld_i[1][i];
+			assign b2b_pkt_rxrdy_i[1][i] = sl_pkt_txrdy_i[i+8];
 		
-		// Arbitrate the first board-to-board link with the peripheral link
-		spio_rr_arbiter #( .PKT_BITS(`PKT_BITS))
-		spio_rr_arbiter_i( .CLK_IN(b2b_usrclk2_i)
-		                 , .RESET_IN(arbiter_reset_i)
-		                   // Input ports
-		                 , .DATA0_IN(   b2b_pkt_rxdata_i[0][i])
-		                 , .VLD0_IN(    b2b_pkt_rxvld_i[0][i])
-		                 , .RDY0_OUT(   b2b_pkt_rxrdy_i[0][i])
-		                 , .DATA1_IN(fast_periph_pkt_rxdata_i)
-		                 , .VLD1_IN( fast_periph_pkt_rxvld_i)
-		                 , .RDY1_OUT(fast_periph_pkt_rxrdy_i)
-		                   // Output port where the merged stream will be sent
-		                 , .DATA_OUT(sl_pkt_txdata_i[i])
-		                 , .VLD_OUT(sl_pkt_txvld_i[i])
-		                 , .RDY_IN(sl_pkt_txrdy_i[i])
-		                 );
-		
-		// The second board-to-board connection worth of links should be directly
-		// connected since there is currently no contention for these link.
-		assign sl_pkt_txdata_i[i+8]    = b2b_pkt_rxdata_i[1][i];
-		assign sl_pkt_txvld_i[i+8]     = b2b_pkt_rxvld_i[1][i];
-		assign b2b_pkt_rxrdy_i[1][i] = sl_pkt_txrdy_i[i+8];
-	end
+			// and invalidate the periph links
+			assign periph_pkt_rxrdy_i[i] = 1'b0;
+		end
 endgenerate
 
 
@@ -1560,18 +1644,23 @@ spinnaker_fpgas_spi_address_decode_i( // Un-decoded interface
                                     , .PERIPH_READ_OUT() // Unused
                                     ,   .RING_READ_OUT() // Unused
                                     ,    .TOP_READ_OUT() // Unused
+                                    ,    .CTR_READ_OUT() // Unused
                                     ,    .B2B_WRITE_OUT({ b2b_reg_write_i[1]
                                                         , b2b_reg_write_i[0]
                                                         })
                                     , .PERIPH_WRITE_OUT(periph_reg_write_i)
                                     ,   .RING_WRITE_OUT(ring_reg_write_i)
                                     ,    .TOP_WRITE_OUT(top_reg_write_i)
+                                    ,    .CTR_WRITE_OUT() // Unused
                                     ,    .B2B_READ_VALUE_IN({ b2b_reg_read_data_i[1]
                                                             , b2b_reg_read_data_i[0]
                                                             })
                                     , .PERIPH_READ_VALUE_IN(periph_reg_read_data_i)
                                     ,   .RING_READ_VALUE_IN(ring_reg_read_data_i)
                                     ,    .TOP_READ_VALUE_IN(top_reg_read_data_i)
+                                    ,    .CTR_READ_VALUE_IN({ pkt_ctr_read_data_i[1]
+                                                            , pkt_ctr_read_data_i[0]
+                                                            })
                                     );
 
 // Truncate decoded addresses and distribute to all devices
@@ -1580,6 +1669,8 @@ assign    b2b_reg_addr_i[0] = all_reg_addr_i[`REGA_BITS-1+2:2];
 assign periph_reg_addr_i    = all_reg_addr_i[`REGA_BITS-1+2:2];
 assign   ring_reg_addr_i    = all_reg_addr_i[`REGA_BITS-1+2:2];
 assign    top_reg_addr_i    = all_reg_addr_i;
+assign    pkt_ctr_addr_i[1] = all_reg_addr_i[`CTRA_BITS-1+2:2];
+assign    pkt_ctr_addr_i[0] = all_reg_addr_i[`CTRA_BITS-1+2:2];
 
 
 // Distribute write data to all devices
@@ -1608,6 +1699,89 @@ spinnaker_fpgas_reg_bank_i( .CLK_IN   (reg_bank_clk_i)
                           , .PERIPH_MC_KEY  (periph_mc_key_i)
                           , .PERIPH_MC_MASK (periph_mc_mask_i)
                           );
+
+
+////////////////////////////////////////////////////////////////////////////////
+// packet counters
+////////////////////////////////////////////////////////////////////////////////
+
+spio_packet_counter
+spio_pkt_ctr_tx( .CLK_IN    (pkt_ctr_clk_i)
+               , .RESET_IN  (pkt_ctr_reset_i)
+               , .pkt_vld0  (sl_pkt_txvld_i[0])
+               , .pkt_rdy0  (sl_pkt_txrdy_i[0])
+               , .pkt_vld1  (sl_pkt_txvld_i[1])
+               , .pkt_rdy1  (sl_pkt_txrdy_i[1])
+               , .pkt_vld2  (sl_pkt_txvld_i[2])
+               , .pkt_rdy2  (sl_pkt_txrdy_i[2])
+               , .pkt_vld3  (sl_pkt_txvld_i[3])
+               , .pkt_rdy3  (sl_pkt_txrdy_i[3])
+               , .pkt_vld4  (sl_pkt_txvld_i[4])
+               , .pkt_rdy4  (sl_pkt_txrdy_i[4])
+               , .pkt_vld5  (sl_pkt_txvld_i[5])
+               , .pkt_rdy5  (sl_pkt_txrdy_i[5])
+               , .pkt_vld6  (sl_pkt_txvld_i[6])
+               , .pkt_rdy6  (sl_pkt_txrdy_i[6])
+               , .pkt_vld7  (sl_pkt_txvld_i[7])
+               , .pkt_rdy7  (sl_pkt_txrdy_i[7])
+               , .pkt_vld8  (sl_pkt_txvld_i[8])
+               , .pkt_rdy8  (sl_pkt_txrdy_i[8])
+               , .pkt_vld9  (sl_pkt_txvld_i[9])
+               , .pkt_rdy9  (sl_pkt_txrdy_i[9])
+               , .pkt_vld10 (sl_pkt_txvld_i[10])
+               , .pkt_rdy10 (sl_pkt_txrdy_i[10])
+               , .pkt_vld11 (sl_pkt_txvld_i[11])
+               , .pkt_rdy11 (sl_pkt_txrdy_i[11])
+               , .pkt_vld12 (sl_pkt_txvld_i[12])
+               , .pkt_rdy12 (sl_pkt_txrdy_i[12])
+               , .pkt_vld13 (sl_pkt_txvld_i[13])
+               , .pkt_rdy13 (sl_pkt_txrdy_i[13])
+               , .pkt_vld14 (sl_pkt_txvld_i[14])
+               , .pkt_rdy14 (sl_pkt_txrdy_i[14])
+               , .pkt_vld15 (sl_pkt_txvld_i[15])
+               , .pkt_rdy15 (sl_pkt_txrdy_i[15])
+               , .ctr_addr  (pkt_ctr_addr_i[0])
+               , .ctr_data  (pkt_ctr_read_data_i[0])
+               );
+
+spio_packet_counter
+spio_pkt_ctr_rx( .CLK_IN    (pkt_ctr_clk_i)
+               , .RESET_IN  (pkt_ctr_reset_i)
+               , .pkt_vld0  (sl_pkt_rxvld_i[0])
+               , .pkt_rdy0  (sl_pkt_rxrdy_i[0])
+               , .pkt_vld1  (sl_pkt_rxvld_i[1])
+               , .pkt_rdy1  (sl_pkt_rxrdy_i[1])
+               , .pkt_vld2  (sl_pkt_rxvld_i[2])
+               , .pkt_rdy2  (sl_pkt_rxrdy_i[2])
+               , .pkt_vld3  (sl_pkt_rxvld_i[3])
+               , .pkt_rdy3  (sl_pkt_rxrdy_i[3])
+               , .pkt_vld4  (sl_pkt_rxvld_i[4])
+               , .pkt_rdy4  (sl_pkt_rxrdy_i[4])
+               , .pkt_vld5  (sl_pkt_rxvld_i[5])
+               , .pkt_rdy5  (sl_pkt_rxrdy_i[5])
+               , .pkt_vld6  (sl_pkt_rxvld_i[6])
+               , .pkt_rdy6  (sl_pkt_rxrdy_i[6])
+               , .pkt_vld7  (sl_pkt_rxvld_i[7])
+               , .pkt_rdy7  (sl_pkt_rxrdy_i[7])
+               , .pkt_vld8  (sl_pkt_rxvld_i[8])
+               , .pkt_rdy8  (sl_pkt_rxrdy_i[8])
+               , .pkt_vld9  (sl_pkt_rxvld_i[9])
+               , .pkt_rdy9  (sl_pkt_rxrdy_i[9])
+               , .pkt_vld10 (sl_pkt_rxvld_i[10])
+               , .pkt_rdy10 (sl_pkt_rxrdy_i[10])
+               , .pkt_vld11 (sl_pkt_rxvld_i[11])
+               , .pkt_rdy11 (sl_pkt_rxrdy_i[11])
+               , .pkt_vld12 (sl_pkt_rxvld_i[12])
+               , .pkt_rdy12 (sl_pkt_rxrdy_i[12])
+               , .pkt_vld13 (sl_pkt_rxvld_i[13])
+               , .pkt_rdy13 (sl_pkt_rxrdy_i[13])
+               , .pkt_vld14 (sl_pkt_rxvld_i[14])
+               , .pkt_rdy14 (sl_pkt_rxrdy_i[14])
+               , .pkt_vld15 (sl_pkt_rxvld_i[15])
+               , .pkt_rdy15 (sl_pkt_rxrdy_i[15])
+               , .ctr_addr  (pkt_ctr_addr_i[1])
+               , .ctr_data  (pkt_ctr_read_data_i[1])
+               );
 
 
 ////////////////////////////////////////////////////////////////////////////////

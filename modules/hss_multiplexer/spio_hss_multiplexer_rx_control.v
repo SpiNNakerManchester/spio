@@ -52,7 +52,47 @@ module spio_hss_multiplexer_rx_control #( // Number of consecutive handshakes wh
                                         );
 
 
-wire is_byte_aligned_i = RXLOSSOFSYNC_IN == 2'b00;
+// !!lapwire is_byte_aligned_i = RXLOSSOFSYNC_IN == 2'b00;
+wire is_byte_aligned_i = (los_state_i == 2'b00);
+
+////////////////////////////////////////////////////////////////////////////////
+// loss of sync state machine
+////////////////////////////////////////////////////////////////////////////////
+localparam NUM_CLKC_FOR_SYNC = 4;
+
+reg   [1:0] los_state_i;
+reg   [2:0] los_cnt_i;
+
+// replicate tile behaviour: sync acquired after 4 clock cycles in resync
+always @ (posedge CLK_IN, posedge RESET_IN)
+	if (RESET_IN)
+	  los_cnt_i = 0;
+	else
+	  case ({los_state_i, RXLOSSOFSYNC_IN})
+	    4'b01_01: los_cnt_i = los_cnt_i + 1;
+	    default:  los_cnt_i = 0;
+	  endcase
+  
+always @ (posedge CLK_IN, posedge RESET_IN)
+	if (RESET_IN)
+	  los_state_i = 2'b10;
+	else
+	  casex ({los_state_i, RXLOSSOFSYNC_IN})
+	    4'bxx_10,                       // loss of sync
+	    4'bxx_11: los_state_i = 2'b10;  // should never happen!
+
+	    4'b10_01: los_state_i = 2'b01;  // resync
+
+	    4'b01_01: if (los_cnt_i >= NUM_CLKC_FOR_SYNC)
+	                los_state_i = 2'b00;  // sync acquired
+                      else
+	                los_state_i = los_state_i;  // no change!
+
+	    4'bxx_00: los_state_i = 2'b00;  // sync acquired
+
+	    default:  los_state_i = los_state_i;  // no change!
+	  endcase
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // Word alignment

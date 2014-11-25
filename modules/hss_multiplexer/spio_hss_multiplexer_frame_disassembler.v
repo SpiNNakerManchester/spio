@@ -137,14 +137,14 @@ module spio_hss_multiplexer_frame_disassembler
   reg crc_error;
   reg frm_error;
 
-  reg vld_frm;
-  reg dat_frm;
-  reg dat_lst;
-  reg idl_frm;
-  reg ack_frm;
   reg nak_frm;
+  reg ack_frm;
   reg ooc_frm;
+  reg dat_frm;
+  reg lst_frm;
   reg cfc_frm;
+  reg idl_frm;
+  reg vld_frm;
   reg bad_frm;
 
 
@@ -163,6 +163,7 @@ module spio_hss_multiplexer_frame_disassembler
   (
     .clk      (clk),
     .rst      (rst),
+    .crc_go   (hsl_vld),
     .crc_last (crc_last),
     .crc_in   (crc_in),
     .crc_out  (crc_out)
@@ -174,7 +175,7 @@ module spio_hss_multiplexer_frame_disassembler
   //---------------------------------------------------------------
   always @ (*)
     if (crc_last)
-      crc_in = {hsl_data[31:16], {16 {1'b0}}};
+      crc_in = {hsl_data[31:16], `CRC_PAD};
     else
       crc_in = hsl_data;
   //---------------------------------------------------------------
@@ -183,7 +184,7 @@ module spio_hss_multiplexer_frame_disassembler
   // crc check and initialization (combinatorial)
   //---------------------------------------------------------------
   always @ (*)
-    crc_chk = ack_frm || nak_frm || ooc_frm || dat_lst;
+    crc_chk = nak_frm || ack_frm || ooc_frm || lst_frm || cfc_frm;
 
   always @ (*)
     crc_last = crc_chk || frm_error || idl_frm;
@@ -206,7 +207,6 @@ module spio_hss_multiplexer_frame_disassembler
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   //---------------------------------------------------------------
   // packet interface
-  //# should check for hsl_vld!
   //---------------------------------------------------------------
   always @ (posedge clk or posedge rst)
     if (rst)
@@ -219,7 +219,43 @@ module spio_hss_multiplexer_frame_disassembler
       pkt_data5 <= {`FRM_BITS {1'b0}}; // not really necessary!
       pkt_data6 <= {`FRM_BITS {1'b0}}; // not really necessary!
       pkt_data7 <= {`FRM_BITS {1'b0}}; // not really necessary!
+    end
+    else
+      if (hsl_vld)
+        case (state)
+          HDR0_ST: begin
+                     pkt_data0[`PKT_HDR_RNG] <= hsl_data[`DFRM_HD0_RNG];
+                     pkt_data1[`PKT_HDR_RNG] <= hsl_data[`DFRM_HD1_RNG];
+                     pkt_data2[`PKT_HDR_RNG] <= hsl_data[`DFRM_HD2_RNG];
+                     pkt_data3[`PKT_HDR_RNG] <= hsl_data[`DFRM_HD3_RNG];
+                   end
+          HDR1_ST: begin
+                     pkt_data4[`PKT_HDR_RNG] <= hsl_data[`DFRM_HD4_RNG];
+                     pkt_data5[`PKT_HDR_RNG] <= hsl_data[`DFRM_HD5_RNG];
+                     pkt_data6[`PKT_HDR_RNG] <= hsl_data[`DFRM_HD6_RNG];
+                     pkt_data7[`PKT_HDR_RNG] <= hsl_data[`DFRM_HD7_RNG];
+                   end
+          KEY0_ST: pkt_data0[`PKT_KEY_RNG] <= hsl_data;
+          PLD0_ST: pkt_data0[`PKT_PLD_RNG] <= hsl_data;
+          KEY1_ST: pkt_data1[`PKT_KEY_RNG] <= hsl_data;
+          PLD1_ST: pkt_data1[`PKT_PLD_RNG] <= hsl_data;
+          KEY2_ST: pkt_data2[`PKT_KEY_RNG] <= hsl_data;
+          PLD2_ST: pkt_data2[`PKT_PLD_RNG] <= hsl_data;
+          KEY3_ST: pkt_data3[`PKT_KEY_RNG] <= hsl_data;
+          PLD3_ST: pkt_data3[`PKT_PLD_RNG] <= hsl_data;
+          KEY4_ST: pkt_data4[`PKT_KEY_RNG] <= hsl_data;
+          PLD4_ST: pkt_data4[`PKT_PLD_RNG] <= hsl_data;
+          KEY5_ST: pkt_data5[`PKT_KEY_RNG] <= hsl_data;
+          PLD5_ST: pkt_data5[`PKT_PLD_RNG] <= hsl_data;
+          KEY6_ST: pkt_data6[`PKT_KEY_RNG] <= hsl_data;
+          PLD6_ST: pkt_data6[`PKT_PLD_RNG] <= hsl_data;
+          KEY7_ST: pkt_data7[`PKT_KEY_RNG] <= hsl_data;
+          PLD7_ST: pkt_data7[`PKT_PLD_RNG] <= hsl_data;
+        endcase
 
+  always @ (posedge clk or posedge rst)
+    if (rst)
+    begin
       pkt_vld0  <= 1'b0;
       pkt_vld1  <= 1'b0;
       pkt_vld2  <= 1'b0;
@@ -230,57 +266,28 @@ module spio_hss_multiplexer_frame_disassembler
       pkt_vld7  <= 1'b0;
     end
     else
-      case (state)
-        STRT_ST: begin
-                   pkt_vld0 <= 1'b0;
-                   pkt_vld1 <= 1'b0;
-                   pkt_vld2 <= 1'b0;
-                   pkt_vld3 <= 1'b0;
-                   pkt_vld4 <= 1'b0;
-                   pkt_vld5 <= 1'b0;
-                   pkt_vld6 <= 1'b0;
-                   pkt_vld7 <= 1'b0;
-                 end
-        HDR0_ST: begin
-                   pkt_data0[`PKT_HDR_RNG] <= hsl_data[`DFRM_HD0_RNG];
-                   pkt_data1[`PKT_HDR_RNG] <= hsl_data[`DFRM_HD1_RNG];
-                   pkt_data2[`PKT_HDR_RNG] <= hsl_data[`DFRM_HD2_RNG];
-                   pkt_data3[`PKT_HDR_RNG] <= hsl_data[`DFRM_HD3_RNG];
-                 end
-        HDR1_ST: begin
-                   pkt_data4[`PKT_HDR_RNG] <= hsl_data[`DFRM_HD4_RNG];
-                   pkt_data5[`PKT_HDR_RNG] <= hsl_data[`DFRM_HD5_RNG];
-                   pkt_data6[`PKT_HDR_RNG] <= hsl_data[`DFRM_HD6_RNG];
-                   pkt_data7[`PKT_HDR_RNG] <= hsl_data[`DFRM_HD7_RNG];
-                 end
-        KEY0_ST: pkt_data0[`PKT_KEY_RNG] <= hsl_data;
-        PLD0_ST: pkt_data0[`PKT_PLD_RNG] <= hsl_data;
-        KEY1_ST: pkt_data1[`PKT_KEY_RNG] <= hsl_data;
-        PLD1_ST: pkt_data1[`PKT_PLD_RNG] <= hsl_data;
-        KEY2_ST: pkt_data2[`PKT_KEY_RNG] <= hsl_data;
-        PLD2_ST: pkt_data2[`PKT_PLD_RNG] <= hsl_data;
-        KEY3_ST: pkt_data3[`PKT_KEY_RNG] <= hsl_data;
-        PLD3_ST: pkt_data3[`PKT_PLD_RNG] <= hsl_data;
-        KEY4_ST: pkt_data4[`PKT_KEY_RNG] <= hsl_data;
-        PLD4_ST: pkt_data4[`PKT_PLD_RNG] <= hsl_data;
-        KEY5_ST: pkt_data5[`PKT_KEY_RNG] <= hsl_data;
-        PLD5_ST: pkt_data5[`PKT_PLD_RNG] <= hsl_data;
-        KEY6_ST: pkt_data6[`PKT_KEY_RNG] <= hsl_data;
-        PLD6_ST: pkt_data6[`PKT_PLD_RNG] <= hsl_data;
-        KEY7_ST: pkt_data7[`PKT_KEY_RNG] <= hsl_data;
-        PLD7_ST: pkt_data7[`PKT_PLD_RNG] <= hsl_data;
-        LAST_ST: if (!frm_error && !crc_error)
-                 begin
-                   pkt_vld0 <= pre_dat[0];
-                   pkt_vld1 <= pre_dat[1];
-                   pkt_vld2 <= pre_dat[2];
-                   pkt_vld3 <= pre_dat[3];
-                   pkt_vld4 <= pre_dat[4];
-                   pkt_vld5 <= pre_dat[5];
-                   pkt_vld6 <= pre_dat[6];
-                   pkt_vld7 <= pre_dat[7];
-                 end
-      endcase
+      if (hsl_vld && (state == LAST_ST) && !frm_error && !crc_error)
+        begin
+          pkt_vld0 <= pre_dat[0];
+          pkt_vld1 <= pre_dat[1];
+          pkt_vld2 <= pre_dat[2];
+          pkt_vld3 <= pre_dat[3];
+          pkt_vld4 <= pre_dat[4];
+          pkt_vld5 <= pre_dat[5];
+          pkt_vld6 <= pre_dat[6];
+          pkt_vld7 <= pre_dat[7];
+        end
+      else
+        begin
+          pkt_vld0 <= 1'b0;
+          pkt_vld1 <= 1'b0;
+          pkt_vld2 <= 1'b0;
+          pkt_vld3 <= 1'b0;
+          pkt_vld4 <= 1'b0;
+          pkt_vld5 <= 1'b0;
+          pkt_vld6 <= 1'b0;
+          pkt_vld7 <= 1'b0;
+        end
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------
@@ -309,7 +316,7 @@ module spio_hss_multiplexer_frame_disassembler
     if (rst)
       frm_vld <= 1'b0;
     else
-      frm_vld <= dat_lst && !frm_error && !crc_error;
+      frm_vld <= lst_frm && !frm_error && !crc_error;
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------
@@ -379,7 +386,7 @@ module spio_hss_multiplexer_frame_disassembler
     if (rst)
       cfc_rem <= {`NUM_CHANS {1'b1}};
     else
-      if ((dat_lst || cfc_frm) && !frm_error && !crc_error)
+      if ((lst_frm || cfc_frm) && !frm_error && !crc_error)
         cfc_rem <= hsl_data[`DFRM_CFC_RNG];
       else
         cfc_rem <= cfc_rem;  // no change!
@@ -392,7 +399,7 @@ module spio_hss_multiplexer_frame_disassembler
     if (rst)
       reg_dfrm <= 1'b0;
     else
-      reg_dfrm <= dat_lst && !frm_error && !crc_error;
+      reg_dfrm <= lst_frm && !frm_error && !crc_error;
 
   always @ (posedge clk or posedge rst)
     if (rst)
@@ -450,7 +457,7 @@ module spio_hss_multiplexer_frame_disassembler
 
   // last word in a data frame
   always @ (*)
-    dat_lst = hsl_vld && (state == LAST_ST);
+    lst_frm = hsl_vld && (state == LAST_ST);
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------
@@ -512,106 +519,106 @@ module spio_hss_multiplexer_frame_disassembler
 
   //---------------------------------------------------------------
   // next state
-  //# should check for hsl_vld on every state transition!
   //---------------------------------------------------------------
   always @ (posedge clk or posedge rst)
     if (rst)
       state <= STRT_ST;
     else
-      case (state)
-        STRT_ST: if (dat_frm)
-                   state <= HDR0_ST;
-                 else
-                   state <= STRT_ST;  // no change!
-        HDR0_ST: if (frm_error)
-                   state <= STRT_ST;
-                 else
-                   state <= HDR1_ST;
-        HDR1_ST: if (frm_error)
-                   state <= STRT_ST;
-                 else
-                   state <= nxp_state;
-        KEY0_ST: if (frm_error)
-                   state <= STRT_ST;
-                 else if (len_dat[0])
-                   state <= PLD0_ST;
-                 else
-                   state <= nxp_state;
-        PLD0_ST: if (frm_error)
-                   state <= STRT_ST;
-                 else
-                   state <= nxp_state;
-        KEY1_ST: if (frm_error)
-                   state <= STRT_ST;
-                 else if (len_dat[1])
-                   state <= PLD1_ST;
-                 else
-		   state <= nxp_state;
-        PLD1_ST: if (frm_error)
-                   state <= STRT_ST;
-                 else
-                   state <= nxp_state;
-        KEY2_ST: if (frm_error)
-                   state <= STRT_ST;
-                 else if (len_dat[2])
-                   state <= PLD2_ST;
-                 else
-		   state <= nxp_state;
-        PLD2_ST: if (frm_error)
-                   state <= STRT_ST;
-                 else
-                   state <= nxp_state;
-        KEY3_ST: if (frm_error)
-                   state <= STRT_ST;
-                 else if (len_dat[3])
-                   state <= PLD3_ST;
-                 else
-		   state <= nxp_state;
-        PLD3_ST: if (frm_error)
-                   state <= STRT_ST;
-                 else state <= nxp_state;
-        KEY4_ST: if (frm_error)
-                   state <= STRT_ST;
-                 else if (len_dat[4])
-                   state <= PLD4_ST;
-                 else
-		   state <= nxp_state;
-        PLD4_ST: if (frm_error)
-                   state <= STRT_ST;
-                 else
-                   state <= nxp_state;
-        KEY5_ST: if (frm_error)
-                   state <= STRT_ST;
-                 else if (len_dat[5])
-                   state <= PLD5_ST;
-                 else
-		   state <= nxp_state;
-        PLD5_ST: if (frm_error)
-                   state <= STRT_ST;
-                 else
-                   state <= nxp_state;
-        KEY6_ST: if (frm_error)
-                   state <= STRT_ST;
-                 else if (len_dat[6])
-                   state <= PLD6_ST;
-                 else
-		   state <= nxp_state;
-        PLD6_ST: if (frm_error)
-                   state <= STRT_ST;
-                 else
-                   state <= nxp_state;
-        KEY7_ST: if (frm_error)
-                   state <= STRT_ST;
-                 else if (len_dat[7])
-                   state <= PLD7_ST;
-                 else
-		   state <= LAST_ST;
-        PLD7_ST: if (frm_error)
-                   state <= STRT_ST;
-                 else
-                   state <= LAST_ST;
-        LAST_ST: state <= STRT_ST;
-      endcase
+      if (hsl_vld)
+        case (state)
+          STRT_ST: if (dat_frm)
+                     state <= HDR0_ST;
+                   else
+                     state <= STRT_ST;  // no change!
+          HDR0_ST: if (frm_error)
+                     state <= STRT_ST;
+                   else
+                     state <= HDR1_ST;
+          HDR1_ST: if (frm_error)
+                     state <= STRT_ST;
+                   else
+                     state <= nxp_state;
+          KEY0_ST: if (frm_error)
+                     state <= STRT_ST;
+                   else if (len_dat[0])
+                     state <= PLD0_ST;
+                   else
+                     state <= nxp_state;
+          PLD0_ST: if (frm_error)
+                     state <= STRT_ST;
+                   else
+                     state <= nxp_state;
+          KEY1_ST: if (frm_error)
+                     state <= STRT_ST;
+                   else if (len_dat[1])
+                     state <= PLD1_ST;
+                   else
+    		   state <= nxp_state;
+          PLD1_ST: if (frm_error)
+                     state <= STRT_ST;
+                   else
+                     state <= nxp_state;
+          KEY2_ST: if (frm_error)
+                     state <= STRT_ST;
+                   else if (len_dat[2])
+                     state <= PLD2_ST;
+                   else
+    		   state <= nxp_state;
+          PLD2_ST: if (frm_error)
+                     state <= STRT_ST;
+                   else
+                     state <= nxp_state;
+          KEY3_ST: if (frm_error)
+                     state <= STRT_ST;
+                   else if (len_dat[3])
+                     state <= PLD3_ST;
+                   else
+    		   state <= nxp_state;
+          PLD3_ST: if (frm_error)
+                     state <= STRT_ST;
+                   else state <= nxp_state;
+          KEY4_ST: if (frm_error)
+                     state <= STRT_ST;
+                   else if (len_dat[4])
+                     state <= PLD4_ST;
+                   else
+    		   state <= nxp_state;
+          PLD4_ST: if (frm_error)
+                     state <= STRT_ST;
+                   else
+                     state <= nxp_state;
+          KEY5_ST: if (frm_error)
+                     state <= STRT_ST;
+                   else if (len_dat[5])
+                     state <= PLD5_ST;
+                   else
+    		   state <= nxp_state;
+          PLD5_ST: if (frm_error)
+                     state <= STRT_ST;
+                   else
+                     state <= nxp_state;
+          KEY6_ST: if (frm_error)
+                     state <= STRT_ST;
+                   else if (len_dat[6])
+                     state <= PLD6_ST;
+                   else
+    		   state <= nxp_state;
+          PLD6_ST: if (frm_error)
+                     state <= STRT_ST;
+                   else
+                     state <= nxp_state;
+          KEY7_ST: if (frm_error)
+                     state <= STRT_ST;
+                   else if (len_dat[7])
+                     state <= PLD7_ST;
+                   else
+    		   state <= LAST_ST;
+          PLD7_ST: if (frm_error)
+                     state <= STRT_ST;
+                   else
+                     state <= LAST_ST;
+          LAST_ST: state <= STRT_ST;
+        endcase
   //---------------------------------------------------------------
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
