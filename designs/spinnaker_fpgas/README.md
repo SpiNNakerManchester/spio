@@ -74,7 +74,7 @@ SPI Interface
 -------------
 
 A number of diagnostic registers associated with the HSS links are presented via
-an SPI interface. There is one register bank per link (i.e. per socket socket).
+an SPI interface. There is one register bank per link (i.e. per SATA socket).
 These banks can be found at the base addresses given in the table below.
 
 	Link        FPGA Number  Base Address
@@ -119,13 +119,13 @@ as 32 bit words but the actual number of useful bits may differ.
 	RECO      22   0x58  RO        32  Link reconnection (re-handshake) counter
 
 If in doubt, a definitive definition of the SPI address space should be saught
-from the code The address decoding scheme used to select which HSS link is
+from the code.The address decoding scheme used to select which HSS link is
 queried is defined in `spinnaker_fpgas_address_decode.v`.  The addresses of the
 available registersin each HSS link are defined in
 `../../modules/hss_multiplexer/spio_hss_multiplexer_reg_bank.h`.  The SPI
 protocol and its parameters are defined in `spinnaker_fpgas_spi.v`.
 
-There is also an register bank associated with the top-level design at base
+There is also a register bank associated with the top-level design at base
 address: 0x00040000
 
 	Name  Number Offset  Access  Size  Description
@@ -137,3 +137,47 @@ address: 0x00040000
 	                                                 }
 	PKEY       2   0x08  RW        32  Peripheral MC route key
 	PMSK       3   0x0C  RW        32  Peripheral MC route mask
+
+Finally, there are SpiNNaker-link packet counters on all SpiNNaker - FPGA links.
+
+The sent packet counters (FPGA -> SpiNNaker packets) are at base address: 0x00050000
+
+	Name  Number Offset  Access  Size  Description
+	----  ------ ------  ------  ----  ---------------------------------------------
+	PSL0       0   0x00  RO        32  packets sent on link 0
+	PSL1       1   0x04  RO        32  packets sent on link 1
+	PSL2       2   0x08  RO        32  packets sent on link 2
+	PSL3       3   0x0c  RO        32  packets sent on link 3
+	PSL4       4   0x10  RO        32  packets sent on link 4
+	PSL5       5   0x14  RO        32  packets sent on link 5
+	PSL6       6   0x18  RO        32  packets sent on link 6
+	PSL7       7   0x1c  RO        32  packets sent on link 7
+	PSL8       8   0x20  RO        32  packets sent on link 8
+	PSL9       9   0x24  RO        32  packets sent on link 9
+	PSL10     10   0x28  RO        32  packets sent on link 10
+	PSL11     11   0x2c  RO        32  packets sent on link 11
+	PSL12     12   0x30  RO        32  packets sent on link 12
+	PSL13     13   0x34  RO        32  packets sent on link 13
+	PSL14     14   0x38  RO        32  packets sent on link 14
+	PSL15     15   0x3c  RO        32  packets sent on link 15
+
+The received packet counters (SpiNNaker -> FPGA packets) are at base address: 0x00060000
+
+	Name  Number Offset  Access  Size  Description
+	----  ------ ------  ------  ----  ---------------------------------------------
+	PRL0       0   0x00  RO        32  packets received on link 0
+	PRL1       1   0x04  RO        32  packets received on link 1
+	PRL2       2   0x08  RO        32  packets received on link 2
+	PRL3       3   0x0c  RO        32  packets received on link 3
+	PRL4       4   0x10  RO        32  packets received on link 4
+	PRL5       5   0x14  RO        32  packets received on link 5
+	PRL6       6   0x18  RO        32  packets received on link 6
+	PRL7       7   0x1c  RO        32  packets received on link 7
+	PRL8       8   0x20  RO        32  packets received on link 8
+	PRL9       9   0x24  RO        32  packets received on link 9
+	PRL10     10   0x28  RO        32  packets received on link 10
+	PRL11     11   0x2c  RO        32  packets received on link 11
+	PRL12     12   0x30  RO        32  packets received on link 12
+	PRL13     13   0x34  RO        32  packets received on link 13
+	PRL14     14   0x38  RO        32  packets received on link 14
+	PRL15     15   0x3c  RO        32  packets received on link 15
