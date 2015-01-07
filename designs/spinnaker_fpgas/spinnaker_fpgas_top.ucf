@@ -1,14 +1,14 @@
 ################################################################################
 # Clock Constraints for "user clocks"
 ################################################################################
-NET "clk_300_i"  TNM_NET = "clk_300_i";
+#NET "clk_300_i"  TNM_NET = "clk_300_i";
 NET "clk_150_i"  TNM_NET = "clk_150_i";
 NET "clk_75_i"   TNM_NET = "clk_75_i";
-NET "clk_37_5_i" TNM_NET = "clk_37_5_i";
-TIMESPEC "TS_clk_300_i"  = PERIOD "clk_300_i"   3.333; # 300 MHz
-TIMESPEC "TS_clk_150_i"  = PERIOD "clk_150_i"   6.666; # 150 MHz
-TIMESPEC "TS_clk_75_i"   = PERIOD "clk_75_i"   13.333; # 75 MHz
-TIMESPEC "TS_clk_37_5_i" = PERIOD "clk_37_5_i" 26.666; # 37.5 MHz
+#NET "clk_37_5_i" TNM_NET = "clk_37_5_i";
+#TIMESPEC "TS_clk_300_i"  = PERIOD "clk_300_i"   3.333; # 300 MHz
+#TIMESPEC "TS_clk_150_i"  = PERIOD "clk_150_i"   6.666; # 150 MHz
+#TIMESPEC "TS_clk_75_i"   = PERIOD "clk_75_i"   13.333; # 75 MHz
+#TIMESPEC "TS_clk_37_5_i" = PERIOD "clk_37_5_i" 26.666; # 37.5 MHz
 
 # set false path for the SpiNNaker link FIFO synchonizers
 TIMESPEC TS_01 = FROM "clk_150_i" TO "clk_75_i"  TIG;
