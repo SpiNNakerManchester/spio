@@ -1643,16 +1643,22 @@ assign    top_reg_write_data_i    = reg_write_data_i;
 ////////////////////////////////////////////////////////////////////////////////
 
 spinnaker_fpgas_reg_bank
-spinnaker_fpgas_reg_bank_i( .CLK_IN   (reg_bank_clk_i)
-                          , .RESET_IN (reg_bank_reset_i)
+spinnaker_fpgas_reg_bank_i( .CLK_IN         (reg_bank_clk_i)
+                          , .RESET_IN       (reg_bank_reset_i)
                             // Register bank interface
-                          , .WRITE_IN      (top_reg_write_i)
-                          , .ADDR_IN       (top_reg_addr_i)
-                          , .WRITE_DATA_IN (top_reg_write_data_i)
-                          , .READ_DATA_OUT (top_reg_read_data_i)
+                          , .WRITE_IN       (top_reg_write_i)
+                          , .ADDR_IN        (top_reg_addr_i)
+                          , .WRITE_DATA_IN  (top_reg_write_data_i)
+                          , .READ_DATA_OUT  (top_reg_read_data_i)
                             // Regsiters
                           , .VERSION_IN     (VERSION)
-                          , .FLAGS_IN       ({FPGA_ID[1:0], NORTH_SOUTH_ON_FRONT[0], DEBUG_CHIPSCOPE_VIO[0]})
+                          , .FLAGS_IN       ({ DEBUG_CHIPSCOPE_VIO[0]
+                                             , INCLUDE_PERIPH_SUPPORT[0]
+                                             , INCLUDE_RING_SUPPORT[0]
+                                             , NORTH_SOUTH_ON_FRONT[0]
+                                             , FPGA_ID[1:0]
+                                             }
+                                            )
                           , .PERIPH_MC_KEY  (periph_mc_key_i)
                           , .PERIPH_MC_MASK (periph_mc_mask_i)
                           );

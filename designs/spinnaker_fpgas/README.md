@@ -121,7 +121,7 @@ as 32 bit words but the actual number of useful bits may differ.
 If in doubt, a definitive definition of the SPI address space should be saught
 from the code.The address decoding scheme used to select which HSS link is
 queried is defined in `spinnaker_fpgas_address_decode.v`.  The addresses of the
-available registersin each HSS link are defined in
+available registers in each HSS link are defined in
 `../../modules/hss_multiplexer/spio_hss_multiplexer_reg_bank.h`.  The SPI
 protocol and its parameters are defined in `spinnaker_fpgas_spi.v`.
 
@@ -131,9 +131,11 @@ address: 0x00040000
 	Name  Number Offset  Access  Size  Description
 	----  ------ ------  ------  ----  ---------------------------------------------
 	VERS       0   0x00  RO        32  Top-level design version
-	FLAG       1   0x04  RO         4  Compile flags { 3-2: FPGA ID
-	                                                 ,   1: north/south on front
-	                                                 ,   0: chip scope
+	FLAG       1   0x04  RO         6  Compile flags {   5: chip scope	      
+					                 ,   4: peripheral support   
+					                 ,   3: ring support	      
+					                 ,   2: north/south on front 
+					                 , 1-0: FPGA ID              
 	                                                 }
 	PKEY       2   0x08  RW        32  Peripheral MC route key
 	PMSK       3   0x0C  RW        32  Peripheral MC route mask

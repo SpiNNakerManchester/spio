@@ -16,21 +16,25 @@ module spinnaker_fpgas_reg_bank #( // Address bits
                                  ,   input  wire [REGD_BITS-1:0] WRITE_DATA_IN
                                  ,   output reg  [REGD_BITS-1:0] READ_DATA_OUT
                                    // Version
-                                 , input  wire [REGD_BITS-1:0] VERSION_IN
-                                   // Compilation flags { FPGAID
+                                 , input  wire   [REGD_BITS-1:0] VERSION_IN
+                                   // Compilation flags { DEBUG_CHIPSCOPE_VIO
+                                   //                   , INCLUDE_PERIPH_SUPPORT
+                                   //                   , INCLUDE_RING_SUPPORT
                                    //                   , NORTH_SOUTH_ON_FRONT
-                                   //                   , DEBUG_CHIPSCOPE_VIO
+                                   //                   , FPGAID
                                    //                   }
-                                 , input  wire [3:0]           FLAGS_IN
+                                 , input  wire             [5:0] FLAGS_IN
                                    // Peripheral routing key/mask
-                                 , output reg  [31:0]          PERIPH_MC_KEY
-                                 , output reg  [31:0]          PERIPH_MC_MASK
+                                 , output reg             [31:0] PERIPH_MC_KEY
+                                 , output reg             [31:0] PERIPH_MC_MASK
                                  );
 
 localparam VERS_REG = 0; // Top level design version
-localparam FLAG_REG = 1; // Compile flags { 3-2: FPGA ID
-                         //               ,   1: north/south on front
-                         //               ,   0: chip scope
+localparam FLAG_REG = 1; // Compile flags {   5: chip scope
+                         //               ,   4: peripheral support
+                         //               ,   3: ring support
+                         //               ,   2: north/south on front
+                         //               , 1-0: FPGA ID
                          //               }
 localparam PKEY_REG = 2; // Peripheral MC route key
 localparam PMSK_REG = 3; // Peripheral MC route mask
