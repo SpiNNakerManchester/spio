@@ -61,14 +61,11 @@ module pkt_reg
   //---------------------------------------------------------------
   // output packet interface
   //---------------------------------------------------------------
-  always @ (posedge CLK_IN or posedge RESET_IN)
-    if (RESET_IN)
-      PKT_DATA_OUT <= {`PKT_BITS {1'b0}}; // not really necessary!
+  always @ (posedge CLK_IN)
+    if (ipkt_vld && !busy)
+      PKT_DATA_OUT <= ipkt_data;
     else
-      if (ipkt_vld && !busy)
-        PKT_DATA_OUT <= ipkt_data;
-      else
-        PKT_DATA_OUT <= PKT_DATA_OUT;  // no change!
+      PKT_DATA_OUT <= PKT_DATA_OUT;  // no change!
 
   //---------------------------------------------------------------
   // output packet valid if not empty (combinatorial)
@@ -131,24 +128,24 @@ module spio_spinnaker_link_receiver
   //---------------------------------------------------------------
   // internal signals
   //---------------------------------------------------------------
-  reg  [STATE_BITS - 1:0] state;
-  reg                     nsb;  // new symbol arrived
-  reg                     dat;  // data symbol
-  reg                     eop;  // end-of-packet symbol
-  reg                     oob;  // out-of-band symbol (error)
+(* clock_signal = "no" *)  reg  [STATE_BITS - 1:0] state;
+(* clock_signal = "no" *)  reg                     nsb;  // new symbol arrived
+(* clock_signal = "no" *)  reg                     dat;  // data symbol
+(* clock_signal = "no" *)  reg                     eop;  // end-of-packet symbol
+(* clock_signal = "no" *)  reg                     oob;  // out-of-band symbol (error)
 
-  reg               [6:0] old_data_2of7;
-  reg                     tgl_ack;
+(* clock_signal = "no" *)  reg               [6:0] old_data_2of7;
+(* clock_signal = "no" *)  reg                     tgl_ack;
 
-  reg               [3:0] symbol;
-  reg                     long_pkt;
-  reg               [4:0] symbol_cnt;
-  reg                     exp_eop;
+(* clock_signal = "no" *)  reg               [3:0] symbol;
+(* clock_signal = "no" *)  reg                     long_pkt;
+(* clock_signal = "no" *)  reg               [4:0] symbol_cnt;
+(* clock_signal = "no" *)  reg                     exp_eop;
 
-  reg   [`PKT_BITS - 1:0] pkt_buf;
-  reg   [`PKT_BITS - 1:0] ipkt_data;
-  reg 	                  ipkt_vld;
-  wire                    busy;
+(* clock_signal = "no" *)  reg   [`PKT_BITS - 1:0] pkt_buf;
+(* clock_signal = "no" *)  reg   [`PKT_BITS - 1:0] ipkt_data;
+(* clock_signal = "no" *)  reg 	                  ipkt_vld;
+(* clock_signal = "no" *)  wire                    busy;
 
 
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -229,32 +226,29 @@ module spio_spinnaker_link_receiver
 	REST_ST:   tgl_ack = 1'b1;   // mimic SpiNNaker behaviour
 
 	TRAN_ST: casex ({dat, oob, eop, exp_eop, busy})
-	           5'b1xxxx,  // data symbol: SL_ACK_OUT and wait for next symbol
-		   5'bx1xxx,  // oob symbol: SL_ACK_OUT and go to error state
-	           5'bxx10x,  // unexpected eop: SL_ACK_OUT and start new packet
-	           5'bxx110:  // expected eop and not busy: SL_ACK_OUT and send packet 
-                       tgl_ack = 1'b1;       // SL_ACK_OUT new symbol
+	           5'b1xxxx,  // data symbol: ack and wait for next symbol
+		   5'bx1xxx,  // oob symbol: ack and go to error state
+	           5'bxx10x,  // unexpected eop: ack and start new packet
+	           5'bxx110:  // expected eop and not busy: ack and send packet 
+                       tgl_ack = 1'b1;       // ack new symbol
 
-		   // 5'bxx111,  // expected eop but busy: don't SL_ACK_OUT yet
-		   // 5'b000xx,  // no symbol arrived: don't SL_ACK_OUT
+		   // 5'bxx111,  // expected eop but busy: don't ack yet
+		   // 5'b000xx,  // no symbol arrived: don't ack
 		   default:
 	               tgl_ack = 1'b0;       // no change!
                  endcase
 
         IDLE_ST,
         ERR_ST:  if (nsb)  
-	           tgl_ack = 1'b1;           // SL_ACK_OUT new symbol
+	           tgl_ack = 1'b1;           // ack new symbol
                  else
                    tgl_ack = 1'b0;           // no change!
 
         default:   tgl_ack = 1'b0;           // no change!
       endcase 
 
-  always @(posedge CLK_IN or posedge RESET_IN)
-    if (RESET_IN)
-      old_data_2of7 <= 7'd0;  // not really necessary!
-    else
-      case (state)
+  always @(posedge CLK_IN)
+    case (state)
 	REST_ST:   old_data_2of7 <= SL_DATA_2OF7_IN;  // remember 2of7 data
 
 	TRAN_ST: casex ({dat, oob, eop, exp_eop, busy})
@@ -262,65 +256,56 @@ module spio_spinnaker_link_receiver
 		   5'bx1xxx,  // oob symbol: latch and go to error state
 	           5'bxx10x,  // unexpected eop: latch and start new packet
 	           5'bxx110:  // expected eop and not busy: latch and send packet 
-                       old_data_2of7 <= SL_DATA_2OF7_IN;  // remember 2of7 data
+                     old_data_2of7 <= SL_DATA_2OF7_IN;  // remember 2of7 data
 
 		   // 5'bxx111,  // expected eop but busy: wait
 		   // 5'b000xx,  // no symbol arrived: wait
 		   default:
-                       old_data_2of7 <= old_data_2of7;  // no change!
-                 endcase
+                     old_data_2of7 <= old_data_2of7;  // no change!
+               endcase
 
-        IDLE_ST,
-        ERR_ST:  if (nsb)  
-                   old_data_2of7 <= SL_DATA_2OF7_IN;    // remember 2of7 data
-                 else
-                   old_data_2of7 <= old_data_2of7;  // no change!
+      IDLE_ST,
+      ERR_ST:  if (nsb)  
+                 old_data_2of7 <= SL_DATA_2OF7_IN;    // remember 2of7 data
+               else
+                 old_data_2of7 <= old_data_2of7;  // no change!
 
-        default:   old_data_2of7 <= old_data_2of7;  // no change!
-      endcase 
+      default:   old_data_2of7 <= old_data_2of7;  // no change!
+    endcase 
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------
   // packet assembly
   //---------------------------------------------------------------
   // shift in new symbol to assemble packet
-  always @(posedge CLK_IN or posedge RESET_IN)
-    if (RESET_IN)
-      pkt_buf <= `PKT_BITS'b0;  // not really necessary!
-    else
-      if (dat)
-        pkt_buf <= {symbol, pkt_buf[`PKT_BITS - 1:4]};
+  always @(posedge CLK_IN)
+    if (dat)
+      pkt_buf <= {symbol, pkt_buf[`PKT_BITS - 1:4]};
 
   // keep track of number of symbols received to check for frame errors
-  always @(posedge CLK_IN or posedge RESET_IN)
-    if (RESET_IN)
-      symbol_cnt <= 5'd0;  // not really necessary!
-    else
-      case (state)
+  always @(posedge CLK_IN)
+    case (state)
 	IDLE_ST: if (dat)
-                   symbol_cnt <= 5'd1;  // count first symbol in packet
-                 else
-                   symbol_cnt <= 5'd0;  // init count
+                 symbol_cnt <= 5'd1;  // count first symbol in packet
+               else
+                 symbol_cnt <= 5'd0;  // init count
 
 	TRAN_ST: if (dat)
 		   symbol_cnt <= symbol_cnt + 1;  // count new symbol
-                 else
+               else
 		   symbol_cnt <= symbol_cnt;      // no change!
 
 	default:   symbol_cnt <= 5'd0;  // init count
-      endcase 
+    endcase 
 
   // remember expected packet size
-  always @(posedge CLK_IN or posedge RESET_IN)
-    if (RESET_IN)
-      long_pkt <= 1'b0;  // not really necessary!
-    else
-      case (state)
+  always @(posedge CLK_IN)
+    case (state)
 	IDLE_ST: if (dat)
-                   long_pkt <= symbol[1];
+                 long_pkt <= symbol[1];
 
-        default:   long_pkt <= long_pkt;   // no change!
-      endcase 
+      default:   long_pkt <= long_pkt;   // no change!
+    endcase 
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------
@@ -459,10 +444,10 @@ module spio_spinnaker_link_receiver
                      state <= ERR_ST;
 
 	           5'bxx10x,  // unexpected eop: drop packet
-	           5'bxx110:  // expected eop and not busy: SL_ACK_OUT and send packet 
+	           5'bxx110:  // expected eop and not busy: ack and send packet 
                      state <= IDLE_ST;
 
-	           // 5'b1xxxx,  // data symbol: SL_ACK_OUT and wait for next symbol
+	           // 5'b1xxxx,  // data symbol: ack and wait for next symbol
 		   // 5'bxx111,  // expected eop but busy: wait
                    default:   // no symbol
                      state <= TRAN_ST;
