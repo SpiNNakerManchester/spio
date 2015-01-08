@@ -131,11 +131,11 @@ address: 0x00040000
 	Name  Number Offset  Access  Size  Description
 	----  ------ ------  ------  ----  ---------------------------------------------
 	VERS       0   0x00  RO        32  Top-level design version
-	FLAG       1   0x04  RO         6  Compile flags {   5: chip scope	      
-					                 ,   4: peripheral support   
-					                 ,   3: ring support	      
-					                 ,   2: north/south on front 
-					                 , 1-0: FPGA ID              
+	FLAG       1   0x04  RO         6  Compile flags {   5: chip scope
+	                                                 ,   4: peripheral support
+	                                                 ,   3: ring support
+	                                                 ,   2: north/south on front
+	                                                 , 1-0: FPGA ID
 	                                                 }
 	PKEY       2   0x08  RW        32  Peripheral MC route key
 	PMSK       3   0x0C  RW        32  Peripheral MC route mask
