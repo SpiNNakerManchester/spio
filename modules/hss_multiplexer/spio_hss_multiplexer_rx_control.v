@@ -24,6 +24,9 @@ module spio_hss_multiplexer_rx_control #( // Number of consecutive handshakes wh
                                         ( input wire  CLK_IN
                                         , input wire  RESET_IN
                                         
+                                          // register bank interface
+                                        , output reg  [`IDLE_BITS - 1:0] REG_IDSI_IN
+
                                           // Status Signals
                                             // Has the handshake been completed successfully?
                                         ,   output reg HANDSHAKE_COMPLETE_OUT
@@ -52,12 +55,30 @@ module spio_hss_multiplexer_rx_control #( // Number of consecutive handshakes wh
                                         );
 
 
-// !!lapwire is_byte_aligned_i = RXLOSSOFSYNC_IN == 2'b00;
-wire is_byte_aligned_i = (los_state_i == 2'b00);
+////////////////////////////////////////////////////////////////////////////////
+// check for idle frames
+////////////////////////////////////////////////////////////////////////////////
+
+// idle frames have two k-chars
+wire is_idle_frame_i = is_word_aligned_i
+                     && aligned_rxdata_i[31:16] == `KCH_IDLE
+                     && aligned_rxcharisk_i == `IDLE_KBITS
+                     ;
+
+// idle frame handling (simply latch the latest sentinel value)
+always @ (posedge CLK_IN or posedge RESET_IN)
+  if (RESET_IN)
+    REG_IDSI_IN <= {`IDLE_BITS{1'b1}};
+  else
+    if (is_idle_frame_i)
+      REG_IDSI_IN <= aligned_rxdata_i[`IDLE_BITS-1:0];
 
 ////////////////////////////////////////////////////////////////////////////////
 // loss of sync state machine
 ////////////////////////////////////////////////////////////////////////////////
+// !!lapwire is_byte_aligned_i = RXLOSSOFSYNC_IN == 2'b00;
+wire is_byte_aligned_i = (los_state_i == 2'b00);
+
 localparam NUM_CLKC_FOR_SYNC = 4;
 
 reg   [1:0] los_state_i;
@@ -275,8 +296,8 @@ always @ (posedge CLK_IN, posedge RESET_IN)
 // Input filtering
 ////////////////////////////////////////////////////////////////////////////////
 
-// Filter unaligned data, clock-correction sequences and handshakes from the
-// stream being received.
+// Filter unaligned data, clock-correction sequences, handshakes and idle frames
+// from the stream being received.
 
 always @ (posedge CLK_IN, posedge RESET_IN)
 	if (RESET_IN)
@@ -286,7 +307,9 @@ always @ (posedge CLK_IN, posedge RESET_IN)
 			RXVLD_OUT     <= 1'b0;
 		end
 	else
-		if ( is_word_aligned_i && HANDSHAKE_COMPLETE_OUT && !is_clock_correction_sequence && !is_handshake_i)
+		if (is_word_aligned_i && HANDSHAKE_COMPLETE_OUT && !is_clock_correction_sequence 
+                     && !is_handshake_i && !is_idle_frame_i
+                   )
 			begin
 				RXDATA_OUT    <= aligned_rxdata_i;
 				RXCHARISK_OUT <= aligned_rxcharisk_i;

@@ -44,7 +44,6 @@ module spio_hss_multiplexer_frame_disassembler
   output reg                     reg_frme,
   output reg                     reg_dfrm,
   output reg                     reg_rooc,
-  output reg  [`IDLE_BITS - 1:0] reg_idsi,
 
   // high-speed link interface (from gtp)
   input  wire  [`FRM_BITS - 1:0] hsl_data,
@@ -143,7 +142,6 @@ module spio_hss_multiplexer_frame_disassembler
   reg dat_frm;
   reg lst_frm;
   reg cfc_frm;
-  reg idl_frm;
   reg vld_frm;
   reg bad_frm;
 
@@ -187,7 +185,7 @@ module spio_hss_multiplexer_frame_disassembler
     crc_chk = nak_frm || ack_frm || ooc_frm || lst_frm || cfc_frm;
 
   always @ (*)
-    crc_last = crc_chk || frm_error || idl_frm;
+    crc_last = crc_chk || frm_error;
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------
@@ -320,19 +318,6 @@ module spio_hss_multiplexer_frame_disassembler
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------
-  // Idle frame handling (simply latch the latest sentinel value)
-  //---------------------------------------------------------------
-
-  always @ (posedge clk or posedge rst)
-    if (rst)
-      reg_idsi <= {`IDLE_BITS{1'b1}};
-    else
-      if (idl_frm)
-        reg_idsi <= hsl_data[`IDLE_BITS-1:0];
-
-  //---------------------------------------------------------------
-
-  //---------------------------------------------------------------
   // out-of-credit interface
   //---------------------------------------------------------------
   always @ (posedge clk or posedge rst)
@@ -429,11 +414,7 @@ module spio_hss_multiplexer_frame_disassembler
   // frame type decoding (combinatorial)
   //---------------------------------------------------------------
   always @ (*)
-    bad_frm = !idl_frm && !ack_frm && !nak_frm && !ooc_frm && !cfc_frm && !dat_frm;
-
-  // Idle frames have two k-chars
-  always @ (*)
-    idl_frm = hsl_vld && (hsl_kchr == `IDLE_KBITS) && (hsl_data[31:16] == `KCH_IDLE);
+    bad_frm = !ack_frm && !nak_frm && !ooc_frm && !cfc_frm && !dat_frm;
 
   // Normal frames have one kchar
   always @ (*)

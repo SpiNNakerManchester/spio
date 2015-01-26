@@ -58,7 +58,6 @@ module spio_hss_multiplexer_spinnlink
   output wire                    reg_rack,
   output wire                    reg_rooc,
   output wire [`NUM_CHANS - 1:0] reg_cfcr,
-  output wire [`IDLE_BITS - 1:0] reg_idsi,
 
   // packet dispatcher interface
   output wire                    reg_rfrm,
@@ -353,7 +352,6 @@ module spio_hss_multiplexer_spinnlink
     .reg_crce   (reg_crce),
     .reg_frme   (reg_frme),
     .reg_rooc   (reg_rooc),
-    .reg_idsi   (reg_idsi),
 
     // high-speed link interface
     .hsl_data   (ihsl_data),
