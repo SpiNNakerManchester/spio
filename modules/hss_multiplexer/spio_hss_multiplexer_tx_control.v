@@ -25,6 +25,9 @@ module spio_hss_multiplexer_tx_control #( // The interval at which clock correct
                                         ( input wire  CLK_IN
                                         , input wire  RESET_IN
                                         
+                                          // register bank interface
+                                        , input wire [`IDLE_BITS - 1:0] REG_IDSO_IN
+
                                           // Has the handshake been completed
                                         , input wire HANDSHAKE_COMPLETE_IN
                                           // The phase of the handshake procedure
@@ -41,6 +44,7 @@ module spio_hss_multiplexer_tx_control #( // The interval at which clock correct
                                         ,   input wire  [3:0] TXCHARISK_IN
                                             // If high, the value on TXDATA_IN and TXCHARISK_IN will be
                                             // sent in the next cycle
+                                        ,   input wire TXVLD_IN
                                         ,   output reg TXRDY_OUT
                                         );
 
@@ -92,13 +96,19 @@ always @ (posedge CLK_IN, posedge RESET_IN)
 				                 };
 				TXCHARISK_OUT <=  4'b1100;
 			end
-		else
+		else if (TXVLD_IN)
 			begin
 				TXDATA_OUT    <= TXDATA_IN;
 				TXCHARISK_OUT <= TXCHARISK_IN;
 			end
+		else  // send idle frame
+			begin
+				TXDATA_OUT    <= {`KCH_IDLE, REG_IDSO_IN};
+				TXCHARISK_OUT <= `IDLE_KBITS;
+			end
 
 
+//TODO: safe and efficient but may break the vld/rdy protocol!
 // Allow packets to be transmitted by the rest of the system only if the
 // handshake has been completed and we're not sending a clock-correction
 // sequence.

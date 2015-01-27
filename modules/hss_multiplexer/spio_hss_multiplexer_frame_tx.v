@@ -40,7 +40,6 @@
 `define ACK_FRM    {`KCH_ACK, ack_colour_i, ack_seq_i, `CRC_PAD}
 `define OOC_FRM    {`KCH_OOC, ooc_colour, {(8 - `CLR_BITS) {1'b0}}, `CRC_PAD}
 `define CFC_FRM    {`KCH_CFC, cfc_loc, `CRC_PAD}
-`define IDLE_FRM   {`KCH_IDLE, reg_idso}
 `define LAST_FRM   {ack_colour_i, ack_seq_i, cfc_loc, `CRC_PAD}
 
 
@@ -52,7 +51,6 @@ module spio_hss_multiplexer_frame_tx
 
   // register interface (to register bank)
   output reg                     reg_tfrm,
-  input  wire [`IDLE_BITS - 1:0] reg_idso,
 
   // frame interface (from frame assembler)
   // assembled data frame
@@ -82,6 +80,7 @@ module spio_hss_multiplexer_frame_tx
   // high-speed link interface (to gtp)
   output reg   [`FRM_BITS - 1:0] hsl_data,
   output reg   [`KCH_BITS - 1:0] hsl_kchr,
+  output reg 	                 hsl_vld,
   input  wire 	                 hsl_rdy
 );
 
@@ -126,7 +125,7 @@ module spio_hss_multiplexer_frame_tx
   reg  send_ooc;
   reg  send_frm;
   reg  send_cfc;
-  reg  send_idle;
+  reg  send_idle;  // really means do not send anything!
 
   reg  rts_nak;
   reg  rts_ack;
@@ -182,12 +181,21 @@ module spio_hss_multiplexer_frame_tx
   //---------------------------------------------------------------
   always @ (posedge clk or posedge rst)
     if (rst)
+      hsl_vld <= 1'b0;
+    else
+      if (hsl_rdy)
+	if (!send_idle)
+          hsl_vld <= 1'b1;
+        else
+          hsl_vld <= 1'b0;
+
+  always @ (posedge clk or posedge rst)
+    if (rst)
       hsl_data <= `INIT_FRM;  // start with idle frames
     else
       if (hsl_rdy)
         if (send_idle)
-          // When idle send an externally specified sentinel value
-          hsl_data <= `IDLE_FRM;
+          hsl_data <= `INIT_FRM;
         else    
           hsl_data <= crc_out;
 
@@ -461,7 +469,7 @@ module spio_hss_multiplexer_frame_tx
             send_idle = 1'b0;
           end
       
-        // if nothing requested, send idle frame
+        // if nothing requested go/stay idle
         default:
           begin
             send_nak  = 1'b0;

@@ -25,7 +25,7 @@ module spio_hss_multiplexer_rx_control #( // Number of consecutive handshakes wh
                                         , input wire  RESET_IN
                                         
                                           // register bank interface
-                                        , output reg  [`IDLE_BITS - 1:0] REG_IDSI_IN
+                                        , output reg  [`IDLE_BITS - 1:0] REG_IDSI_OUT
 
                                           // Status Signals
                                             // Has the handshake been completed successfully?
@@ -68,10 +68,10 @@ wire is_idle_frame_i = is_word_aligned_i
 // idle frame handling (simply latch the latest sentinel value)
 always @ (posedge CLK_IN or posedge RESET_IN)
   if (RESET_IN)
-    REG_IDSI_IN <= {`IDLE_BITS{1'b1}};
+    REG_IDSI_OUT <= {`IDLE_BITS{1'b1}};
   else
     if (is_idle_frame_i)
-      REG_IDSI_IN <= aligned_rxdata_i[`IDLE_BITS-1:0];
+      REG_IDSI_OUT <= aligned_rxdata_i[`IDLE_BITS-1:0];
 
 ////////////////////////////////////////////////////////////////////////////////
 // loss of sync state machine

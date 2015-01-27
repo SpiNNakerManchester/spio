@@ -120,6 +120,7 @@ module spio_hss_multiplexer #( // The interval at which clock correction sequenc
 // Low-level serial transmission interface
 wire [31:0] txdata_i;
 wire  [3:0] txcharisk_i;
+wire        txvld_i;
 wire        txrdy_i;
 
 wire [31:0] rxdata_i;
@@ -213,12 +214,14 @@ wire handshake_phase_i;
 spio_hss_multiplexer_tx_control
 spio_hss_multiplexer_tx_control_i( .CLK_IN                 (CLK_IN)
                                  , .RESET_IN               (RESET_IN)
+                                 , .REG_IDSO_IN            (reg_idso_i)
                                  , .HANDSHAKE_COMPLETE_IN  (HANDSHAKE_COMPLETE_OUT)
                                  , .HANDSHAKE_PHASE_IN     (handshake_phase_i)
                                  , .TXDATA_OUT             (TXDATA_OUT)
                                  , .TXCHARISK_OUT          (TXCHARISK_OUT)
                                  , .TXDATA_IN              (txdata_i)
                                  , .TXCHARISK_IN           (txcharisk_i)
+                                 , .TXVLD_IN               (txvld_i)
                                  , .TXRDY_OUT              (txrdy_i)
                                  );
 
@@ -228,7 +231,7 @@ spio_hss_multiplexer_rx_control #( .NUM_HANDSHAKES(NUM_HANDSHAKES)
                                  )
 spio_hss_multiplexer_rx_control_i( .CLK_IN                 (CLK_IN)
                                  , .RESET_IN               (RESET_IN)
-                                 , .REG_IDSI_IN            (reg_idsi_i)
+                                 , .REG_IDSI_OUT           (reg_idsi_i)
                                  , .HANDSHAKE_COMPLETE_OUT (HANDSHAKE_COMPLETE_OUT)
                                  , .HANDSHAKE_PHASE_OUT    (handshake_phase_i)
                                  , .VERSION_MISMATCH_OUT   (VERSION_MISMATCH_OUT)
@@ -262,7 +265,6 @@ spio_hss_multiplexer_spinnlink_i( .clk       (CLK_IN)
                                   
                                   // Diagnostic signals from frame transmitter
                                 , .reg_tfrm  (reg_tfrm_i)
-                                , .reg_idso  (reg_idso_i)
                                   
                                   // Diagnostic signals from frame disassembler
                                 , .reg_dfrm  (reg_dfrm_i)
@@ -283,6 +285,7 @@ spio_hss_multiplexer_spinnlink_i( .clk       (CLK_IN)
                                   // To high-speed serial: assembled frames out
                                 , .hsl_data  (txdata_i)
                                 , .hsl_kchr  (txcharisk_i)
+                                , .hsl_vld   (txvld_i)
                                 , .hsl_rdy   (txrdy_i)
                                 
                                   // From high-speed serial: assembled frames in

@@ -102,6 +102,7 @@ module spio_hss_multiplexer_spinnlink
   // high-speed link data output
   output wire  [`FRM_BITS - 1:0] hsl_data,
   output wire  [`KCH_BITS - 1:0] hsl_kchr,
+  output wire                    hsl_vld,
   input  wire                    hsl_rdy,
 
   // high-speed link data input
@@ -309,7 +310,6 @@ module spio_hss_multiplexer_spinnlink
 
     // register interface (to register bank)
     .reg_tfrm   (reg_tfrm),
-    .reg_idso   (reg_idso),
 
     // frame interface
     .frm_data   (frm_data),
@@ -334,6 +334,7 @@ module spio_hss_multiplexer_spinnlink
     // high-speed link interface
     .hsl_data   (hsl_data),
     .hsl_kchr   (hsl_kchr),
+    .hsl_vld    (hsl_vld),
     .hsl_rdy    (hsl_rdy)
   );
   //---------------------------------------------------------------
