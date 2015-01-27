@@ -35,7 +35,6 @@
 //-----------------------------------------------------------------
 // useful macros (local to frame_tx)
 //-----------------------------------------------------------------
-`define INIT_FRM   {`KCH_IDLE, {`IDLE_BITS {1'b0}}}
 `define NAK_FRM    {`KCH_NAK, ack_colour_i, ack_seq_i, `CRC_PAD}
 `define ACK_FRM    {`KCH_ACK, ack_colour_i, ack_seq_i, `CRC_PAD}
 `define OOC_FRM    {`KCH_OOC, ooc_colour, {(8 - `CLR_BITS) {1'b0}}, `CRC_PAD}
@@ -189,30 +188,20 @@ module spio_hss_multiplexer_frame_tx
         else
           hsl_vld <= 1'b0;
 
-  always @ (posedge clk or posedge rst)
-    if (rst)
-      hsl_data <= `INIT_FRM;  // start with idle frames
-    else
-      if (hsl_rdy)
-        if (send_idle)
-          hsl_data <= `INIT_FRM;
-        else    
-          hsl_data <= crc_out;
+  always @ (posedge clk)
+    if (hsl_rdy && !send_idle)
+        hsl_data <= crc_out;
 
-  always @ (posedge clk or posedge rst)
-    if (rst)
-      hsl_kchr <= `IDLE_KBITS;  // start with idle frames!
-    else
-      if (hsl_rdy)
-        casex ({send_idle, send_nak, send_ack, send_ooc, send_cfc, send_last})
-          6'b1xxxxx: hsl_kchr <= `IDLE_KBITS;
-          6'bx1xxxx: hsl_kchr <= `NAK_KBITS;
-          6'bxx1xxx: hsl_kchr <= `ACK_KBITS;
-          6'bxxx1xx: hsl_kchr <= `OOC_KBITS;
-          6'bxxxx1x: hsl_kchr <= `CFC_KBITS;
-          6'bxxxxx1: hsl_kchr <= `ZERO_KBITS;
-          default:   hsl_kchr <= frm_kchr_i;
-        endcase
+  always @ (posedge clk)
+    if (hsl_rdy && !send_idle)
+      casex ({send_nak, send_ack, send_ooc, send_cfc, send_last})
+        5'b1xxxx: hsl_kchr <= `NAK_KBITS;
+        5'bx1xxx: hsl_kchr <= `ACK_KBITS;
+        5'bxx1xx: hsl_kchr <= `OOC_KBITS;
+        5'bxxx1x: hsl_kchr <= `CFC_KBITS;
+        5'bxxxx1: hsl_kchr <= `ZERO_KBITS;
+        default:  hsl_kchr <= frm_kchr_i;
+      endcase
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------

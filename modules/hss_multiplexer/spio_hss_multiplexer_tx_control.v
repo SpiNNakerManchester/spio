@@ -48,6 +48,22 @@ module spio_hss_multiplexer_tx_control #( // The interval at which clock correct
                                         ,   output reg TXRDY_OUT
                                         );
 
+//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+//--------------------- PRNG for idle frames --------------------
+//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+wire [15:0] lfsr_out;
+wire        send_lfsr;
+
+spio_hss_multiplexer_lfsr lfsr_0
+(
+  .clk      (CLK_IN),
+  .rst      (RESET_IN),
+  .next     (send_lfsr),
+  .data_out (lfsr_out)
+);
+//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+
 // Trigger clock correction at the required interval
 reg [CLOCK_CORRECTION_INTERVAL_BITS-1:0] clock_correction_counter_i;
 always @ (posedge CLK_IN, posedge RESET_IN)
@@ -73,6 +89,14 @@ always @ (posedge CLK_IN, posedge RESET_IN)
 	if (RESET_IN) send_clock_correction_sequence_i <= 1'b0;
 	else          send_clock_correction_sequence_i <= clock_correction_sequence_due_i;
 
+
+// decide what data to send on idle frames
+assign send_lfsr = HANDSHAKE_COMPLETE_IN
+                 && !clock_correction_sequence_due_i
+                 && !TXVLD_IN
+                 && (REG_IDSO_IN == 0)
+                 ;
+wire [15:0] idle_data = send_lfsr ? lfsr_out : REG_IDSO_IN;
 
 // Select the appropriate value to send.
 always @ (posedge CLK_IN, posedge RESET_IN)
@@ -103,7 +127,7 @@ always @ (posedge CLK_IN, posedge RESET_IN)
 			end
 		else  // send idle frame
 			begin
-				TXDATA_OUT    <= {`KCH_IDLE, REG_IDSO_IN};
+				TXDATA_OUT    <= {`KCH_IDLE, idle_data};
 				TXCHARISK_OUT <= `IDLE_KBITS;
 			end
 
