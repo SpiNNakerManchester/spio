@@ -139,6 +139,11 @@ address: 0x00040000
 	                                                 }
 	PKEY       2   0x08  RW        32  Peripheral MC route key
 	PMSK       3   0x0C  RW        32  Peripheral MC route mask
+	SCRM       5   0x10  RW         4  Scrambler on  {   3: ring link
+	                                                 ,   2: peripheral link
+	                                                 ,   1: board-to-board link1
+	                                                 ,   0: board-to-board link0
+	                                                 }
 
 Finally, there are SpiNNaker-link packet counters on all SpiNNaker - FPGA links.
 

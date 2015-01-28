@@ -20,7 +20,7 @@
 
 
 module spinnaker_fpgas_top #( // Version number for top-level design
-                              parameter VERSION = 32'h12091400
+                              parameter VERSION = 32'h28010900
                               // Enable simulation mode for GTP tile
                             , parameter SIMULATION = 0
                               // Speed up simulated reset of GTP tile
@@ -34,7 +34,7 @@ module spinnaker_fpgas_top #( // Version number for top-level design
                               // include hss multiplexer module for FPGA ring
                             , parameter INCLUDE_RING_SUPPORT = 0
                               // Which FPGA should this module be compiled for
-                            , parameter FPGA_ID = 1
+                            , parameter FPGA_ID = 2
                               // Should North and South connections be connected
                               // to 0: J6 and J8 on the back respectively or 1:
                               // J9 and J11 on the front respectively.
@@ -321,6 +321,9 @@ wire                  switch_dropped_vld_i     [`NUM_CHANS-1:0];
 // Key/mask to match to forward MC packets to peripheral link
 wire [31:0] periph_mc_key_i;
 wire [31:0] periph_mc_mask_i;
+
+// control wires from the top-level register bank
+wire [31:0] scrmbl_idl_dat_i;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1150,6 +1153,8 @@ generate for (i = 0; i < 2; i = i + 1)
 		                     , .RX_PKT7_DATA_OUT               (b2b_pkt_rxdata_i[i][i ? 0 : 7])
 		                     , .RX_PKT7_VLD_OUT                (b2b_pkt_rxvld_i[i][i ? 0 : 7])
 		                     , .RX_PKT7_RDY_IN                 (b2b_pkt_rxrdy_i[i][i ? 0 : 7])
+		                       // top-level control inputs
+		                     , .SCRMBL_IDL_DAT                 (scrmbl_idl_dat_i[i])
 		                       // High-level protocol performance counters
 		                     , .REG_WRITE_IN                   (b2b_reg_write_i[i])
 		                     , .REG_ADDR_IN                    (b2b_reg_addr_i[i])
@@ -1231,6 +1236,8 @@ generate if (INCLUDE_PERIPH_SUPPORT)
                                 , .RX_PKT7_DATA_OUT               (periph_pkt_rxdata_i[7])
 	                        , .RX_PKT7_VLD_OUT                (periph_pkt_rxvld_i[7])
 	                        , .RX_PKT7_RDY_IN                 (periph_pkt_rxrdy_i[7])
+	                          // top-level control inputs
+		                , .SCRMBL_IDL_DAT                 (scrmbl_idl_dat_i[2])
 	                          // High-level protocol performance counters
                                 , .REG_WRITE_IN                   (periph_reg_write_i)
                                 , .REG_ADDR_IN                    (periph_reg_addr_i)
@@ -1661,6 +1668,7 @@ spinnaker_fpgas_reg_bank_i( .CLK_IN         (reg_bank_clk_i)
                                             )
                           , .PERIPH_MC_KEY  (periph_mc_key_i)
                           , .PERIPH_MC_MASK (periph_mc_mask_i)
+                          , .SCRMBL_IDL_DAT (scrmbl_idl_dat_i)
                           );
 
 

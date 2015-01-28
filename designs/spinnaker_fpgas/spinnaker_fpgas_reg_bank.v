@@ -27,6 +27,7 @@ module spinnaker_fpgas_reg_bank #( // Address bits
                                    // Peripheral routing key/mask
                                  , output reg             [31:0] PERIPH_MC_KEY
                                  , output reg             [31:0] PERIPH_MC_MASK
+                                 , output reg             [31:0] SCRMBL_IDL_DAT
                                  );
 
 localparam VERS_REG = 0; // Top level design version
@@ -38,6 +39,7 @@ localparam FLAG_REG = 1; // Compile flags {   5: chip scope
                          //               }
 localparam PKEY_REG = 2; // Peripheral MC route key
 localparam PMSK_REG = 3; // Peripheral MC route mask
+localparam SCRM_REG = 4; // idle data scrambling control
 
 
 // Write address decode
@@ -46,12 +48,14 @@ always @ (posedge CLK_IN, posedge RESET_IN)
 		begin
 			PERIPH_MC_KEY  <= 32'hFFFFFFFF;
 			PERIPH_MC_MASK <= 32'h00000000;
+			SCRMBL_IDL_DAT <= 32'hFFFFFFFF;
 		end
 	else
 		if (WRITE_IN)
 			case (ADDR_IN)
 				PKEY_REG: PERIPH_MC_KEY  <= WRITE_DATA_IN;
 				PMSK_REG: PERIPH_MC_MASK <= WRITE_DATA_IN;
+				SCRM_REG: SCRMBL_IDL_DAT <= WRITE_DATA_IN;
 			endcase
 
 
@@ -62,6 +66,7 @@ always @ (*)
 		FLAG_REG: READ_DATA_OUT = FLAGS_IN;
 		PKEY_REG: READ_DATA_OUT = PERIPH_MC_KEY;
 		PMSK_REG: READ_DATA_OUT = PERIPH_MC_MASK;
+		SCRM_REG: READ_DATA_OUT = SCRMBL_IDL_DAT;
 		default:  READ_DATA_OUT = {REGD_BITS{1'b1}};
 	endcase
 

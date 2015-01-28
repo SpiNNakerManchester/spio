@@ -49,14 +49,14 @@ Devices which never produce packets with payloads may tie the upper 32 bits to
 any value (but not be left floating). Devices that cannot consume packets with
 payloads may safely ignore these upper 32 bits.
 
-If the `vld` signal is asserted then the data A wishes to transfer is on the
+If the `vld` signal is asserted then the data that A wishes to transfer is on the
 `data` bus. The `rdy` signal is asserted whenever B is capable of accepting new
 data. If `rdy` and `vld` are asserted in the same cycle, the value on the data
 bus is captured by B. In the next cycle, if both signals are still asserted then
 the new data on the bus is considered transferred.
 
 Once the `vld` signal has been asserted it must not be deasserted until `rdy`
-has gone high (i.e. until the value is transferred). Simillarly, `rdy` must also
+has gone high (i.e. until the value is transferred). Similarly, `rdy` must also
 not be deasserted once asserted until `vld` goes high (i.e. a value is
 transferred).
 

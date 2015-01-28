@@ -99,6 +99,9 @@ module spio_hss_multiplexer #( // The interval at which clock correction sequenc
                              ,   output wire                 RX_PKT7_VLD_OUT
                              ,   input  wire                 RX_PKT7_RDY_IN
                              
+                               // top-level control inputs
+                             ,   input  wire                 SCRMBL_IDL_DAT
+
                                // High-level protocol Performance counters
                                // Accessible as a bank of read-only registers
                                // whose addresses are given in
@@ -214,6 +217,7 @@ wire handshake_phase_i;
 spio_hss_multiplexer_tx_control
 spio_hss_multiplexer_tx_control_i( .CLK_IN                 (CLK_IN)
                                  , .RESET_IN               (RESET_IN)
+                                 , .SCRMBL_IDL_DAT         (SCRMBL_IDL_DAT)
                                  , .REG_IDSO_IN            (reg_idso_i)
                                  , .HANDSHAKE_COMPLETE_IN  (HANDSHAKE_COMPLETE_OUT)
                                  , .HANDSHAKE_PHASE_IN     (handshake_phase_i)

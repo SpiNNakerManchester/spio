@@ -25,6 +25,9 @@ module spio_hss_multiplexer_tx_control #( // The interval at which clock correct
                                         ( input wire  CLK_IN
                                         , input wire  RESET_IN
                                         
+                                          // top-level control inputs
+                                        , input wire  SCRMBL_IDL_DAT
+
                                           // register bank interface
                                         , input wire [`IDLE_BITS - 1:0] REG_IDSO_IN
 
@@ -94,7 +97,7 @@ always @ (posedge CLK_IN, posedge RESET_IN)
 assign send_lfsr = HANDSHAKE_COMPLETE_IN
                  && !clock_correction_sequence_due_i
                  && !TXVLD_IN
-                 && (REG_IDSO_IN == 0)
+                 && SCRMBL_IDL_DAT
                  ;
 wire [15:0] idle_data = send_lfsr ? lfsr_out : REG_IDSO_IN;
 
