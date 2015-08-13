@@ -13,6 +13,8 @@
 //  School of Computer Science
 // -------------------------------------------------------------------------
 // TODO
+// - test non-maximum bandwidth on both interfaces
+// - function complete_nrz_2of7 may need to check for errors
 // -------------------------------------------------------------------------
 
 
@@ -47,18 +49,48 @@ reg         tb_clk;
 reg         uut_rst;
 reg         uut_clk;
 
-wire [71:0] ipkt_data;
-reg         ipkt_vld;
-wire        ipkt_rdy;
+wire [71:0] uut_ipkt_data;
+reg         uut_ipkt_vld;
+wire        uut_ipkt_rdy;
 
-wire  [6:0] ospl_data;
-reg         ospl_ack;
-wire        ospl_sync_ack;
+wire  [6:0] uut_ospl_data;
+reg         uut_ospl_ack;
+wire        uut_ospl_sync_ack;
+
+wire  [7:0] tb_ipkt_hdr; 
+reg   [1:0] tb_ipkt_type; 
+wire        tb_ipkt_prty; 
+reg  [31:0] tb_ipkt_key;
+reg  [31:0] tb_ipkt_pld;
+reg         tb_ipkt_send_pld;
+
+reg   [6:0] tb_old_data;
+wire  [3:0] tb_rec_data;
+wire        tb_rec_eop;
+
+reg   [4:0] tb_flt_cnt;
+
+reg         tb_bad_pkt;
+
+reg  [71:0] tb_opkt;
+wire  [7:0] tb_opkt_hdr; 
+wire [31:0] tb_opkt_key;
+wire [31:0] tb_opkt_pld;
+
+reg  [71:0] tb_fifo_pkt [0:7];
+reg   [2:0] tb_fifo_rdp;
+reg   [2:0] tb_fifo_wrp;
+
+reg [31:0] tb_pkt_cnt;
+reg        tb_cnt_on;
+reg [31:0] tb_cycle_cnt;
+reg [31:0] tb_start_cnt;
 
 
-//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-//--------------------------- functions -------------------------
-//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+//---------------------------------------------------------------
+// functions
+//---------------------------------------------------------------
+
 //---------------------------------------------------------------
 // NRZ 2-of-7 decoder
 //---------------------------------------------------------------
@@ -86,7 +118,7 @@ function [3:0] decode_nrz_2of7 ;
     default:    decode_nrz_2of7 = 4'hx; // eop, incomplete, oob
   endcase
 endfunction
-//---------------------------------------------------------------
+
 
 //---------------------------------------------------------------
 // NRZ 2-of-7 eop detection
@@ -101,11 +133,12 @@ function [3:0] eop_nrz_2of7 ;
     default:    eop_nrz_2of7 = 0;
   endcase
 endfunction
-//---------------------------------------------------------------
+
 
 //---------------------------------------------------------------
 // NRZ 2-of-7 completion detection
 //---------------------------------------------------------------
+//TODO: may need to take errors into account
 function [3:0] complete_nrz_2of7 ;
   input [6:0] data;
   input [6:0] old_data;
@@ -132,170 +165,326 @@ function [3:0] complete_nrz_2of7 ;
     default:    complete_nrz_2of7 = 0;
   endcase
 endfunction
+
+
 //---------------------------------------------------------------
-//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
-
-//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-//--------------------------- datapath --------------------------
-//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+// unit under test
+//---------------------------------------------------------------
 spio_spinnaker_link_sender uut
 (
   .CLK_IN           (uut_clk),
   .RESET_IN         (uut_rst),
 
-  // synchronous packet interface
-  .PKT_DATA_IN      (ipkt_data),
-  .PKT_VLD_IN       (ipkt_vld),
-  .PKT_RDY_OUT      (ipkt_rdy),
+  // incoming packet interface
+  .PKT_DATA_IN      (uut_ipkt_data),
+  .PKT_VLD_IN       (uut_ipkt_vld),
+  .PKT_RDY_OUT      (uut_ipkt_rdy),
 
-  // SpiNNaker link asynchronous interface
-  .SL_DATA_2OF7_OUT (ospl_data),
-  .SL_ACK_IN        (ospl_sync_ack)
+  // outpoing SpiNNaker link interface
+  .SL_DATA_2OF7_OUT (uut_ospl_data),
+  .SL_ACK_IN        (uut_ospl_sync_ack)
 );
 
-// synchronize acknowledge into uut
+
+//---------------------------------------------------------------
+// synchronize SpiNNaker acknowledge to uut_clk
+//---------------------------------------------------------------
 spio_spinnaker_link_sync 
-#(.SIZE(1)
+#(.SIZE (1)
 )
 sync
 (
   .CLK_IN (uut_clk),
-  .IN     (ospl_ack),
-  .OUT    (ospl_sync_ack)
+  .IN     (uut_ospl_ack),
+  .OUT    (uut_ospl_sync_ack)
 );
+
+
 //--------------------------------------------------
-// drive the input packet interface
+// packet interface: generate pkt data
 //--------------------------------------------------
-reg  [31:0] tb_cnt;
+assign uut_ipkt_data = {tb_ipkt_pld, tb_ipkt_key, tb_ipkt_hdr};
 
-wire  [7:0] tb_hdr; 
-reg  [31:0] tb_key;
-reg  [31:0] tb_pld;
 
-reg         tb_send_pld;
+//--------------------------------------------------
+// packet interface: generate pkt valid
+//--------------------------------------------------
+always @ (posedge tb_clk or posedge tb_rst)
+  if (tb_rst)
+    uut_ipkt_vld <= # COMB_DELAY 1'b0;
+  else
+    if (uut_ipkt_vld && uut_ipkt_rdy && (tb_start_cnt != 0))
+      uut_ipkt_vld <= # COMB_DELAY 1'b0;
+    else if (tb_cycle_cnt == 0)
+      uut_ipkt_vld <= # COMB_DELAY 1'b1;
 
-assign tb_hdr = {6'b000000, tb_send_pld, ^(tb_key ^ tb_pld)};  // compute parity!
 
+always @ (posedge tb_clk or posedge tb_rst)
+  if (tb_rst)
+    tb_pkt_cnt <= 0;
+  else
+    if (uut_ipkt_vld && uut_ipkt_rdy)
+      tb_pkt_cnt <= tb_pkt_cnt + 1;
+
+
+always @ (posedge tb_clk or posedge tb_rst)
+  if (tb_rst)
+    tb_start_cnt <= 200;
+  else
+    if (tb_pkt_cnt <= 25)
+    begin
+      if (uut_ipkt_vld && uut_ipkt_rdy)
+        if (tb_start_cnt <= 75)
+          tb_start_cnt <= 200;
+        else  
+          tb_start_cnt <= tb_start_cnt - 15;
+    end
+    else
+      tb_start_cnt <= 0;
+
+
+always @ (*)
+  if (uut_ipkt_vld && uut_ipkt_rdy && (tb_start_cnt != 0))
+    tb_cnt_on = 1;
+  else
+    tb_cnt_on = 0;
+
+
+
+//--------------------------------------------------
+// testbench: generate input packet header
+//--------------------------------------------------
+assign tb_ipkt_hdr = {tb_ipkt_type, 4'b0000, tb_ipkt_send_pld, tb_ipkt_prty};
+
+
+//--------------------------------------------------
+// testbench: generate input packet type
+//--------------------------------------------------
 always @ (posedge tb_clk or posedge tb_rst)
   if (tb_rst)
   begin
-    tb_key      <= 32'h0000_0001;
-    tb_pld      <= 32'ha5a5_a5a5;
-    tb_send_pld <= 1'b0;
+    tb_ipkt_type <= 0;
   end
   else
-    if (ipkt_vld && ipkt_rdy)
-      tb_key <= # COMB_DELAY tb_key + 1;
+    if (uut_ipkt_vld && uut_ipkt_rdy)
+      tb_ipkt_type <= # COMB_DELAY tb_ipkt_type + 1;
 
-assign ipkt_data = {tb_pld, tb_key, tb_hdr};
 
+//--------------------------------------------------
+// testbench: generate input packet parity bit
+//--------------------------------------------------
+assign tb_ipkt_prty = tb_ipkt_send_pld
+                        ? ^(tb_ipkt_hdr[7:1] ^ tb_ipkt_key ^ tb_ipkt_pld)
+                        : ~(^(tb_ipkt_hdr[7:1] ^ tb_ipkt_key));
+
+
+//--------------------------------------------------
+// testbench: generate input packet key
+//--------------------------------------------------
 always @ (posedge tb_clk or posedge tb_rst)
   if (tb_rst)
-    ipkt_vld <= # COMB_DELAY 1'b0;
+  begin
+    tb_ipkt_key <= 32'h0000_0001;
+  end
   else
-    if (tb_cnt == 0)
-      ipkt_vld <= # COMB_DELAY 1'b1;
+    if (uut_ipkt_vld && uut_ipkt_rdy)
+      tb_ipkt_key <= # COMB_DELAY tb_ipkt_key + 1;
+
+
+//--------------------------------------------------
+// testbench: generate input packet payload
+//--------------------------------------------------
+//TODO: currently no payload sent!
+always @ (posedge tb_clk or posedge tb_rst)
+  if (tb_rst)
+    tb_ipkt_pld <= 32'ha5a5_a5a5;
+  else
+    if (uut_ipkt_vld && uut_ipkt_rdy)
+      tb_ipkt_pld <= # COMB_DELAY tb_ipkt_pld + 1;
+
+
+//--------------------------------------------------
+// testbench: control if payload is sent
+//--------------------------------------------------
+//TODO: currently no payload sent!
+always @ (posedge tb_clk or posedge tb_rst)
+  if (tb_rst)
+    tb_ipkt_send_pld <= 1'b0;
+  else
+    if (uut_ipkt_vld && uut_ipkt_rdy)
+      tb_ipkt_send_pld <= 1'b0;
+
+
+//--------------------------------------------------
+// testbench: store sent packets in fifo for later checking
+//--------------------------------------------------
+//TODO: assumes that fifo is never full (safe for now!)
+always @ (posedge tb_clk)
+  if (uut_ipkt_vld && uut_ipkt_rdy)
+    tb_fifo_pkt[tb_fifo_wrp] <= uut_ipkt_data;
+
+
+//--------------------------------------------------
+// testbench: update pakect fifo write pointer
+//--------------------------------------------------
+always @ (posedge tb_clk or posedge tb_rst)
+  if (tb_rst)
+    tb_fifo_wrp <= 0;
+  else
+    if (uut_ipkt_vld && uut_ipkt_rdy)
+      tb_fifo_wrp <= tb_fifo_wrp + 1;
+
+
+//--------------------------------------------------
+// SpiNNaker link interface: generate ack
+//--------------------------------------------------
+//TODO: test different (maybe time-varying) asynchronous delays!
+initial
+begin
+  wait (tb_rst);   // wait for reset to be applied
+
+  # COMB_DELAY;
+   
+  uut_ospl_ack = 0;
+  tb_old_data = 0;
+
+  tb_bad_pkt = 0;
+  tb_fifo_rdp = 0;
+
+  tb_opkt = 72'hxxxxxxxx_xxxxxxxx_xx;
+  tb_flt_cnt = 0;
+
+  wait (!tb_rst);  // wait for reset to be released
+
+  # COMB_DELAY;
+   
+  uut_ospl_ack = 1;  // initial ack (mimic SpiNNaker behaviour)
+  tb_old_data = uut_ospl_data;  // remember data (for nrz completion detection)
+
+  forever
+  begin
+    wait (complete_nrz_2of7 (uut_ospl_data, tb_old_data));
+
+    # COMB_DELAY;
+
+    if (tb_rec_eop)
+    begin
+      // check received packet
+      if ((tb_opkt_hdr !== tb_fifo_pkt[tb_fifo_rdp][`PKT_HDR_RNG])
+           || (tb_opkt_key !== tb_fifo_pkt[tb_fifo_rdp][`PKT_KEY_RNG])
+           || (tb_fifo_pkt[tb_fifo_rdp][1]
+                && (tb_opkt_pld !== tb_fifo_pkt[tb_fifo_rdp][`PKT_PLD_RNG])
+              )
+         )
+        tb_bad_pkt = 1;
+      else
+        tb_bad_pkt = 0;
+
+      // update fifo read pointer
+      tb_fifo_rdp = tb_fifo_rdp + 1;
+      
+      tb_opkt = 72'hxxxxxxxx_xxxxxxxx_xx;
+      tb_flt_cnt = 0;
+    end
     else
-      ipkt_vld <= # COMB_DELAY 1'b0;
+    begin
+      tb_opkt[(tb_flt_cnt * 4) +: 4] = tb_rec_data;
+      tb_flt_cnt = tb_flt_cnt + 1;
+    end
 
-always @ (posedge tb_clk or posedge tb_rst)
-  if (tb_rst)
-    tb_cnt <= 50;
-  else
-    if (!ipkt_rdy)
-      tb_cnt = 10;
-    else if (tb_cnt != 0)
-      tb_cnt <= tb_cnt - 1;
+    # SPL_HSDLY;
+    uut_ospl_ack = ~uut_ospl_ack;
+    tb_old_data = uut_ospl_data;
+  end
+end
+
+
 //--------------------------------------------------
+// testbench: decode data and end-of-packet
+//--------------------------------------------------
+assign tb_rec_data = decode_nrz_2of7 (uut_ospl_data, tb_old_data);
+assign tb_rec_eop  = eop_nrz_2of7 (uut_ospl_data, tb_old_data);
+
 
 //--------------------------------------------------
-// drive the output SpiNNaker link interface
+// testbench: detect packet fields
 //--------------------------------------------------
-reg   [6:0] old_data;
-wire  [3:0] tb_rec_data;
-wire        tb_rec_eop;
-
-reg   [4:0] tb_fltc;
-
-reg  [71:0] tb_opkt;
-wire  [7:0] tb_opkt_hdr; 
-wire [31:0] tb_opkt_key;
-wire [31:0] tb_opkt_pld;
-
-
-assign tb_rec_data = decode_nrz_2of7 (ospl_data, old_data);
-assign tb_rec_eop  = eop_nrz_2of7 (ospl_data, old_data);
-
 assign tb_opkt_hdr = tb_opkt[`PKT_HDR_RNG];
 assign tb_opkt_key = tb_opkt[`PKT_KEY_RNG];
 assign tb_opkt_pld = tb_opkt[`PKT_PLD_RNG];
 
+
+//--------------------------------------------------
+// testbench: multi-purpose cycle counter
+//--------------------------------------------------
+always @ (posedge tb_clk or posedge tb_rst)
+  if (tb_rst)
+    tb_cycle_cnt <= 200;
+  else
+    if (tb_cnt_on)
+      tb_cycle_cnt <= tb_start_cnt;
+    else if (tb_cycle_cnt != 0)
+      tb_cycle_cnt <= tb_cycle_cnt - 1;
+
+
+//--------------------------------------------------
+// unit under test: reset signal
+//--------------------------------------------------
 initial
 begin
-  old_data = 0;
-  ospl_ack = 0;
+  uut_rst = 1'b0;
 
-  tb_opkt = 72'hxxxxxxxx_xxxxxxxx_xx;
-  tb_fltc = 0;
+  // wait a few clock cycles before triggering the reset signal
+  # INIT_DELAY;
+   
+  uut_rst = 1'b1;
 
-  wait (tb_rst);   // wait for reset to be applied
-  wait (!tb_rst);  // wait for reset to be released
+  # RST_DELAY;
 
-  # COMB_DELAY
-    ospl_ack = 1;  // initial ack (mimic SpiNNaker behaviour)
-  old_data = ospl_data;  // remember data (for nrz completion detection)
+  # COMB_DELAY;
+   
+  uut_rst = 1'b0;  // release uut
+end
+
+
+//--------------------------------------------------
+// unit under test: clock signal
+//--------------------------------------------------
+initial
+begin
+   uut_clk = 1'b0;
 
   forever
   begin
-    wait (complete_nrz_2of7 (ospl_data, old_data));
-
-    if (tb_rec_eop)
-    begin
-      tb_opkt = 72'hxxxxxxxx_xxxxxxxx_xx;
-      tb_fltc = 0;
-    end
-    else
-    begin
-      tb_opkt[tb_fltc * 4 +: 4] = tb_rec_data;
-      tb_fltc = tb_fltc + 1;
-    end
-
-    # SPL_HSDLY
-      ospl_ack = ~ospl_ack;
-    old_data = ospl_data;
-  end
+    # UUT_CLK_HPER;
+     
+    uut_clk = ~uut_clk;
+   end
 end
-//--------------------------------------------------
-//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 
-//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-//---------------------------- control --------------------------
-//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 //--------------------------------------------------
-// reset signals
+// testbench: reset signal
 //--------------------------------------------------
 initial
 begin
   tb_rst  = 1'b0;
-  uut_rst = 1'b0;
 
-  // wait a few clock cycles before triggering the reset signals
-  # INIT_DELAY
-    tb_rst  = 1'b1;
-    uut_rst = 1'b1;
+  // wait a few clock cycles before triggering the reset signal
+  # INIT_DELAY;
+   
+  tb_rst  = 1'b1;
 
-  # RST_DELAY
-    uut_rst = 1'b0;  // release uut
+  # RST_DELAY;
 
-//  # RST_DELAY 
-    tb_rst  = 1'b0;  // release tb
+  # COMB_DELAY;
+   
+  tb_rst  = 1'b0;  // release tb
 end
-//--------------------------------------------------
+
 
 //--------------------------------------------------
-// clock signals
+// testbench: clock signal
 //--------------------------------------------------
 initial
 begin
@@ -303,21 +492,9 @@ begin
 
   forever
   begin
-    # TB_CLK_HPER
-      tb_clk = ~tb_clk;
+    # TB_CLK_HPER;
+     
+    tb_clk = ~tb_clk;
    end
 end
-
-initial
-begin
-   uut_clk = 1'b0;
-
-  forever
-  begin
-    # UUT_CLK_HPER
-      uut_clk = ~uut_clk;
-   end
-end
-//--------------------------------------------------
-//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 endmodule
