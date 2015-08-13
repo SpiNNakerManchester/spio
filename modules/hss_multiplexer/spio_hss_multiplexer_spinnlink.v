@@ -48,7 +48,6 @@ module spio_hss_multiplexer_spinnlink
 
   // frame transmitter interface
   output wire                    reg_tfrm,
-  input  wire [`IDLE_BITS - 1:0] reg_idso,
 
   // frame disassembler interface
   output wire                    reg_dfrm,
