@@ -13,7 +13,7 @@
 //  School of Computer Science
 // -------------------------------------------------------------------------
 // TODO
-// - test non-maximum bandwidth on both interfaces
+// - test for variable asynchronous delay on input interface
 // - test error flits
 // -------------------------------------------------------------------------
 
@@ -164,6 +164,8 @@ spio_hss_multiplexer_pkt_fifo_sync uut1
   .SFO_VLD_OUT  (uut_opkt_vld),
   .SFO_RDY_IN   (uut_opkt_rdy)
 );
+
+
 //---------------------------------------------------------------
 // synchronize SpiNNaker 2of7 data to uut_clk0
 //---------------------------------------------------------------
@@ -229,6 +231,7 @@ begin
       tb_ipkt_type = tb_ipkt_type + 1;
       tb_ipkt_key = tb_ipkt_key + 1;
       tb_ipkt_pld = tb_ipkt_pld + 1;
+      if (tb_pkt_cnt > 13) tb_ipkt_send_pld = 1;
 
       # COMB_DELAY;
 
@@ -293,19 +296,17 @@ assign tb_ipkt_prty = tb_ipkt_send_pld
 //--------------------------------------------------
 // testbench: time to send end-of-packet
 //--------------------------------------------------
-assign tb_ipkt_send_eop = (tb_opkt_hdr[1] && (tb_flt_cnt == 18))
-                            || (tb_flt_cnt == 10);
+assign tb_ipkt_send_eop = (!tb_ipkt_hdr[1] && (tb_flt_cnt == 10))
+                            || (tb_flt_cnt == 18);
 
 
 //--------------------------------------------------
 // packet interface: generate pkt ready
 //--------------------------------------------------
-//TODO: tests maximum bandwidth only -- need to test other conditions
 always @ (posedge tb_clk or posedge tb_rst)
   if (tb_rst)
     uut_opkt_rdy <= # COMB_DELAY 1'b0;
   else
-//#    uut_opkt_rdy <= # COMB_DELAY 1'b1;
     if (uut_opkt_vld && uut_opkt_rdy && (tb_start_cnt != 0))
       uut_opkt_rdy <= # COMB_DELAY 1'b0;
     else if (tb_cycle_cnt == 0)
@@ -413,7 +414,7 @@ end
 
 
 //--------------------------------------------------
-// unit under test: clock signal
+// unit under test: fast clock signal
 //--------------------------------------------------
 initial
 begin
@@ -429,7 +430,7 @@ end
 
 
 //--------------------------------------------------
-// unit under test: clock signal
+// unit under test: slow clock signal
 //--------------------------------------------------
 initial
 begin

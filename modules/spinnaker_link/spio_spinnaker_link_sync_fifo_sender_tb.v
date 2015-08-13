@@ -24,12 +24,13 @@
 
 
 `timescale 1ns / 1ps
-module spio_spinnaker_link_sender_tb ();
+module spio_spinnaker_link_sync_fifo_sender_tb ();
 //---------------------------------------------------------------
 // constants
 //---------------------------------------------------------------
-localparam UUT_CLK_HPER = (6.666 / 2);  // currently testing @ 150 MHz
-localparam TB_CLK_HPER  = (6.666 / 2);  // currently testing @ 150 MHz
+localparam UUT_CLK0_HPER = (13.333 / 2);  // currently testing @  75 MHz
+localparam UUT_CLK1_HPER = (6.666 / 2);   // currently testing @ 150 MHz
+localparam TB_CLK_HPER   = (13.333 / 2);  // currently testing @  75 MHz
 
 //!! localparam SPL_HSDLY = 16;  // external link delay estimate
 localparam SPL_HSDLY = 23;  // external link delay estimate (includes SpiNNaker)
@@ -47,7 +48,8 @@ reg         tb_rst;
 reg         tb_clk;
 
 reg         uut_rst;
-reg         uut_clk;
+reg         uut_clk0;
+reg         uut_clk1;
 
 wire [71:0] uut_ipkt_data;
 reg         uut_ipkt_vld;
@@ -56,6 +58,10 @@ wire        uut_ipkt_rdy;
 wire  [6:0] uut_ospl_data;
 reg         uut_ospl_ack;
 wire        uut_ospl_sync_ack;
+
+wire [71:0] uut0_uut1_opkt_data;
+wire        uut0_uut1_opkt_vld;
+wire        uut0_uut1_opkt_rdy;
 
 wire  [7:0] tb_ipkt_hdr; 
 reg   [1:0] tb_ipkt_type; 
@@ -170,15 +176,33 @@ endfunction
 //---------------------------------------------------------------
 // unit under test
 //---------------------------------------------------------------
-spio_spinnaker_link_sender uut
+spio_hss_multiplexer_pkt_fifo_sync uut0
 (
-  .CLK_IN           (uut_clk),
+  .RESET_IN     (uut_rst),
+  .WCLK_IN      (uut_clk0),
+  .RCLK_IN      (uut_clk1),
+
+  // synchronous input packet (write) interface
+  .SFI_DATA_IN  (uut_ipkt_data),
+  .SFI_VLD_IN   (uut_ipkt_vld),
+  .SFI_RDY_OUT  (uut_ipkt_rdy),
+
+  // synchronous output packet (read) interface
+  .SFO_DATA_OUT (uut0_uut1_opkt_data),
+  .SFO_VLD_OUT  (uut0_uut1_opkt_vld),
+  .SFO_RDY_IN   (uut0_uut1_opkt_rdy)
+);
+
+
+spio_spinnaker_link_sender uut1
+(
+  .CLK_IN           (uut_clk1),
   .RESET_IN         (uut_rst),
 
   // incoming packet interface
-  .PKT_DATA_IN      (uut_ipkt_data),
-  .PKT_VLD_IN       (uut_ipkt_vld),
-  .PKT_RDY_OUT      (uut_ipkt_rdy),
+  .PKT_DATA_IN      (uut0_uut1_opkt_data),
+  .PKT_VLD_IN       (uut0_uut1_opkt_vld),
+  .PKT_RDY_OUT      (uut0_uut1_opkt_rdy),
 
   // outpoing SpiNNaker link interface
   .SL_DATA_2OF7_OUT (uut_ospl_data),
@@ -187,14 +211,14 @@ spio_spinnaker_link_sender uut
 
 
 //---------------------------------------------------------------
-// synchronize SpiNNaker acknowledge to uut_clk
+// synchronize SpiNNaker acknowledge to uut_clk1
 //---------------------------------------------------------------
 spio_spinnaker_link_sync 
 #(.SIZE (1)
 )
 sync
 (
-  .CLK_IN (uut_clk),
+  .CLK_IN (uut_clk1),
   .IN     (uut_ospl_ack),
   .OUT    (uut_ospl_sync_ack)
 );
@@ -448,17 +472,33 @@ end
 
 
 //--------------------------------------------------
-// unit under test: clock signal
+// unit under test: slow clock signal
 //--------------------------------------------------
 initial
 begin
-   uut_clk = 1'b0;
+   uut_clk0 = 1'b0;
 
   forever
   begin
-    # UUT_CLK_HPER;
+    # UUT_CLK0_HPER;
      
-    uut_clk = ~uut_clk;
+    uut_clk0 = ~uut_clk0;
+   end
+end
+
+
+//--------------------------------------------------
+// unit under test: fast clock signal
+//--------------------------------------------------
+initial
+begin
+   uut_clk1 = 1'b0;
+
+  forever
+  begin
+    # UUT_CLK1_HPER;
+     
+    uut_clk1 = ~uut_clk1;
    end
 end
 

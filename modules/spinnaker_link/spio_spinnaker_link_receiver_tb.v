@@ -207,6 +207,7 @@ begin
       tb_ipkt_type = tb_ipkt_type + 1;
       tb_ipkt_key = tb_ipkt_key + 1;
       tb_ipkt_pld = tb_ipkt_pld + 1;
+      if (tb_pkt_cnt > 13) tb_ipkt_send_pld = 1;
 
       # COMB_DELAY;
 
@@ -271,8 +272,8 @@ assign tb_ipkt_prty = tb_ipkt_send_pld
 //--------------------------------------------------
 // testbench: time to send end-of-packet
 //--------------------------------------------------
-assign tb_ipkt_send_eop = (tb_opkt_hdr[1] && (tb_flt_cnt == 18))
-                            || (tb_flt_cnt == 10);
+assign tb_ipkt_send_eop = (!tb_ipkt_hdr[1] && (tb_flt_cnt == 10))
+                            || (tb_flt_cnt == 18);
 
 
 //--------------------------------------------------
@@ -282,7 +283,6 @@ always @ (posedge tb_clk or posedge tb_rst)
   if (tb_rst)
     uut_opkt_rdy <= # COMB_DELAY 1'b0;
   else
-//#    uut_opkt_rdy <= # COMB_DELAY 1'b1;
     if (uut_opkt_vld && uut_opkt_rdy && (tb_start_cnt != 0))
       uut_opkt_rdy <= # COMB_DELAY 1'b0;
     else if (tb_cycle_cnt == 0)
