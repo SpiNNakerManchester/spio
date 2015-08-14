@@ -19,8 +19,6 @@
 //  School of Computer Science
 // -------------------------------------------------------------------------
 // TODO
-//  * decide what to do with "default" cases: non-valid states.
-//  * could save one clock cycle by adding RDY_ST (not straightforward!).
 // -------------------------------------------------------------------------
 
 
@@ -63,12 +61,6 @@ module spio_spinnaker_link_sender
   wire       flt_vld;
   wire       flt_rdy;
 
-
-  spio_spinnaker_link_sync #(.SIZE(1)) sync
-  ( .CLK_IN (CLK_IN),
-    .IN     (SL_ACK_IN),
-    .OUT    (synced_sl_ack)
-  );
 		
   pkt_serializer ps
   (
@@ -91,6 +83,12 @@ module spio_spinnaker_link_sender
     .flt_rdy          (flt_rdy),
     .SL_DATA_2OF7_OUT (SL_DATA_2OF7_OUT),
     .SL_ACK_IN        (synced_sl_ack)
+  );
+
+  spio_spinnaker_link_sync #(.SIZE(1)) sync
+  ( .CLK_IN (CLK_IN),
+    .IN     (SL_ACK_IN),
+    .OUT    (synced_sl_ack)
   );
 endmodule
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
