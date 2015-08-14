@@ -118,6 +118,9 @@ module flit_input_if
   //-------------------------------------------------------------
   // internal signals
   //-------------------------------------------------------------
+  reg flt_vld_i;  // keep track of flit data validity
+  reg flt_busy;   // flit interface busy
+
   reg new_flit;  // new flit arrived
 
   (* KEEP = "TRUE" *)
@@ -157,7 +160,7 @@ module flit_input_if
     case (state)
       STRT_ST:   next_ack = 1'b1;      // mimic SpiNNaker: ack on reset
 
-      default: if (new_flit && flt_rdy)
+      default: if (new_flit && !flt_busy)
                  next_ack = ~ack_int;  //  ack new flit when ready
                else
                  next_ack = ack_int;   //  no ack!
@@ -173,7 +176,7 @@ module flit_input_if
           flt_data_2of7 <= SL_DATA_2OF7_IN;  // remember initial data
 
       default:
-        if (new_flit && flt_rdy)
+        if (new_flit && !flt_busy)
           flt_data_2of7 <= SL_DATA_2OF7_IN;  // remember incoming data
     endcase 
 
@@ -188,6 +191,26 @@ module flit_input_if
       64:         new_flit = 0;  // incomplete (no/single-bit change)
       default:    new_flit = 1;  // correct data, eop or error
     endcase
+
+
+  //-------------------------------------------------------------
+  // keep track of flit data validity
+  //-------------------------------------------------------------
+  always @(posedge CLK_IN or posedge RESET_IN)
+    if (RESET_IN)
+      flt_vld_i = 1'b0;
+    else
+      if (!flt_busy)
+        if (new_flit)
+          flt_vld_i = 1'b1;
+        else
+          flt_vld_i = 1'b0;
+
+  //-------------------------------------------------------------
+  // flit interface busy
+  //-------------------------------------------------------------
+  always @(*)
+    flt_busy = flt_vld_i && !flt_rdy;
 
 
   //-------------------------------------------------------------
@@ -315,9 +338,7 @@ module pkt_deserializer
     case (state)
       STRT_ST:   old_data <= flt_data_2of7;  // remember initial 2of7 data
 
-      WAIT_ST:   old_data <= old_data;       // wait for pkt interface
-
-      default: if (new_flit)
+      default: if (new_flit && flt_rdy)
                  old_data <= flt_data_2of7;  // remember new 2of7 data
     endcase
 
@@ -452,7 +473,7 @@ module pkt_deserializer
   // shift in new data to assemble packet
   //-------------------------------------------------------------
   always @(posedge CLK_IN)
-    if (dat_flit)
+    if (dat_flit && flt_rdy)
       pkt_buf <= {new_data, pkt_buf[`PKT_BITS - 1:4]};
 
 
