@@ -55,7 +55,6 @@ reg         uut_clk1;
 
 reg   [6:0] uut_ispl_data;
 wire        uut_ispl_ack;
-wire  [6:0] uut_ispl_sync_data;
 
 wire [71:0] uut_opkt_data;
 wire        uut_opkt_vld;
@@ -138,7 +137,7 @@ spio_spinnaker_link_receiver uut0
   .RESET_IN         (uut_rst),
 
   // incoming SpiNNaker link interface
-  .SL_DATA_2OF7_IN  (uut_ispl_sync_data),
+  .SL_DATA_2OF7_IN  (uut_ispl_data),
   .SL_ACK_OUT       (uut_ispl_ack),
 
   // outgoing packet interface
@@ -163,20 +162,6 @@ spio_hss_multiplexer_pkt_fifo_sync uut1
   .SFO_DATA_OUT (uut_opkt_data),
   .SFO_VLD_OUT  (uut_opkt_vld),
   .SFO_RDY_IN   (uut_opkt_rdy)
-);
-
-
-//---------------------------------------------------------------
-// synchronize SpiNNaker 2of7 data to uut_clk0
-//---------------------------------------------------------------
-spio_spinnaker_link_sync 
-#(.SIZE (7)
-)
-sync
-(
-  .CLK_IN (uut_clk0),
-  .IN     (uut_ispl_data),
-  .OUT    (uut_ispl_sync_data)
 );
 
 

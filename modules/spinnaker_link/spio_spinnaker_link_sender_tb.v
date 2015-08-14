@@ -55,7 +55,6 @@ wire        uut_ipkt_rdy;
 
 wire  [6:0] uut_ospl_data;
 reg         uut_ospl_ack;
-wire        uut_ospl_sync_ack;
 
 wire  [7:0] tb_ipkt_hdr; 
 reg   [1:0] tb_ipkt_type; 
@@ -182,21 +181,7 @@ spio_spinnaker_link_sender uut
 
   // outpoing SpiNNaker link interface
   .SL_DATA_2OF7_OUT (uut_ospl_data),
-  .SL_ACK_IN        (uut_ospl_sync_ack)
-);
-
-
-//---------------------------------------------------------------
-// synchronize SpiNNaker acknowledge to uut_clk
-//---------------------------------------------------------------
-spio_spinnaker_link_sync 
-#(.SIZE (1)
-)
-sync
-(
-  .CLK_IN (uut_clk),
-  .IN     (uut_ospl_ack),
-  .OUT    (uut_ospl_sync_ack)
+  .SL_ACK_IN        (uut_ospl_ack)
 );
 
 

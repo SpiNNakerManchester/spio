@@ -1262,10 +1262,6 @@ endgenerate
 // SpiNNaker link to packet interface conversion
 generate for (i = 0; i < 16; i = i + 1)
 	begin : spinnaker_link_interface
-		// SpiNNaker link signals after passing through a synchroniser
-		wire       synced_sl_out_ack_i;
-		wire [6:0] synced_sl_in_data_i;
-		
 		// SpiNNaker link (synchronous) fast clock packet interfaces
 		wire [`PKT_BITS-1:0] slfc_pkt_rxdata_i;
 		wire                 slfc_pkt_rxvld_i;
@@ -1286,7 +1282,7 @@ generate for (i = 0; i < 16; i = i + 1)
 		                            , .PKT_RDY_OUT      (slfc_pkt_txrdy_i)
 		                            // SpiNNaker link asynchronous interface
 		                            , .SL_DATA_2OF7_OUT (sl_out_data_i[i])
-		                            , .SL_ACK_IN        (synced_sl_out_ack_i)
+		                            , .SL_ACK_IN        (sl_out_ack_i[i])
 		                            );
 		
 		// SpiNNaker -> FPGA
@@ -1294,7 +1290,7 @@ generate for (i = 0; i < 16; i = i + 1)
 		spio_spinnaker_link_receiver_i( .CLK_IN           (spinnaker_link_clk0_i)
 		                              , .RESET_IN         (spinnaker_link_reset_i)
 		                              // SpiNNaker link asynchronous interface
-		                              , .SL_DATA_2OF7_IN  (synced_sl_in_data_i)
+		                              , .SL_DATA_2OF7_IN  (sl_in_data_i[i])
 		                              , .SL_ACK_OUT       (sl_in_ack_i[i])
 		                                // Synchronous packet interface
 		                              , .PKT_DATA_OUT     (slfc_pkt_rxdata_i)
@@ -1331,19 +1327,6 @@ generate for (i = 0; i < 16; i = i + 1)
 						      , .SFO_RDY_IN       (slfc_pkt_txrdy_i)
 						      );
 
-		// async flit synchronisers
-		spio_spinnaker_link_sync#(.SIZE(1))
-		spio_spinnaker_link_sync_i( .CLK_IN (spinnaker_link_clk0_i)
-		                          , .IN     (sl_out_ack_i[i])
-		                          , .OUT    (synced_sl_out_ack_i)
-		                          );
-		
-		spio_spinnaker_link_sync#(.SIZE(7))
-		spio_spinnaker_link_sync2_i( .CLK_IN (spinnaker_link_clk0_i)
-		                           , .IN      (sl_in_data_i[i])
-		                           , .OUT     (synced_sl_in_data_i)
-		                           );
-		
 	end
 endgenerate
 
@@ -1551,20 +1534,20 @@ IBUF  spi_sclk_buf (.I  (SPI_SCLK_IN),  .O (spi_sclk_i));
 IBUF  spi_mosi_buf (.I  (SPI_MOSI_IN),  .O (spi_mosi_i));
 IOBUF spi_miso_buf (.IO (SPI_MISO_OUT), .I (spi_miso_i), .T (spi_nss_i), .O());
 
-// Synchronising flip-flops
-spinnaker_fpgas_sync #( .SIZE(1)
+// SPI signals synchronising flip-flops
+spio_spinnaker_link_sync #( .SIZE(1)
                       )
 sync_nss_i            ( .CLK_IN(spi_clk_i)
                       , .IN(spi_nss_i)
                       , .OUT(synced_spi_nss_i)
                       );
-spinnaker_fpgas_sync #( .SIZE(1)
+spio_spinnaker_link_sync #( .SIZE(1)
                       )
 sync_sclk_i           ( .CLK_IN(spi_clk_i)
                       , .IN(spi_sclk_i)
                       , .OUT(synced_spi_sclk_i)
                       );
-spinnaker_fpgas_sync #( .SIZE(1)
+spio_spinnaker_link_sync #( .SIZE(1)
                       )
 sync_mosi_i           ( .CLK_IN(spi_clk_i)
                       , .IN(spi_mosi_i)
