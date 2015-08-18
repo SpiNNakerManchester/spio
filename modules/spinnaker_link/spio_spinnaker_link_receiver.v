@@ -118,15 +118,18 @@ module flit_input_if
   //-------------------------------------------------------------
   // internal signals
   //-------------------------------------------------------------
-  reg flt_vld_i;  // keep track of flit data validity
-  reg flt_busy;   // flit interface busy
-
-  reg new_flit;  // new flit arrived
+  (* KEEP = "TRUE" *)
+  reg [6:0] old_data;  // remember previous 2of7 data for decoding
 
   (* KEEP = "TRUE" *)
   reg ack_int;   // internal copy of SL_ACK_OUT
 
   reg next_ack;  // next value of SL_ACK_OUT
+
+  reg new_flit;  // new flit arrived
+
+  reg flt_vld_i;  // keep track of flit data validity
+  reg flt_busy;   // flit interface busy
 
   (* KEEP = "TRUE" *)
   reg [STATE_BITS - 1:0] state;  // current state
@@ -168,6 +171,32 @@ module flit_input_if
 
 
   //-------------------------------------------------------------
+  // remember previous value of 2of7 data
+  //-------------------------------------------------------------
+  always @(posedge CLK_IN)
+    case (state)
+      STRT_ST:
+          old_data <= SL_DATA_2OF7_IN;  // remember initial data
+
+      default:
+        if (new_flit && !flt_busy)
+          old_data <= SL_DATA_2OF7_IN;  // remember incoming data
+    endcase 
+
+
+  //-------------------------------------------------------------
+  // detect the arrival of a new flit (2 or more transitions)
+  //-------------------------------------------------------------
+  always @(*)
+    case (SL_DATA_2OF7_IN ^ old_data)
+      0, 1, 2, 4,
+      8, 16, 32,
+      64:         new_flit = 0;  // incomplete (no/single-bit change)
+      default:    new_flit = 1;  // correct data, eop or error
+    endcase
+
+
+  //-------------------------------------------------------------
   // packet deserializer interface: generate flt_data_2of7
   //-------------------------------------------------------------
   always @(posedge CLK_IN)
@@ -182,18 +211,6 @@ module flit_input_if
 
 
   //-------------------------------------------------------------
-  // detect the arrival of a new flit (2 or more transitions)
-  //-------------------------------------------------------------
-  always @(*)
-    case (SL_DATA_2OF7_IN ^ flt_data_2of7)
-      0, 1, 2, 4,
-      8, 16, 32,
-      64:         new_flit = 0;  // incomplete (no/single-bit change)
-      default:    new_flit = 1;  // correct data, eop or error
-    endcase
-
-
-  //-------------------------------------------------------------
   // keep track of flit data validity
   //-------------------------------------------------------------
   always @(posedge CLK_IN or posedge RESET_IN)
@@ -205,6 +222,7 @@ module flit_input_if
           flt_vld_i = 1'b1;
         else
           flt_vld_i = 1'b0;
+
 
   //-------------------------------------------------------------
   // flit interface busy
@@ -246,7 +264,7 @@ module pkt_deserializer
   // constants
   //---------------------------------------------------------------
   //# Xilinx recommends one-hot state encoding
-  localparam STATE_BITS = 2;
+  localparam STATE_BITS = 3;
   localparam STRT_ST    = 0;
   localparam IDLE_ST    = STRT_ST + 1;
   localparam TRAN_ST    = IDLE_ST + 1;
