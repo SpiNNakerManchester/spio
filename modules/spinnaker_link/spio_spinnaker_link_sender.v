@@ -48,11 +48,6 @@ module spio_spinnaker_link_sender
 );
 
   //-------------------------------------------------------------
-  // constants
-  //-------------------------------------------------------------
-
-
-  //-------------------------------------------------------------
   // internal signals
   //-------------------------------------------------------------
   wire       synced_sl_ack;  // synchronized acknowledge input
@@ -118,8 +113,8 @@ module pkt_serializer
   //# Xilinx recommends one-hot state encoding
   localparam STATE_BITS = 2;
   localparam IDLE_ST    = 0;
-  localparam TRAN_ST    = IDLE_ST + 1;
-  localparam PARK_ST    = TRAN_ST + 1;
+  localparam PARK_ST    = IDLE_ST + 1;
+  localparam TRAN_ST    = PARK_ST + 1;
 
 
   //---------------------------------------------------------------
@@ -134,10 +129,6 @@ module pkt_serializer
   reg                     eop;       // time to send end-of-packet
   reg  [STATE_BITS - 1:0] state;     // current state
 
-
-  //-------------------------------------------------------------
-  // functions
-  //-------------------------------------------------------------
 
   //-------------------------------------------------------------
   // NRZ 2-of-7 encoder
@@ -182,12 +173,12 @@ module pkt_serializer
                  else
                    PKT_RDY_OUT <= 1'b1;  // waiting for next pkt
 
-        TRAN_ST: if (eop && !flt_busy)
+        PARK_ST:   PKT_RDY_OUT <= 1'b0;  // not ready yet for next pkt
+
+        default: if (eop && !flt_busy)
                    PKT_RDY_OUT <= 1'b1;  // finished, ready for next pkt
                  else
                    PKT_RDY_OUT <= 1'b0;  // not ready yet for next pkt
-
-        default:   PKT_RDY_OUT <= 1'b0;  // not ready yet for next pkt
       endcase 
 
 
@@ -266,10 +257,12 @@ module pkt_serializer
   //-------------------------------------------------------------
   always @(posedge CLK_IN)
     case (state)
-      TRAN_ST: if (!flt_busy)
+      IDLE_ST,
+      PARK_ST:   flt_cnt <= 1;
+
+      default: if (!flt_busy)
                  flt_cnt <= flt_cnt + 1;  // one more flit gone
 
-      default:   flt_cnt <= 1;
     endcase 
 
 
@@ -325,9 +318,10 @@ module flit_output_if
   //-------------------------------------------------------------
   // constants
   //-------------------------------------------------------------
-  localparam STATE_BITS = 1;
+  localparam STATE_BITS = 2;
   localparam IDLE_ST    = 0;
   localparam TRAN_ST    = IDLE_ST + 1;
+  localparam WAIT_ST    = TRAN_ST + 1;  // used flit ahead of rdy!
 
 
   //-------------------------------------------------------------
@@ -335,6 +329,8 @@ module flit_output_if
   //-------------------------------------------------------------
   reg old_ack;  // remember previous value of SL_ACK_IN
   reg acked;    // detect a transition in SL_ACK_IN
+
+  reg send_flit;  // send new flit to SpiNNaker
 
   reg [STATE_BITS - 1:0] state;  // current state
 
@@ -364,12 +360,29 @@ module flit_output_if
     if (RESET_IN)
       SL_DATA_2OF7_OUT <= 7'd0;
     else
+      if (send_flit)
+        SL_DATA_2OF7_OUT <= flt_data;  // send new flit
+
+
+  //-------------------------------------------------------------
+  // send a new flit to SpiNNaker
+  //-------------------------------------------------------------
+  always @(*)
+    if (RESET_IN)
+      send_flit = 1'b0;
+    else
       case (state)
         IDLE_ST: if (flt_vld)
-                   SL_DATA_2OF7_OUT <= flt_data;  // send new flit
+                   send_flit = 1'b1;  // send new flit
+                 else
+                   send_flit = 1'b0;  // no new flit to send
 
-        default: if (acked && flt_vld)
-                   SL_DATA_2OF7_OUT <= flt_data;  // send new flit
+        TRAN_ST: if (acked && flt_vld)
+                   send_flit = 1'b1;  // send new flit
+                 else
+                   send_flit = 1'b0;  // waiting for ack/no new flit
+
+        default:   send_flit = 1'b0;  // waiting for ack
       endcase 
 
 
@@ -398,11 +411,20 @@ module flit_output_if
       state <= IDLE_ST;
     else
       case (state)
-        TRAN_ST: if (acked && !flt_vld)
-                   state <= IDLE_ST;  // no new flit to send
-
-        default: if (flt_vld)
+        IDLE_ST: if (flt_vld)
                    state <= TRAN_ST;  // send new flit
+
+        TRAN_ST:
+          case ({acked, flt_vld})
+            2'b10:   state <= IDLE_ST;  // no new flit
+	    2'b11:   state <= WAIT_ST;  // use flit and wait for ack
+            default: state <= TRAN_ST;  // wait for ack
+          endcase
+
+        default: if (acked)
+                   state <= IDLE_ST;
+                 else
+                   state <= TRAN_ST;
       endcase 
 endmodule
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
