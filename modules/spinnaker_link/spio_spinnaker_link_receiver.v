@@ -48,11 +48,6 @@ module spio_spinnaker_link_receiver
 );
 
   //-------------------------------------------------------------
-  // constants
-  //-------------------------------------------------------------
-
-
-  //-------------------------------------------------------------
   // internal signals
   //-------------------------------------------------------------
   wire [6:0] synced_sl_data_2of7;  // synchronized 2of7-encoded data input
@@ -111,7 +106,7 @@ module flit_input_if
   // constants
   //-------------------------------------------------------------
   localparam STATE_BITS = 1;
-  localparam STRT_ST    = 0;
+  localparam STRT_ST    = 0;   // need to send an ack on reset exit!
   localparam IDLE_ST    = STRT_ST + 1;
 
 
@@ -119,7 +114,7 @@ module flit_input_if
   // internal signals
   //-------------------------------------------------------------
   (* KEEP = "TRUE" *)
-  reg [6:0] old_data;  // remember previous 2of7 data for decoding
+  reg [6:0] old_data;  // remember previous 2of7 data for nrz decoding
 
   (* KEEP = "TRUE" *)
   reg ack_int;   // internal copy of SL_ACK_OUT
@@ -127,12 +122,28 @@ module flit_input_if
   reg next_ack;  // next value of SL_ACK_OUT
 
   reg new_flit;  // new flit arrived
-
+ 
   reg flt_vld_i;  // keep track of flit data validity
-  reg flt_busy;   // flit interface busy
+  reg flt_busy;  // deserializer not ready for new flit
 
   (* KEEP = "TRUE" *)
   reg [STATE_BITS - 1:0] state;  // current state
+
+
+  //-------------------------------------------------------------
+  // NRZ 2-of-7 symbol detector (correct data, eop or error)
+  //-------------------------------------------------------------
+  function detect_nrz_2of7 ;
+    input [6:0] data;
+    input [6:0] old_data;
+
+    case (data ^ old_data)
+      0, 1, 2, 4,
+      8, 16, 32,
+      64:         detect_nrz_2of7 = 0;  // incomplete (no/single-bit change)
+      default:    detect_nrz_2of7 = 1;  // correct data, eop or error
+    endcase
+  endfunction
 
 
   //-------------------------------------------------------------
@@ -163,7 +174,7 @@ module flit_input_if
     case (state)
       STRT_ST:   next_ack = 1'b1;      // mimic SpiNNaker: ack on reset
 
-      default: if (new_flit && !flt_busy)
+      IDLE_ST: if (new_flit && !flt_busy)
                  next_ack = ~ack_int;  //  ack new flit when ready
                else
                  next_ack = ack_int;   //  no ack!
@@ -171,29 +182,25 @@ module flit_input_if
 
 
   //-------------------------------------------------------------
-  // remember previous value of 2of7 data
+  // remember previous value of 2of7 data for nrz decoding
+  // NOTE: could use flt_data_2of7 but complicates timing closure
   //-------------------------------------------------------------
   always @(posedge CLK_IN)
     case (state)
       STRT_ST:
           old_data <= SL_DATA_2OF7_IN;  // remember initial data
 
-      default:
+      IDLE_ST:
         if (new_flit && !flt_busy)
           old_data <= SL_DATA_2OF7_IN;  // remember incoming data
     endcase 
 
 
   //-------------------------------------------------------------
-  // detect the arrival of a new flit (2 or more transitions)
+  // detect the arrival of a new nrz flit (2 or more transitions)
   //-------------------------------------------------------------
   always @(*)
-    case (SL_DATA_2OF7_IN ^ old_data)
-      0, 1, 2, 4,
-      8, 16, 32,
-      64:         new_flit = 0;  // incomplete (no/single-bit change)
-      default:    new_flit = 1;  // correct data, eop or error
-    endcase
+    new_flit = detect_nrz_2of7 (SL_DATA_2OF7_IN, old_data);
 
 
   //-------------------------------------------------------------
@@ -204,7 +211,7 @@ module flit_input_if
       STRT_ST:
           flt_data_2of7 <= SL_DATA_2OF7_IN;  // remember initial data
 
-      default:
+      IDLE_ST:
         if (new_flit && !flt_busy)
           flt_data_2of7 <= SL_DATA_2OF7_IN;  // remember incoming data
     endcase 
@@ -225,7 +232,7 @@ module flit_input_if
 
 
   //-------------------------------------------------------------
-  // flit interface busy
+  // deserializer not ready for new flit
   //-------------------------------------------------------------
   always @(*)
     flt_busy = flt_vld_i && !flt_rdy;
@@ -275,12 +282,12 @@ module pkt_deserializer
   //---------------------------------------------------------------
   // internal signals
   //---------------------------------------------------------------
-  reg [6:0] old_data;  // remember previous 2of7 data for decoding
+  reg [6:0] old_data;  // remember previous 2of7 data for nrz decoding
 
   reg       new_flit;  // new flit arrived
-  reg       dat_flit;  // new flit is correct data
-  reg       bad_flit;  // new flit is an error
-  reg       eop_flit;  // new flit is an end-of-packet
+  reg       dat_flit;  // is the new flit correct data?
+  reg       bad_flit;  // is the new flit an error?
+  reg       eop_flit;  // is the new flit an end-of-packet?
   reg       exp_eop;   // is the new flit expected to be an eop?
   reg [4:0] flit_cnt;  // keep track of number of received flits
 
@@ -296,10 +303,6 @@ module pkt_deserializer
 
   reg  [STATE_BITS - 1:0] state;     // current state
 
-
-  //-------------------------------------------------------------
-  // functions
-  //-------------------------------------------------------------
 
   //-------------------------------------------------------------
   // NRZ 2-of-7 decoder
@@ -331,6 +334,98 @@ module pkt_deserializer
 
 
   //-------------------------------------------------------------
+  // NRZ 2-of-7 symbol detector (correct data, eop or error)
+  //-------------------------------------------------------------
+  function detect_nrz_2of7 ;
+    input [6:0] data;
+    input [6:0] old_data;
+
+    case (data ^ old_data)
+      0, 1, 2, 4,
+      8, 16, 32,
+      64:         detect_nrz_2of7 = 0;  // incomplete (no/single-bit change)
+      default:    detect_nrz_2of7 = 1;  // correct data, eop or error
+    endcase
+  endfunction
+
+
+  //-------------------------------------------------------------
+  // NRZ 2-of-7 data detector
+  //-------------------------------------------------------------
+  function data_nrz_2of7 ;
+    input [6:0] data;
+    input [6:0] old_data;
+
+    case (data ^ old_data)
+      7'b0010001: data_nrz_2of7 = 1;  // 0
+      7'b0010010: data_nrz_2of7 = 1;  // 1
+      7'b0010100: data_nrz_2of7 = 1;  // 2
+      7'b0011000: data_nrz_2of7 = 1;  // 3
+      7'b0100001: data_nrz_2of7 = 1;  // 4
+      7'b0100010: data_nrz_2of7 = 1;  // 5
+      7'b0100100: data_nrz_2of7 = 1;  // 6
+      7'b0101000: data_nrz_2of7 = 1;  // 7
+      7'b1000001: data_nrz_2of7 = 1;  // 8
+      7'b1000010: data_nrz_2of7 = 1;  // 9
+      7'b1000100: data_nrz_2of7 = 1;  // 10
+      7'b1001000: data_nrz_2of7 = 1;  // 11
+      7'b0000011: data_nrz_2of7 = 1;  // 12
+      7'b0000110: data_nrz_2of7 = 1;  // 13
+      7'b0001100: data_nrz_2of7 = 1;  // 14
+      7'b0001001: data_nrz_2of7 = 1;  // 15
+      default:    data_nrz_2of7 = 0;  // anything else is not correct data
+    endcase
+  endfunction
+
+
+  //-------------------------------------------------------------
+  // NRZ 2-of-7 end-of-packet detector
+  //-------------------------------------------------------------
+  function eop_nrz_2of7 ;
+    input [6:0] data;
+    input [6:0] old_data;
+
+    case (data ^ old_data)
+      7'b1100000: eop_nrz_2of7 = 1;
+      default:    eop_nrz_2of7 = 0;  // anything else is not an end-of-packet
+    endcase
+  endfunction
+
+
+  //-------------------------------------------------------------
+  // NRZ 2-of-7 error detector
+  //-------------------------------------------------------------
+  function error_nrz_2of7 ;
+    input [6:0] data;
+    input [6:0] old_data;
+
+    case (data ^ old_data)
+      7'b0010001: error_nrz_2of7 = 0;  // 0
+      7'b0010010: error_nrz_2of7 = 0;  // 1
+      7'b0010100: error_nrz_2of7 = 0;  // 2
+      7'b0011000: error_nrz_2of7 = 0;  // 3
+      7'b0100001: error_nrz_2of7 = 0;  // 4
+      7'b0100010: error_nrz_2of7 = 0;  // 5
+      7'b0100100: error_nrz_2of7 = 0;  // 6
+      7'b0101000: error_nrz_2of7 = 0;  // 7
+      7'b1000001: error_nrz_2of7 = 0;  // 8
+      7'b1000010: error_nrz_2of7 = 0;  // 9
+      7'b1000100: error_nrz_2of7 = 0;  // 10
+      7'b1001000: error_nrz_2of7 = 0;  // 11
+      7'b0000011: error_nrz_2of7 = 0;  // 12
+      7'b0000110: error_nrz_2of7 = 0;  // 13
+      7'b0001100: error_nrz_2of7 = 0;  // 14
+      7'b0001001: error_nrz_2of7 = 0;  // 15
+      7'b1100000: error_nrz_2of7 = 0;  // eop
+      0, 1, 2, 4,
+      8, 16, 32,
+      64:         error_nrz_2of7 = 0;  // incomplete (single-bit change)
+      default:    error_nrz_2of7 = 1;  // anything else is an error
+    endcase
+  endfunction
+
+
+  //-------------------------------------------------------------
   // flit interface: generate flt_rdy
   //-------------------------------------------------------------
   always @(posedge CLK_IN or posedge RESET_IN)
@@ -339,7 +434,7 @@ module pkt_deserializer
     else
       case (state)
 	TRAN_ST: if (pkt_wait)
-                   flt_rdy <= 1'b0;
+                   flt_rdy <= 1'b0;  // waiting for pkt interface!
 
 	WAIT_ST: if (!pkt_busy)
                    flt_rdy <= 1'b1;
@@ -350,7 +445,7 @@ module pkt_deserializer
 
 
   //-------------------------------------------------------------
-  // remember previous 2of7 data for decoding
+  // remember previous 2of7 data for nrz decoding
   //-------------------------------------------------------------
   always @(posedge CLK_IN)
     case (state)
@@ -362,84 +457,36 @@ module pkt_deserializer
 
 
   //---------------------------------------------------------------
-  // detect the arrival of a new flit (2 or more transitions)
+  // detect the arrival of a new nrz flit (2 or more transitions)
   //---------------------------------------------------------------
   always @(*)
-    case (flt_data_2of7 ^ old_data)
-      0, 1, 2, 4,
-      8, 16, 32,
-      64:         new_flit = 0;  // incomplete (single-bit change)
-      default:    new_flit = 1;  // correct data, eop or bad 
-    endcase
+    new_flit = detect_nrz_2of7 (flt_data_2of7, old_data);
   //---------------------------------------------------------------
 
 
   //---------------------------------------------------------------
-  // new flit is correct data
+  // is the new nrz flit correct data?
   //---------------------------------------------------------------
   always @(*)
-    case (flt_data_2of7 ^ old_data)
-      7'b0010001: dat_flit = 1;  // 0
-      7'b0010010: dat_flit = 1;  // 1
-      7'b0010100: dat_flit = 1;  // 2
-      7'b0011000: dat_flit = 1;  // 3
-      7'b0100001: dat_flit = 1;  // 4
-      7'b0100010: dat_flit = 1;  // 5
-      7'b0100100: dat_flit = 1;  // 6
-      7'b0101000: dat_flit = 1;  // 7
-      7'b1000001: dat_flit = 1;  // 8
-      7'b1000010: dat_flit = 1;  // 9
-      7'b1000100: dat_flit = 1;  // 10
-      7'b1001000: dat_flit = 1;  // 11
-      7'b0000011: dat_flit = 1;  // 12
-      7'b0000110: dat_flit = 1;  // 13
-      7'b0001100: dat_flit = 1;  // 14
-      7'b0001001: dat_flit = 1;  // 15
-      default:    dat_flit = 0;  // anything else is not correct data
-    endcase
+    dat_flit = data_nrz_2of7 (flt_data_2of7, old_data);
 
 
   //---------------------------------------------------------------
-  // new flit is an error
+  // is the new nrz flit an end-of-packet?
   //---------------------------------------------------------------
   always @(*)
-    case (flt_data_2of7 ^ old_data)
-      7'b0010001: bad_flit = 0;  // 0
-      7'b0010010: bad_flit = 0;  // 1
-      7'b0010100: bad_flit = 0;  // 2
-      7'b0011000: bad_flit = 0;  // 3
-      7'b0100001: bad_flit = 0;  // 4
-      7'b0100010: bad_flit = 0;  // 5
-      7'b0100100: bad_flit = 0;  // 6
-      7'b0101000: bad_flit = 0;  // 7
-      7'b1000001: bad_flit = 0;  // 8
-      7'b1000010: bad_flit = 0;  // 9
-      7'b1000100: bad_flit = 0;  // 10
-      7'b1001000: bad_flit = 0;  // 11
-      7'b0000011: bad_flit = 0;  // 12
-      7'b0000110: bad_flit = 0;  // 13
-      7'b0001100: bad_flit = 0;  // 14
-      7'b0001001: bad_flit = 0;  // 15
-      7'b1100000: bad_flit = 0;  // eop
-      0, 1, 2, 4,
-      8, 16, 32,
-      64:         bad_flit = 0;  // incomplete (single-bit change)
-      default:    bad_flit = 1;  // anything else is an error
-    endcase
+    eop_flit = eop_nrz_2of7 (flt_data_2of7, old_data);
 
 
   //---------------------------------------------------------------
-  // new flit is an end-of-packet
+  // is the new nrz flit an error?
   //---------------------------------------------------------------
   always @(*)
-    case (flt_data_2of7 ^ old_data)
-      7'b1100000: eop_flit = 1;
-      default:    eop_flit = 0;
-    endcase
+    bad_flit = error_nrz_2of7 (flt_data_2of7, old_data);
 
 
   //---------------------------------------------------------------
-  // is the new flit expected to be an eop?
+  // is the new nrz flit expected to be an eop?
   //---------------------------------------------------------------
   always @ (*)
     exp_eop = (!long_pkt && (flit_cnt == 10)) || (flit_cnt == 18);
@@ -456,13 +503,6 @@ module pkt_deserializer
 
       default:   flit_cnt <= 5'd1;          // init count
     endcase 
-
-
-  //---------------------------------------------------------------
-  // decode new flit
-  //---------------------------------------------------------------
-  always @(*)
-    new_data = decode_nrz_2of7 (flt_data_2of7, old_data);
 
 
   //-------------------------------------------------------------
@@ -485,6 +525,13 @@ module pkt_deserializer
     else
       if (!pkt_busy)
         PKT_VLD_OUT <= pkt_send;
+
+
+  //---------------------------------------------------------------
+  // decode new data flit
+  //---------------------------------------------------------------
+  always @(*)
+    new_data = decode_nrz_2of7 (flt_data_2of7, old_data);
 
 
   //-------------------------------------------------------------
@@ -519,7 +566,7 @@ module pkt_deserializer
                else
                  pkt_send = 0;  // no pkt ready to send
 
-      WAIT_ST:   pkt_send = 1;  // waiting trying to send ready pkt
+      WAIT_ST:   pkt_send = 1;  // waiting and trying to send pkt
 
       default:   pkt_send = 0;  // no pkt ready to send
     endcase 
@@ -541,10 +588,12 @@ module pkt_deserializer
       state <= STRT_ST;
     else
       case (state)
+	STRT_ST: state <= IDLE_ST;
+
 	IDLE_ST: casex ({dat_flit, bad_flit})
                    2'b1x:   state <= TRAN_ST;  // first flit in new packet
                    2'bx1:   state <= FERR_ST;  // error, drop packet
-                   default: state <= IDLE_ST;  // keep idle
+                   default: state <= IDLE_ST;  // stay idle
                  endcase
 
 	TRAN_ST: casex ({bad_flit, eop_flit, exp_eop, pkt_busy})
@@ -568,7 +617,7 @@ module pkt_deserializer
         FERR_ST: if (eop_flit)
                    state <= IDLE_ST;  // wait for eop to exit error state
 
-	default: state <= IDLE_ST;
+	default: state <= FERR_ST;  // should never happen!
       endcase
 endmodule
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
