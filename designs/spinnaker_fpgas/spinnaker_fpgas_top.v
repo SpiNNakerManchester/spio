@@ -34,7 +34,7 @@ module spinnaker_fpgas_top #( // Version number for top-level design
                               // include hss multiplexer module for FPGA ring
                             , parameter INCLUDE_RING_SUPPORT = 0
                               // Which FPGA should this module be compiled for
-                            , parameter FPGA_ID = 2
+                            , parameter FPGA_ID = 1
                               // Should North and South connections be connected
                               // to 0: J6 and J8 on the back respectively or 1:
                               // J9 and J11 on the front respectively.
