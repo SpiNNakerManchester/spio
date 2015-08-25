@@ -38,7 +38,6 @@ module spio_spinnaker_link_receiver
 
   // SpiNNaker link interface
   input                   [6:0] SL_DATA_2OF7_IN,
-  (* IOB = "FORCE" *)
   output wire                   SL_ACK_OUT,
 
   // spiNNlink interface
@@ -113,20 +112,13 @@ module flit_input_if
   //-------------------------------------------------------------
   // internal signals
   //-------------------------------------------------------------
-  (* KEEP = "TRUE" *)
-  reg [6:0] old_data;  // remember previous 2of7 data for nrz decoding
-
-  (* KEEP = "TRUE" *)
-  reg ack_int;   // internal copy of SL_ACK_OUT
-
-  reg next_ack;  // next value of SL_ACK_OUT
+  reg send_ack;  // send ack to SpiNNaker next value of SL_ACK_OUT
 
   reg new_flit;  // new flit arrived
  
   reg flt_vld_i;  // keep track of flit data validity
   reg flt_busy;  // deserializer not ready for new flit
 
-  (* KEEP = "TRUE" *)
   reg [STATE_BITS - 1:0] state;  // current state
 
 
@@ -153,18 +145,8 @@ module flit_input_if
     if (RESET_IN)
       SL_ACK_OUT <= 1'b0;
     else
-      SL_ACK_OUT <= next_ack;
-
-
-  //-------------------------------------------------------------
-  // internal copy of SL_ACK_OUT
-  // NOTE: allows the SL_ACK_OUT FF to be packed with the I/O block
-  //-------------------------------------------------------------
-  always @(posedge CLK_IN or posedge RESET_IN)
-    if (RESET_IN)
-      ack_int <= 1'b0;
-    else
-      ack_int <= next_ack;
+      if (send_ack)
+        SL_ACK_OUT <= ~SL_ACK_OUT;
 
 
   //-------------------------------------------------------------
@@ -172,27 +154,12 @@ module flit_input_if
   //-------------------------------------------------------------
   always @(*)
     case (state)
-      STRT_ST:   next_ack = 1'b1;      // mimic SpiNNaker: ack on reset
+      STRT_ST:   send_ack = 1'b1;  // mimic SpiNNaker: ack on reset exit
 
       IDLE_ST: if (new_flit && !flt_busy)
-                 next_ack = ~ack_int;  //  ack new flit when ready
+                 send_ack = 1'b1;  //  ack new flit when ready
                else
-                 next_ack = ack_int;   //  no ack!
-    endcase 
-
-
-  //-------------------------------------------------------------
-  // remember previous value of 2of7 data for nrz decoding
-  // NOTE: could use flt_data_2of7 but complicates timing closure
-  //-------------------------------------------------------------
-  always @(posedge CLK_IN)
-    case (state)
-      STRT_ST:
-          old_data <= SL_DATA_2OF7_IN;  // remember initial data
-
-      IDLE_ST:
-        if (new_flit && !flt_busy)
-          old_data <= SL_DATA_2OF7_IN;  // remember incoming data
+                 send_ack = 1'b0;   //  no ack!
     endcase 
 
 
@@ -200,7 +167,7 @@ module flit_input_if
   // detect the arrival of a new nrz flit (2 or more transitions)
   //-------------------------------------------------------------
   always @(*)
-    new_flit = detect_nrz_2of7 (SL_DATA_2OF7_IN, old_data);
+    new_flit = detect_nrz_2of7 (SL_DATA_2OF7_IN, flt_data_2of7);
 
 
   //-------------------------------------------------------------
@@ -298,8 +265,8 @@ module pkt_deserializer
   reg   [`PKT_BITS - 1:0] pkt_buf;   // buffer used to assemble pkt
 
   reg                     pkt_busy;  // pkt interface busy
-  reg                     pkt_wait;  // wait for free pkt interface
-  reg                     pkt_send;  // send pkt out
+
+  reg                     send_pkt;  // send pkt out
 
   reg  [STATE_BITS - 1:0] state;     // current state
 
@@ -433,7 +400,7 @@ module pkt_deserializer
       flt_rdy <= 1'b0;
     else
       case (state)
-	TRAN_ST: if (pkt_wait)
+	TRAN_ST: if (eop_flit && exp_eop && pkt_busy)
                    flt_rdy <= 1'b0;  // waiting for pkt interface!
 
 	WAIT_ST: if (!pkt_busy)
@@ -509,7 +476,7 @@ module pkt_deserializer
   // packet interface: generate PKT_DATA_OUT
   //-------------------------------------------------------------
   always @(posedge CLK_IN)
-    if (pkt_send && !pkt_busy)
+    if (send_pkt && !pkt_busy)
       if (long_pkt)
         PKT_DATA_OUT <= pkt_buf;
       else
@@ -524,7 +491,17 @@ module pkt_deserializer
       PKT_VLD_OUT <= 1'b0;
     else
       if (!pkt_busy)
-        PKT_VLD_OUT <= pkt_send;
+        if (send_pkt)
+          PKT_VLD_OUT <= 1'b1;
+        else
+          PKT_VLD_OUT <= 1'b0;
+
+
+  //-------------------------------------------------------------
+  // packet interface busy
+  //-------------------------------------------------------------
+  always @(*)
+    pkt_busy = PKT_VLD_OUT && !PKT_RDY_IN;
 
 
   //---------------------------------------------------------------
@@ -543,32 +520,18 @@ module pkt_deserializer
 
 
   //-------------------------------------------------------------
-  // packet interface busy
-  //-------------------------------------------------------------
-  always @(*)
-    pkt_busy = PKT_VLD_OUT && !PKT_RDY_IN;
-
-
-  //-------------------------------------------------------------
-  // must wait for packet interface to free
-  //-------------------------------------------------------------
-  always @(*)
-    pkt_wait = eop_flit && exp_eop && pkt_busy;
-
-
-  //-------------------------------------------------------------
   // time to send packet
   //-------------------------------------------------------------
   always @(*)
     case (state)
       TRAN_ST: if (eop_flit && exp_eop)
-                 pkt_send = 1;  // try to send newly assembled pkt
+                 send_pkt = 1;  // try to send newly assembled pkt
                else
-                 pkt_send = 0;  // no pkt ready to send
+                 send_pkt = 0;  // no pkt ready to send
 
-      WAIT_ST:   pkt_send = 1;  // waiting and trying to send pkt
+      WAIT_ST:   send_pkt = 1;  // waiting and trying to send pkt
 
-      default:   pkt_send = 0;  // no pkt ready to send
+      default:   send_pkt = 0;  // no pkt ready to send
     endcase 
 
 
@@ -600,7 +563,7 @@ module pkt_deserializer
 		   4'b1xxx:  // error flit: drop packet
                      state <= FERR_ST;
 
-	           4'bx10x,  // unexpected eop: drop packet
+	           4'bx10x,  // unexpected eop: drop packet and go idle
 	           4'bx110:  // expected eop and not busy: send and go idle 
                      state <= IDLE_ST;
 

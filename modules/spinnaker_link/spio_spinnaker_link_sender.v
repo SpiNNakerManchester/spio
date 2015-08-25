@@ -42,7 +42,6 @@ module spio_spinnaker_link_sender
   output                       PKT_RDY_OUT,
 
   // SpiNNaker link asynchronous interface
-  (* IOB = "FORCE" *)
   output                 [6:0] SL_DATA_2OF7_OUT,
   input                        SL_ACK_IN
 );
@@ -127,6 +126,7 @@ module pkt_serializer
   reg               [4:0] flt_cnt;   // count sent flits
 
   reg                     eop;       // time to send end-of-packet
+
   reg  [STATE_BITS - 1:0] state;     // current state
 
 
@@ -169,7 +169,7 @@ module pkt_serializer
     else
       case (state)
         IDLE_ST: if (PKT_VLD_IN)
-                   PKT_RDY_OUT <= 1'b0;  // starting, not ready for next pkt
+                   PKT_RDY_OUT <= 1'b0;  // start new pkt, not ready for next
                  else
                    PKT_RDY_OUT <= 1'b1;  // waiting for next pkt
 
@@ -191,7 +191,6 @@ module pkt_serializer
         case ({PKT_VLD_IN, flt_busy})
           2'b10:   pkt_buf <= PKT_DATA_IN >> 4;  // first nibble gone
           2'b11:   pkt_buf <= PKT_DATA_IN;       // park new packet
-          default: pkt_buf <= pkt_buf;           // no change!
         endcase
 
       default: if (!flt_busy)
@@ -236,12 +235,13 @@ module pkt_serializer
       flt_vld <= 1'b0;
     else
       case (state)
-        IDLE_ST: if (!PKT_VLD_IN && !flt_busy)
-                   flt_vld <= 1'b0;  // no new flit to send
-                 else
-                   flt_vld <= 1'b1;  // last one still busy or first flit
+        IDLE_ST: if (!flt_busy)
+                   if (PKT_VLD_IN)
+                     flt_vld <= 1'b1;  // first flit in pkt
+                   else
+                     flt_vld <= 1'b0;  // no new flit to send
 
-        default:   flt_vld <= 1'b1;  // next flit always available
+        default: flt_vld <= 1'b1;  // next flit always available
       endcase 
 
 
@@ -262,7 +262,6 @@ module pkt_serializer
 
       default: if (!flt_busy)
                  flt_cnt <= flt_cnt + 1;  // one more flit gone
-
     endcase 
 
 
@@ -393,7 +392,8 @@ module flit_output_if
     if (RESET_IN)
       old_ack <= 1'b0;
     else
-      old_ack <= SL_ACK_IN;
+      if (send_flit)
+        old_ack <= SL_ACK_IN;
 
 
   //-------------------------------------------------------------
