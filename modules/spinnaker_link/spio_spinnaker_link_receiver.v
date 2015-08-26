@@ -112,7 +112,7 @@ module flit_input_if
   //-------------------------------------------------------------
   // internal signals
   //-------------------------------------------------------------
-  reg send_ack;  // send ack to SpiNNaker next value of SL_ACK_OUT
+  reg send_ack;  // send ack to SpiNNaker (toggle SL_ACK_OUT)
 
   reg new_flit;  // new flit arrived
  
@@ -150,7 +150,7 @@ module flit_input_if
 
 
   //-------------------------------------------------------------
-  // next value of SL_ACK_OUT
+  // send next value of SL_ACK_OUT (toggle SL_ACK_OUT)
   //-------------------------------------------------------------
   always @(*)
     case (state)
@@ -412,7 +412,7 @@ module pkt_deserializer
 
 
   //-------------------------------------------------------------
-  // remember previous 2of7 data for nrz decoding
+  // remember previous nrz 2of7 data for translation to rtz
   //-------------------------------------------------------------
   always @(posedge CLK_IN)
     case (state)
