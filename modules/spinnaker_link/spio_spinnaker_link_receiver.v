@@ -185,7 +185,7 @@ module flit_input_if
 
 
   //-------------------------------------------------------------
-  // keep track of flit data validity
+  // packet deserializer interface: generate flt_vld
   //-------------------------------------------------------------
   always @(posedge CLK_IN or posedge RESET_IN)
     if (RESET_IN)
