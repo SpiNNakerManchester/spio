@@ -249,7 +249,7 @@ module pkt_deserializer
   //---------------------------------------------------------------
   // internal signals
   //---------------------------------------------------------------
-  reg [6:0] old_data;  // remember previous 2of7 data for nrz decoding
+  reg [6:0] old_data;  // remember previous nrz 2of7 data for rtz translation
 
   reg       new_flit;  // new flit arrived
   reg       dat_flit;  // is the new flit correct data?
