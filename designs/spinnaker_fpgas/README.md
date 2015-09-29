@@ -35,6 +35,7 @@ This design makes use of the following modules from the spI/O module collection:
 * `status_led_generator/*`
 * `rr_arbiter/*`
 * `switch/*`
+* `packet_counter/*`
 
 Synthesis
 ---------
