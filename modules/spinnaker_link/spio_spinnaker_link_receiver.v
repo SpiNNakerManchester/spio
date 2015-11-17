@@ -36,6 +36,10 @@ module spio_spinnaker_link_receiver
   input                         CLK_IN,
   input                         RESET_IN,
 
+  // link error reporting
+  output wire                   FLT_ERR_OUT,
+  output wire                   FRM_ERR_OUT,
+
   // SpiNNaker link interface
   input                   [6:0] SL_DATA_2OF7_IN,
   output wire                   SL_ACK_OUT,
@@ -75,6 +79,8 @@ module spio_spinnaker_link_receiver
   (
     .CLK_IN          (CLK_IN),
     .RESET_IN        (RESET_IN),
+    .FLT_ERR_OUT     (FLT_ERROR_OUT),
+    .FRM_ERR_OUT     (FRM_ERR_OUT),
     .flt_data_2of7   (flt_data_2of7),
     .flt_rdy         (flt_rdy),
     .PKT_DATA_OUT    (PKT_DATA_OUT),
@@ -223,6 +229,10 @@ module pkt_deserializer
 (
   input                         CLK_IN,
   input                         RESET_IN,
+
+  // link error reporting
+  output reg                    FLT_ERR_OUT,
+  output reg                    FRM_ERR_OUT,
 
   // flit interface
   input                   [6:0] flt_data_2of7,
@@ -541,6 +551,41 @@ module pkt_deserializer
   always @(posedge CLK_IN)
     if ((state == IDLE_ST) && dat_flit)
       long_pkt <= new_data[1];
+
+
+  //---------------------------------------------------------------
+  // error reporting
+  //---------------------------------------------------------------
+  always @(posedge CLK_IN or posedge RESET_IN)
+    if (RESET_IN)
+      FLT_ERR_OUT <= 1'b0;
+    else
+      case (state)
+        IDLE_ST,
+        TRAN_ST:
+          if (bad_flit)
+            FLT_ERR_OUT <= 1'b1;
+          else
+            FLT_ERR_OUT <= 1'b0;
+
+        default: FLT_ERR_OUT <= 0;
+      endcase
+
+  always @(posedge CLK_IN or posedge RESET_IN)
+    if (RESET_IN)
+      FRM_ERR_OUT <= 1'b0;
+    else
+      case (state)
+        IDLE_ST,
+        TRAN_ST:
+          if (eop_flit && !exp_eop)
+            FRM_ERR_OUT <= 1'b1;
+          else
+            FRM_ERR_OUT <= 1'b0;
+
+        default: FRM_ERR_OUT <= 0;
+      endcase
+  //---------------------------------------------------------------
 
 
   //-------------------------------------------------------------
