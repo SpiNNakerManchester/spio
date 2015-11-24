@@ -504,20 +504,20 @@ generate for (i = 0; i < 16; i = i + 1)
 		case (FPGA_SL_TYPES[(32*FPGA_ID) + (2*i)+:2])
 			HIGH_SL:
 				begin
-					// FPGA -> SpiNNaker
+					// SpiNNaker -> FPGA
 					IBUF sl_in_data_buf_i [6:0] (.I(SL_INOUT[(i*16)+1 +: 7]), .O(sl_in_data_i[i]));
 					OBUF sl_in_ack_buf_i        (.O(SL_INOUT[(i*16)+0]),      .I(sl_in_ack_i[i]));
-					// SpiNNaker -> FPGA
+					// FPGA -> SpiNNaker
 					OBUF sl_out_data_buf_i [6:0] (.O(SL_INOUT[(i*16)+9 +: 7]), .I(sl_out_data_i[i]));
 					IBUF sl_out_ack_buf_i        (.I(SL_INOUT[(i*16)+8]),      .O(sl_out_ack_i[i]));
 				end
 			
 			LOW_SL:
 				begin
-					// FPGA -> SpiNNaker
+					// SpiNNaker -> FPGA
 					IBUF sl_in_data_buf_i [6:0] (.I(SL_INOUT[(i*16)+9 +: 7]), .O(sl_in_data_i[i]));
 					OBUF sl_in_ack_buf_i        (.O(SL_INOUT[(i*16)+8]),      .I(sl_in_ack_i[i]));
-					// SpiNNaker -> FPGA
+					// FPGA -> SpiNNaker
 					OBUF sl_out_data_buf_i [6:0] (.O(SL_INOUT[(i*16)+1 +: 7]), .I(sl_out_data_i[i]));
 					IBUF sl_out_ack_buf_i        (.I(SL_INOUT[(i*16)+0]),      .O(sl_out_ack_i[i]));
 				end
