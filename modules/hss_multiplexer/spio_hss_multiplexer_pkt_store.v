@@ -43,10 +43,9 @@ module spio_hss_multiplexer_pkt_store
   output reg 		       empty,
   output reg 		       full,
 
-  // Force the buffer to appear to be full. This allows enables a host to
-  // stop the flow of traffic down individual links, for example to isolate
-  // parts of a big machine.
-  input wire 		       force_full,
+  // Force the multiplexer to stop accepting new packets. The first packet to
+  // arrive on or after the signal is asserted will still be accepted.
+  input wire 		       stop,
 
   // remote channel flow control interface
   input wire 		       cfc_rem,
@@ -93,7 +92,6 @@ module spio_hss_multiplexer_pkt_store
   reg                     reading;
   reg                     writing;
 
-
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   //--------------------------- datapath --------------------------
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -117,7 +115,7 @@ module spio_hss_multiplexer_pkt_store
 
   // write request will succeed
   always @ (*)
-    writing = pkt_vld && !full;
+    writing = pkt_vld && pkt_rdy && !full;
 
   //---------------------------------------------------------------
   // buffer empty flag (used only for reporting)
@@ -153,7 +151,7 @@ module spio_hss_multiplexer_pkt_store
    inc_bw = nxt_bw + 1;
 
   always @ (*)
-   nxt_full = (nxt_ba == inc_bw) || force_full;
+   nxt_full = (nxt_ba == inc_bw);
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------
@@ -283,7 +281,19 @@ module spio_hss_multiplexer_pkt_store
     if (rst)
       pkt_rdy <= 1'b0;
     else
-      pkt_rdy <= !nxt_full;
+      if (stop)
+        begin
+          // If stopping has been requested we cannot change the ready state
+          // except after a packet has been received (due to the rdy/vld
+          // protocol).
+          if (pkt_vld)
+            pkt_rdy <= 1'b0;
+          else
+            pkt_rdy <= pkt_rdy;  // No change
+        end
+      else
+        pkt_rdy <= !nxt_full;
+      
   //---------------------------------------------------------------
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 endmodule

@@ -602,7 +602,7 @@ module spio_hss_multiplexer_frame_assembler
     .empty     (reg_empt[0]),
     .full      (reg_full[0]),
 
-    .force_full(reg_stop[0]),
+    .stop      (reg_stop[0]),
 
     .cfc_rem   (cfc_rem[0]),
 
@@ -629,7 +629,7 @@ module spio_hss_multiplexer_frame_assembler
     .empty     (reg_empt[1]),
     .full      (reg_full[1]),
 
-    .force_full(reg_stop[1]),
+    .stop      (reg_stop[1]),
 
     .cfc_rem   (cfc_rem[1]),
 
@@ -656,7 +656,7 @@ module spio_hss_multiplexer_frame_assembler
     .empty     (reg_empt[2]),
     .full      (reg_full[2]),
 
-    .force_full(reg_stop[2]),
+    .stop      (reg_stop[2]),
 
     .cfc_rem   (cfc_rem[2]),
 
@@ -683,7 +683,7 @@ module spio_hss_multiplexer_frame_assembler
     .empty     (reg_empt[3]),
     .full      (reg_full[3]),
 
-    .force_full(reg_stop[3]),
+    .stop      (reg_stop[3]),
 
     .cfc_rem   (cfc_rem[3]),
 
@@ -710,7 +710,7 @@ module spio_hss_multiplexer_frame_assembler
     .empty     (reg_empt[4]),
     .full      (reg_full[4]),
 
-    .force_full(reg_stop[4]),
+    .stop      (reg_stop[4]),
 
     .cfc_rem   (cfc_rem[4]),
 
@@ -737,7 +737,7 @@ module spio_hss_multiplexer_frame_assembler
     .empty     (reg_empt[5]),
     .full      (reg_full[5]),
 
-    .force_full(reg_stop[5]),
+    .stop      (reg_stop[5]),
 
     .cfc_rem   (cfc_rem[5]),
 
@@ -764,7 +764,7 @@ module spio_hss_multiplexer_frame_assembler
     .empty     (reg_empt[6]),
     .full      (reg_full[6]),
 
-    .force_full(reg_stop[6]),
+    .stop      (reg_stop[6]),
 
     .cfc_rem   (cfc_rem[6]),
 
@@ -791,7 +791,7 @@ module spio_hss_multiplexer_frame_assembler
     .empty     (reg_empt[7]),
     .full      (reg_full[7]),
 
-    .force_full(reg_stop[7]),
+    .stop      (reg_stop[7]),
 
     .cfc_rem   (cfc_rem[7]),
 
