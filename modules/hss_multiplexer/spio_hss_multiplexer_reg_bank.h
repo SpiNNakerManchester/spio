@@ -31,6 +31,7 @@
 `define IDSI_REG         20  // (RO) IDle Sentinel Input value (latest received sentinel)
 `define HAND_REG         21  // (RO) Handshake: bit 0: complete bit 1: version mismatch
 `define RECO_REG         22  // (RO) Link reconnection counter
+`define STOP_REG         23  // (RW) Stop the flow of outgoing traffic down a link (one bit per link) (1 = stop, 0 = go)
 
 
 `endif

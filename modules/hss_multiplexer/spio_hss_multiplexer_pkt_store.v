@@ -43,6 +43,11 @@ module spio_hss_multiplexer_pkt_store
   output reg 		       empty,
   output reg 		       full,
 
+  // Force the buffer to appear to be full. This allows enables a host to
+  // stop the flow of traffic down individual links, for example to isolate
+  // parts of a big machine.
+  input wire 		       force_full,
+
   // remote channel flow control interface
   input wire 		       cfc_rem,
  
@@ -148,7 +153,7 @@ module spio_hss_multiplexer_pkt_store
    inc_bw = nxt_bw + 1;
 
   always @ (*)
-   nxt_full = (nxt_ba == inc_bw);
+   nxt_full = (nxt_ba == inc_bw) || force_full;
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------
