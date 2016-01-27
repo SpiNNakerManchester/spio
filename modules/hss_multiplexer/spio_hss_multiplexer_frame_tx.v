@@ -50,6 +50,7 @@ module spio_hss_multiplexer_frame_tx
 
   // register interface (to register bank)
   output reg                     reg_tfrm,
+  input wire                     reg_stop,
 
   // frame interface (from frame assembler)
   // assembled data frame
@@ -361,7 +362,7 @@ module spio_hss_multiplexer_frame_tx
     rts_ooc = ooc_rts;
    
   always @ (*)
-    rts_frm = frm_vld_i;
+    rts_frm = frm_vld_i && !reg_stop;
   
   always @ (*)
     if (!hsl_rdy)  // output not ready, don't send

@@ -45,10 +45,10 @@ module spio_hss_multiplexer_spinnlink
   output wire [`CRDT_BITS - 1:0] reg_crdt,
   output wire [`NUM_CHANS - 1:0] reg_empt,
   output wire [`NUM_CHANS - 1:0] reg_full,
-  input wire  [`NUM_CHANS - 1:0] reg_stop,
 
   // frame transmitter interface
   output wire                    reg_tfrm,
+  input wire                     reg_stop,
 
   // frame disassembler interface
   output wire                    reg_dfrm,
@@ -243,7 +243,6 @@ module spio_hss_multiplexer_spinnlink
     .reg_crdt   (reg_crdt),
     .reg_empt   (reg_empt),
     .reg_full   (reg_full),
-    .reg_stop   (reg_stop),
 
     // packet interface
     .pkt_data0  (pkt_data0),
@@ -311,6 +310,7 @@ module spio_hss_multiplexer_spinnlink
 
     // register interface (to register bank)
     .reg_tfrm   (reg_tfrm),
+    .reg_stop   (reg_stop),
 
     // frame interface
     .frm_data   (frm_data),

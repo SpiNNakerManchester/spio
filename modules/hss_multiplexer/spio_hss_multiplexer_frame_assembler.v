@@ -457,9 +457,6 @@ module spio_hss_multiplexer_frame_assembler
   output reg  [`CRDT_BITS - 1:0] reg_crdt,
   output wire [`NUM_CHANS - 1:0] reg_empt,
   output wire [`NUM_CHANS - 1:0] reg_full,
-  
-  // Control signals (from register bank)
-  input wire  [`NUM_CHANS - 1:0] reg_stop,
 
   // packet interface
   input  wire  [`PKT_BITS - 1:0] pkt_data0,
@@ -602,8 +599,6 @@ module spio_hss_multiplexer_frame_assembler
     .empty     (reg_empt[0]),
     .full      (reg_full[0]),
 
-    .stop      (reg_stop[0]),
-
     .cfc_rem   (cfc_rem[0]),
 
     .pkt_data  (pkt_data0),
@@ -628,8 +623,6 @@ module spio_hss_multiplexer_frame_assembler
 
     .empty     (reg_empt[1]),
     .full      (reg_full[1]),
-
-    .stop      (reg_stop[1]),
 
     .cfc_rem   (cfc_rem[1]),
 
@@ -656,8 +649,6 @@ module spio_hss_multiplexer_frame_assembler
     .empty     (reg_empt[2]),
     .full      (reg_full[2]),
 
-    .stop      (reg_stop[2]),
-
     .cfc_rem   (cfc_rem[2]),
 
     .pkt_data  (pkt_data2),
@@ -682,8 +673,6 @@ module spio_hss_multiplexer_frame_assembler
 
     .empty     (reg_empt[3]),
     .full      (reg_full[3]),
-
-    .stop      (reg_stop[3]),
 
     .cfc_rem   (cfc_rem[3]),
 
@@ -710,8 +699,6 @@ module spio_hss_multiplexer_frame_assembler
     .empty     (reg_empt[4]),
     .full      (reg_full[4]),
 
-    .stop      (reg_stop[4]),
-
     .cfc_rem   (cfc_rem[4]),
 
     .pkt_data  (pkt_data4),
@@ -736,8 +723,6 @@ module spio_hss_multiplexer_frame_assembler
 
     .empty     (reg_empt[5]),
     .full      (reg_full[5]),
-
-    .stop      (reg_stop[5]),
 
     .cfc_rem   (cfc_rem[5]),
 
@@ -764,8 +749,6 @@ module spio_hss_multiplexer_frame_assembler
     .empty     (reg_empt[6]),
     .full      (reg_full[6]),
 
-    .stop      (reg_stop[6]),
-
     .cfc_rem   (cfc_rem[6]),
 
     .pkt_data  (pkt_data6),
@@ -790,8 +773,6 @@ module spio_hss_multiplexer_frame_assembler
 
     .empty     (reg_empt[7]),
     .full      (reg_full[7]),
-
-    .stop      (reg_stop[7]),
 
     .cfc_rem   (cfc_rem[7]),
 

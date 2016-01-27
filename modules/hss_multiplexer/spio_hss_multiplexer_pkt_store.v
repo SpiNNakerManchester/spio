@@ -43,10 +43,6 @@ module spio_hss_multiplexer_pkt_store
   output reg 		       empty,
   output reg 		       full,
 
-  // Force the multiplexer to stop accepting new packets. The first packet to
-  // arrive on or after the signal is asserted will still be accepted.
-  input wire 		       stop,
-
   // remote channel flow control interface
   input wire 		       cfc_rem,
  
@@ -92,6 +88,7 @@ module spio_hss_multiplexer_pkt_store
   reg                     reading;
   reg                     writing;
 
+
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   //--------------------------- datapath --------------------------
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -115,7 +112,7 @@ module spio_hss_multiplexer_pkt_store
 
   // write request will succeed
   always @ (*)
-    writing = pkt_vld && pkt_rdy && !full;
+    writing = pkt_vld && !full;
 
   //---------------------------------------------------------------
   // buffer empty flag (used only for reporting)
@@ -281,19 +278,7 @@ module spio_hss_multiplexer_pkt_store
     if (rst)
       pkt_rdy <= 1'b0;
     else
-      if (stop)
-        begin
-          // If stopping has been requested we cannot change the ready state
-          // except after a packet has been received (due to the rdy/vld
-          // protocol).
-          if (pkt_vld)
-            pkt_rdy <= 1'b0;
-          else
-            pkt_rdy <= pkt_rdy;  // No change
-        end
-      else
-        pkt_rdy <= !nxt_full;
-      
+      pkt_rdy <= !nxt_full;
   //---------------------------------------------------------------
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 endmodule

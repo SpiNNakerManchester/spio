@@ -118,7 +118,7 @@ as 32 bit words but the actual number of useful bits may differ.
 	IDSI      20   0x50  RO        16  IDle Sentinel Input val. (latest received)
 	HAND      21   0x54  RO         2  Handshake {bit1: version err, bit0: complete}
 	RECO      22   0x58  RO        32  Link reconnection (re-handshake) counter
-	STOP      23   0x5C  RW         8  For each channel, 1=stop sending further packets.
+	STOP      23   0x5C  RW         1  1 = Stop sending data frames (NB: Will still receive them)
 
 If in doubt, a definitive definition of the SPI address space should be saught
 from the code. The address decoding scheme used to select which HSS link is
