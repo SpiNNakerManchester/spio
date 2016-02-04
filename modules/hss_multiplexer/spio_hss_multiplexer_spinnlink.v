@@ -48,6 +48,7 @@ module spio_hss_multiplexer_spinnlink
 
   // frame transmitter interface
   output wire                    reg_tfrm,
+  input wire                     reg_stop,
 
   // frame disassembler interface
   output wire                    reg_dfrm,
@@ -309,6 +310,7 @@ module spio_hss_multiplexer_spinnlink
 
     // register interface (to register bank)
     .reg_tfrm   (reg_tfrm),
+    .reg_stop   (reg_stop),
 
     // frame interface
     .frm_data   (frm_data),

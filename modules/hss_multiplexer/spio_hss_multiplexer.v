@@ -140,6 +140,7 @@ wire [`NUM_CHANS - 1:0] reg_full_i;
 // frame transmitter interface
 wire                    reg_tfrm_i;
 wire [`IDLE_BITS - 1:0] reg_idso_i;
+wire                    reg_stop_i;
 
 // frame disassembler interface
 wire                    reg_dfrm_i;
@@ -179,6 +180,7 @@ spio_hss_multiplexer_reg_bank_i( .clk (CLK_IN)
                                  // frame transmitter interface
                                , .reg_tfrm (reg_tfrm_i)
                                , .reg_idso (reg_idso_i)
+                               , .reg_stop (reg_stop_i)
                                
                                  // frame disassembler interface
                                , .reg_dfrm (reg_dfrm_i)
@@ -267,8 +269,9 @@ spio_hss_multiplexer_spinnlink_i( .clk       (CLK_IN)
                                 , .reg_empt  (reg_empt_i)
                                 , .reg_full  (reg_full_i)
                                   
-                                  // Diagnostic signals from frame transmitter
+                                  // Diagnostic/control signals from/to frame transmitter
                                 , .reg_tfrm  (reg_tfrm_i)
+                                , .reg_stop  (reg_stop_i)
                                   
                                   // Diagnostic signals from frame disassembler
                                 , .reg_dfrm  (reg_dfrm_i)
