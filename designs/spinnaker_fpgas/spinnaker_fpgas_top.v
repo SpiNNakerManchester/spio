@@ -136,8 +136,9 @@ wire    b2b_hss_reset_i [1:0];
 wire periph_hss_reset_i;
 //wire   ring_hss_reset_i;
 
-// Reset for SpiNNaker link blocks
-wire spinnaker_link_reset_i;
+// Reset for SpiNNaker link blocks, one per block. Bit 0 resets link 0
+// SpiNN->FPGA, Bit 1 resets link 0 FPGA->SpiNN, and so on.
+wire [31:0] spinnaker_link_reset_i;
 
 // Reset for packet arbitration/routing blocks
 wire arbiter_reset_i;
@@ -318,6 +319,11 @@ wire [`PKT_BITS-1:0]  switch_dropped_data_i    [`NUM_CHANS-1:0];
 wire [1:0]            switch_dropped_outputs_i [`NUM_CHANS-1:0];
 wire                  switch_dropped_vld_i     [`NUM_CHANS-1:0];
 
+// SpiNNaker (2-of-7) link enable signals, used to tristate link IO buffers and
+// hold SpiNNaker link blocks in reset. Bit 0 controls link 0 SpiNN->FPGA, Bit
+// 1 controls link 0 FPGA->SpiNN, and so on.
+wire [31:0] spinnaker_link_enable_i;
+
 // Key/mask to match to forward MC packets to peripheral link
 wire [31:0] periph_mc_key_i;
 wire [31:0] periph_mc_mask_i;
@@ -345,7 +351,12 @@ assign periph_hss_reset_i    = !periph_gtpresetdone_i    | !usrclks_stable_i;
 //assign   ring_hss_reset_i    =   !ring_gtpresetdone_i    | !usrclks_stable_i;
 
 
-assign spinnaker_link_reset_i = !usrclks_stable_i;
+// SpiNNaker link blocks can be individually reset
+generate for (i = 0; i < 32; i = i + 1)
+	begin : spinnaker_link_reset
+		assign spinnaker_link_reset_i[i] = !(usrclks_stable_i && spinnaker_link_enable_i[i]);
+	end
+endgenerate
 
 assign arbiter_reset_i = !usrclks_stable_i;
 
@@ -498,28 +509,42 @@ assign ring_activity_i = 1'b0;
 //     * HIGH_SL[0]   = Ack
 //     * HIGH_SL[7:1] = Data
 
-// Buffer the incoming SpiNNaker link signals and split input and output parts
+// Buffer the incoming SpiNNaker link signals and split input and output parts.
+// Note that outputs are tristated to facilitate soft-disabling of individual
+// links.
 generate for (i = 0; i < 16; i = i + 1)
 	begin : sl_buffers
 		case (FPGA_SL_TYPES[(32*FPGA_ID) + (2*i)+:2])
 			HIGH_SL:
 				begin
 					// SpiNNaker -> FPGA
-					IBUF sl_in_data_buf_i [6:0] (.I(SL_INOUT[(i*16)+1 +: 7]), .O(sl_in_data_i[i]));
-					OBUF sl_in_ack_buf_i        (.O(SL_INOUT[(i*16)+0]),      .I(sl_in_ack_i[i]));
+					IBUF sl_in_data_buf_i [6:0] ( .I(SL_INOUT[(i*16)+1 +: 7]), .O(sl_in_data_i[i]));
+					IOBUF sl_in_ack_buf_i       ( .IO(SL_INOUT[(i*16)+0])
+					                            , .I(sl_in_ack_i[i])
+					                            , .T(spinnaker_link_enable_i[(i*2) + 0])
+					                            );
 					// FPGA -> SpiNNaker
-					OBUF sl_out_data_buf_i [6:0] (.O(SL_INOUT[(i*16)+9 +: 7]), .I(sl_out_data_i[i]));
-					IBUF sl_out_ack_buf_i        (.I(SL_INOUT[(i*16)+8]),      .O(sl_out_ack_i[i]));
+					IOBUF sl_out_data_buf_i [6:0] ( .IO(SL_INOUT[(i*16)+9 +: 7])
+					                              , .I(sl_out_data_i[i])
+					                              , .T({7{spinnaker_link_enable_i[(i*2) + 1]}})
+					                              );
+					IBUF sl_out_ack_buf_i         (.I(SL_INOUT[(i*16)+8]), .O(sl_out_ack_i[i]));
 				end
 			
 			LOW_SL:
 				begin
 					// SpiNNaker -> FPGA
 					IBUF sl_in_data_buf_i [6:0] (.I(SL_INOUT[(i*16)+9 +: 7]), .O(sl_in_data_i[i]));
-					OBUF sl_in_ack_buf_i        (.O(SL_INOUT[(i*16)+8]),      .I(sl_in_ack_i[i]));
+					IOBUF sl_in_ack_buf_i       ( .IO(SL_INOUT[(i*16)+8])
+					                            , .I(sl_in_ack_i[i])
+					                            , .T(spinnaker_link_enable_i[(i*2) + 0])
+					                            );
 					// FPGA -> SpiNNaker
-					OBUF sl_out_data_buf_i [6:0] (.O(SL_INOUT[(i*16)+1 +: 7]), .I(sl_out_data_i[i]));
-					IBUF sl_out_ack_buf_i        (.I(SL_INOUT[(i*16)+0]),      .O(sl_out_ack_i[i]));
+					IOBUF sl_out_data_buf_i [6:0] ( .IO(SL_INOUT[(i*16)+1 +: 7])
+					                              , .I(sl_out_data_i[i])
+					                              , .T({7{spinnaker_link_enable_i[(i*2) + 1]}})
+					                              );
+					IBUF sl_out_ack_buf_i         (.I(SL_INOUT[(i*16)+0]), .O(sl_out_ack_i[i]));
 				end
 		endcase
 	end
@@ -1279,7 +1304,7 @@ generate for (i = 0; i < 16; i = i + 1)
 		// FPGA -> SpiNNaker
 		spio_spinnaker_link_sender
 		spio_spinnaker_link_sender_i( .CLK_IN           (spinnaker_link_clk0_i)
-		                            , .RESET_IN         (spinnaker_link_reset_i)
+		                            , .RESET_IN         (spinnaker_link_reset_i[(i*2) + 1])
 		                              // Synchronous packet interface
 		                            , .PKT_DATA_IN      (slfc_pkt_txdata_i)
 		                            , .PKT_VLD_IN       (slfc_pkt_txvld_i)
@@ -1292,7 +1317,7 @@ generate for (i = 0; i < 16; i = i + 1)
 		// SpiNNaker -> FPGA
 		spio_spinnaker_link_receiver
 		spio_spinnaker_link_receiver_i( .CLK_IN           (spinnaker_link_clk0_i)
-		                              , .RESET_IN         (spinnaker_link_reset_i)
+		                              , .RESET_IN         (spinnaker_link_reset_i[(i*2) + 0])
 		                              // SpiNNaker link asynchronous interface
 		                              , .SL_DATA_2OF7_IN  (synced_sl_in_data_i)
 		                              , .SL_ACK_OUT       (sl_in_ack_i[i])
@@ -1306,7 +1331,7 @@ generate for (i = 0; i < 16; i = i + 1)
 		spio_hss_multiplexer_pkt_fifo_sync
 		spio_hss_multiplexer_pkt_fifo_sync_i ( .WCLK_IN          (spinnaker_link_clk0_i)
 		                                     , .RCLK_IN          (spinnaker_link_clk1_i)
-		                                     , .RESET_IN         (spinnaker_link_reset_i)
+		                                     , .RESET_IN         (spinnaker_link_reset_i[(i*2) + 0])
 						     // fast clock (write) packet interface
  						     , .SFI_DATA_IN      (slfc_pkt_rxdata_i)
 						     , .SFI_VLD_IN       (slfc_pkt_rxvld_i)
@@ -1320,7 +1345,8 @@ generate for (i = 0; i < 16; i = i + 1)
 		spio_hss_multiplexer_pkt_fifo_sync
 		spio_hss_multiplexer_pkt_fifo_sync2_i ( .WCLK_IN          (spinnaker_link_clk1_i)
 		                                      , .RCLK_IN          (spinnaker_link_clk0_i)
-		                                      , .RESET_IN         (spinnaker_link_reset_i)
+		                                      , .RESET_IN         (spinnaker_link_reset_i[(i*2) + 1])
+
 						      // normal clock (write) packet interface
  				     		      , .SFI_DATA_IN      (sl_pkt_txdata_i[i])
 						      , .SFI_VLD_IN       (sl_pkt_txvld_i[i])
@@ -1666,6 +1692,7 @@ spinnaker_fpgas_reg_bank_i( .CLK_IN         (reg_bank_clk_i)
                                              , FPGA_ID[1:0]
                                              }
                                             )
+                          , .SPINNAKER_LINK_ENABLE(spinnaker_link_enable_i)
                           , .PERIPH_MC_KEY  (periph_mc_key_i)
                           , .PERIPH_MC_MASK (periph_mc_mask_i)
                           , .SCRMBL_IDL_DAT (scrmbl_idl_dat_i)

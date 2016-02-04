@@ -141,11 +141,28 @@ address: 0x00040000
 	                                                 }
 	PKEY       2   0x08  RW        32  Peripheral MC route key
 	PMSK       3   0x0C  RW        32  Peripheral MC route mask
-	SCRM       5   0x10  RW         4  Scrambler on  {   3: ring link
-	                                                 ,   2: peripheral link
-	                                                 ,   1: board-to-board link1
-	                                                 ,   0: board-to-board link0
+	SCRM       4   0x10  RW         4  Scrambler on  { 3: ring link
+	                                                 , 2: peripheral link
+	                                                 , 1: board-to-board link1
+	                                                 , 0: board-to-board link0
 	                                                 }
+	SLEN       5   0x14  RW        32  Enable SpiNNaker chip (2-of-7) link.
+	                                   { 0: Link 0 SpiNN->FPGA enable
+	                                   , 1: Link 0 FPGA->SpiNN enable
+	                                   , 2: Link 1 SpiNN->FPGA enable
+	                                   , 3: Link 1 FPGA->SpiNN enable
+	                                   , ...
+	                                   }
+
+Note that disabling a link with the SLEN register tristates the associated link
+pins and holds the corresponding SpiNNaker link interface block in the FPGA in
+reset. This register may be useful to allow specific 2-of-7 link ports on,
+e.g., SpiNN5 boards to be connected to external devices while other links are
+connected via high-speed serial to neighbouring boards as usual. By default the
+register is all-1s (i.e. all links enabled) and must be configured immediately
+after power-up and before system boot if any other configuration is to be used.
+The STOP register should be preferred for the purposes of simply isolating
+boards.
 
 Finally, there are SpiNNaker-link packet counters on all SpiNNaker - FPGA links.
 

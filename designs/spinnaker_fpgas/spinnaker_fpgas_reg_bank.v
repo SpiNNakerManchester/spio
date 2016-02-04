@@ -24,6 +24,8 @@ module spinnaker_fpgas_reg_bank #( // Address bits
                                    //                   , FPGAID
                                    //                   }
                                  , input  wire             [5:0] FLAGS_IN
+                                   // 2-of-7 Link enable signals
+                                 , output reg             [31:0] SPINNAKER_LINK_ENABLE
                                    // Peripheral routing key/mask
                                  , output reg             [31:0] PERIPH_MC_KEY
                                  , output reg             [31:0] PERIPH_MC_MASK
@@ -40,6 +42,7 @@ localparam FLAG_REG = 1; // Compile flags {   5: chip scope
 localparam PKEY_REG = 2; // Peripheral MC route key
 localparam PMSK_REG = 3; // Peripheral MC route mask
 localparam SCRM_REG = 4; // idle data scrambling control
+localparam SLEN_REG = 5; // SpiNNaker (2-of-7) link enable
 
 
 // Write address decode
@@ -49,6 +52,7 @@ always @ (posedge CLK_IN, posedge RESET_IN)
 			PERIPH_MC_KEY  <= 32'hFFFFFFFF;
 			PERIPH_MC_MASK <= 32'h00000000;
 			SCRMBL_IDL_DAT <= 32'hFFFFFFFF;
+			SPINNAKER_LINK_ENABLE <= 32'hFFFFFFFF;
 		end
 	else
 		if (WRITE_IN)
@@ -56,6 +60,7 @@ always @ (posedge CLK_IN, posedge RESET_IN)
 				PKEY_REG: PERIPH_MC_KEY  <= WRITE_DATA_IN;
 				PMSK_REG: PERIPH_MC_MASK <= WRITE_DATA_IN;
 				SCRM_REG: SCRMBL_IDL_DAT <= WRITE_DATA_IN;
+				SLEN_REG: SPINNAKER_LINK_ENABLE <= WRITE_DATA_IN;
 			endcase
 
 
@@ -67,6 +72,7 @@ always @ (*)
 		PKEY_REG: READ_DATA_OUT = PERIPH_MC_KEY;
 		PMSK_REG: READ_DATA_OUT = PERIPH_MC_MASK;
 		SCRM_REG: READ_DATA_OUT = SCRMBL_IDL_DAT;
+		SLEN_REG: READ_DATA_OUT = SPINNAKER_LINK_ENABLE;
 		default:  READ_DATA_OUT = {REGD_BITS{1'b1}};
 	endcase
 
