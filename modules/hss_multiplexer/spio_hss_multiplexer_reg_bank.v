@@ -48,6 +48,7 @@ module spio_hss_multiplexer_reg_bank
   // frame transmitter interface
   input  wire                    reg_tfrm,
   output reg  [`IDLE_BITS - 1:0] reg_idso,
+  output reg                     reg_stop,
 
   // frame disassembler interface
   input  wire                    reg_dfrm,
@@ -243,11 +244,13 @@ module spio_hss_multiplexer_reg_bank
     if (rst)
       begin
         reg_idso <= {`IDLE_BITS{1'b0}};
+        reg_stop <= 1'b0;
       end
     else
       if (reg_write)
         case (reg_addr)
           `IDSO_REG: reg_idso <= reg_write_data[`IDLE_BITS-1:0];
+          `STOP_REG: reg_stop <= reg_write_data[0];
         endcase
 
   //---------------------------------------------------------------
@@ -290,6 +293,7 @@ module spio_hss_multiplexer_reg_bank
       `IDSI_REG: reg_read_data = {{(`REGD_BITS-`IDLE_BITS){1'b0}}, reg_idsi};
       `HAND_REG: reg_read_data = {{(`REGD_BITS-2){1'b0}}, reg_hand};
       `RECO_REG: reg_read_data = reco_ctr;
+      `STOP_REG: reg_read_data = {{(`REGD_BITS-1){1'b0}}, reg_stop};
       default:   reg_read_data = {`REGD_BITS {1'b1}};
     endcase
   //---------------------------------------------------------------
