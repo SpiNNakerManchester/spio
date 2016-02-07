@@ -174,6 +174,9 @@ spio_spinnaker_link_sender uut
   .CLK_IN           (uut_clk),
   .RESET_IN         (uut_rst),
 
+  .LNK_ERR_OUT      (),
+  .BPP_IN           (4'd6),
+
   // incoming packet interface
   .PKT_DATA_IN      (uut_ipkt_data),
   .PKT_VLD_IN       (uut_ipkt_vld),

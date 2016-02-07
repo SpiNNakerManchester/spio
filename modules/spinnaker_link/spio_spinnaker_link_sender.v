@@ -36,6 +36,12 @@ module spio_spinnaker_link_sender
   input                        CLK_IN,
   input                        RESET_IN,
 
+  // link error reporting
+  output wire                  LNK_ERR_OUT,
+
+  // back-pressure point interface
+  input                  [3:0] BPP_IN,
+
   // synchronous packet interface
   input      [`PKT_BITS - 1:0] PKT_DATA_IN,
   input                        PKT_VLD_IN,
@@ -52,6 +58,8 @@ module spio_spinnaker_link_sender
   wire       synced_sl_ack;  // synchronized acknowledge input
 
   wire [6:0] flt_data;
+  wire       flt_eop;
+  wire       flt_psz;
   wire       flt_vld;
   wire       flt_rdy;
 
@@ -64,6 +72,8 @@ module spio_spinnaker_link_sender
     .PKT_VLD_IN       (PKT_VLD_IN),
     .PKT_RDY_OUT      (PKT_RDY_OUT),
     .flt_data         (flt_data),
+    .flt_eop          (flt_eop),
+    .flt_psz          (flt_psz),
     .flt_vld          (flt_vld),
     .flt_rdy          (flt_rdy)
   );
@@ -72,7 +82,10 @@ module spio_spinnaker_link_sender
   (
     .CLK_IN           (CLK_IN),
     .RESET_IN         (RESET_IN),
+    .BPP_IN           (BPP_IN),
     .flt_data         (flt_data),
+    .flt_eop          (flt_eop),
+    .flt_psz          (flt_psz),
     .flt_vld          (flt_vld),
     .flt_rdy          (flt_rdy),
     .SL_DATA_2OF7_OUT (SL_DATA_2OF7_OUT),
@@ -102,6 +115,8 @@ module pkt_serializer
 
   // flit interface
   output reg              [6:0] flt_data,
+  output reg                    flt_eop,
+  output reg                    flt_psz,
   output reg                    flt_vld,
   input                         flt_rdy
 );
@@ -228,6 +243,33 @@ module pkt_serializer
 
 
   //-------------------------------------------------------------
+  // flit interface: generate flit end-of-packet flag
+  //-------------------------------------------------------------
+  always @(posedge CLK_IN or posedge RESET_IN)
+    if (RESET_IN)
+      flt_eop <= 1'b0;
+    else
+      case (state)
+        IDLE_ST: if (PKT_VLD_IN && !flt_busy)
+                   flt_eop <= 1'b0;  // never eop
+	
+        default: if (!flt_busy)
+                   flt_eop <= eop;   // can be eop
+      endcase 
+
+
+  //-------------------------------------------------------------
+  // flit interface: generate flit packet size flag
+  //-------------------------------------------------------------
+  always @(posedge CLK_IN or posedge RESET_IN)
+    if (RESET_IN)
+      flt_psz <= 1'b0;
+    else
+    if ((state == IDLE_ST) && PKT_VLD_IN)
+      flt_psz <= PKT_DATA_IN[1];
+
+
+  //-------------------------------------------------------------
   // flit interface: generate flt_vld
   //-------------------------------------------------------------
   always @(posedge CLK_IN or posedge RESET_IN)
@@ -304,8 +346,13 @@ module flit_output_if
   input            CLK_IN,
   input            RESET_IN,
 
+  // back-pressure point interface
+  input      [3:0] BPP_IN,
+
   // packet serializer interface
   input      [6:0] flt_data,
+  input            flt_eop,
+  input            flt_psz,
   input            flt_vld,
   output reg       flt_rdy,
 
@@ -317,19 +364,33 @@ module flit_output_if
   //-------------------------------------------------------------
   // constants
   //-------------------------------------------------------------
-  localparam STATE_BITS = 2;
-  localparam IDLE_ST    = 0;
-  localparam TRAN_ST    = IDLE_ST + 1;
-  localparam WAIT_ST    = TRAN_ST + 1;  // used flit ahead of rdy!
+  localparam STATE_BITS = 1;
+  localparam SYNC_ST    = 0;
+  localparam ASYN_ST    = SYNC_ST + 1;
+
+  localparam INTER_FLT_DELAY = 1;
 
 
   //-------------------------------------------------------------
   // internal signals
   //-------------------------------------------------------------
   reg old_ack;  // remember previous value of SL_ACK_IN
+  reg oap;      // remember previous value of SL_ACK_IN
   reg acked;    // detect a transition in SL_ACK_IN
+  reg akp;      // detect a transition in SL_ACK_IN
+
+  reg snd_asyn;  // can send flit
+
+  reg pps;      // remember the size of the previous packet
 
   reg send_flit;  // send new flit to SpiNNaker
+
+  reg [5:0] dat_cnt;  // keep track of data flits sent
+  reg [5:0] ack_cnt;  // keep track of ack flits received
+  reg       dat_dne;  // all data flits sent
+  reg       ack_dne;  // all ack flits received
+
+  reg [7:0] dly_cnt;  // keep track of inter flit clock cycles
 
   reg [STATE_BITS - 1:0] state;  // current state
 
@@ -342,13 +403,38 @@ module flit_output_if
       flt_rdy <= 1'b1;
     else
       case (state)
-        IDLE_ST: if (flt_vld)
-                   flt_rdy <= 1'b0;  // new flit, not ready for next
+        SYNC_ST:
+          casex ({send_flit, ack_dne, pps, dat_dne, (dly_cnt == 1)})
+            5'b1xxxx: flt_rdy <= 1'b0;  // just sent psync flit
+            5'bx11xx: flt_rdy <= 1'b0;  // not ready for next flit
+            5'bx10xx: flt_rdy <= 1'b1;  // ready for next burst
+	    5'bx0x01: flt_rdy <= 1'b1;  // ready for next flit
+          endcase
 
-        default: if (acked)
-                   flt_rdy <= 1'b1;  // flit acked, ready for next
-	         else
-                   flt_rdy <= 1'b0;
+        ASYN_ST:
+          casex ({send_flit, ack_dne})
+            2'b1x: flt_rdy <= 1'b1;  // just sent async flit (delayed!)
+	    2'bx1: flt_rdy <= 1'b1;  // ready for next burst
+	    2'b00: flt_rdy <= 1'b0;  // not ready yet for next flit
+          endcase
+      endcase 
+
+
+  //-------------------------------------------------------------
+  // remember the size fo the previous packet
+  //-------------------------------------------------------------
+  always @(posedge CLK_IN or posedge RESET_IN)
+    if (RESET_IN)
+      pps <= 1'b0;  // start assuming a short packet
+    else
+      case (state)
+        SYNC_ST:
+          if (ack_dne && (pps == 1'b0))
+            pps <= flt_psz;
+
+        ASYN_ST:
+          if (ack_dne)
+            pps <= flt_psz;
       endcase 
 
 
@@ -371,17 +457,17 @@ module flit_output_if
       send_flit = 1'b0;
     else
       case (state)
-        IDLE_ST: if (flt_vld)
-                   send_flit = 1'b1;  // send new flit
-                 else
-                   send_flit = 1'b0;  // no new flit to send
+        SYNC_ST:
+          if (flt_vld && flt_rdy)
+            send_flit = 1'b1;  // send new flit
+          else
+            send_flit = 1'b0;  // not ready for new flit
 
-        TRAN_ST: if (acked && flt_vld)
-                   send_flit = 1'b1;  // send new flit
-                 else
-                   send_flit = 1'b0;  // waiting for ack/no new flit
-
-        default:   send_flit = 1'b0;  // waiting for ack
+        ASYN_ST:
+          if (flt_vld && (acked || snd_asyn) && !dat_dne)
+            send_flit = 1'b1;  // send new flit
+          else
+            send_flit = 1'b0;  // not ready for new flit
       endcase 
 
 
@@ -395,6 +481,12 @@ module flit_output_if
       if (send_flit)
         old_ack <= SL_ACK_IN;
 
+  always @(posedge CLK_IN or posedge RESET_IN)
+    if (RESET_IN)
+      oap <= 1'b0;
+    else
+      oap <= SL_ACK_IN;
+
 
   //-------------------------------------------------------------
   // detect transition in SL_ACK_IN
@@ -402,29 +494,108 @@ module flit_output_if
   always @ (*)
     acked = (old_ack != SL_ACK_IN);
 
+  always @ (*)
+    akp = (oap != SL_ACK_IN);
+
+  always @(posedge CLK_IN or posedge RESET_IN)
+    if (RESET_IN)
+      snd_asyn <= 1'b0;
+    else
+      case (state)
+        SYNC_ST:
+          if (ack_dne && pps)
+	    snd_asyn <= 1'b1;
+          else
+            snd_asyn <= 1'b0;
+
+        ASYN_ST:
+            snd_asyn <= 1'b0;
+      endcase 
+
+
+  //-------------------------------------------------------------
+  // keep track of data flits sent
+  //-------------------------------------------------------------
+  always @(posedge CLK_IN or posedge RESET_IN)
+    if (RESET_IN)
+      dat_cnt <= BPP_IN;
+    else
+      case (state)
+        SYNC_ST:
+          casex ({send_flit, ack_dne, pps, flt_psz})
+            4'b1xxx: dat_cnt <= dat_cnt - 1;
+	    4'bx100: dat_cnt <= 11;
+	    4'bx101: dat_cnt <= 17;
+	    4'bx11x: dat_cnt <= 2;
+          endcase
+
+        ASYN_ST:
+          casex ({send_flit, ack_dne, flt_psz})
+            3'b1xx: dat_cnt <= dat_cnt - 1;
+	    3'bx10: dat_cnt <= 11;
+	    3'bx11: dat_cnt <= 17;
+          endcase
+      endcase 
+
+  always @(*)
+//!    dat_dne <= (dat_cnt == 0) || ((dat_cnt == 1) && send_flit);
+    dat_dne <= (dat_cnt == 0);
+
+
+  //-------------------------------------------------------------
+  // keep track of ack flits received
+  //-------------------------------------------------------------
+  always @(posedge CLK_IN or posedge RESET_IN)
+    if (RESET_IN)
+      ack_cnt <= BPP_IN + 1;  // SpiNNaker acks on reset!
+    else
+      case (state)
+        SYNC_ST:
+          casex ({akp, ack_dne, pps, flt_psz})
+            4'b10xx: ack_cnt <= ack_cnt - 1;
+	    4'bx100: ack_cnt <= 11;
+	    4'bx101: ack_cnt <= 17;
+	    4'bx11x: ack_cnt <= 2;
+          endcase
+
+        ASYN_ST:
+          casex ({akp, ack_dne, flt_psz})
+            3'b10x: ack_cnt <= ack_cnt - 1;
+	    3'bx10: ack_cnt <= 11;
+	    3'bx11: ack_cnt <= 17;
+          endcase
+      endcase 
+
+  always @(*)
+    ack_dne <= (ack_cnt == 0) || ((ack_cnt == 1) && akp);
+
+
+  //-------------------------------------------------------------
+  // keep track of inter flit clock cycles
+  //-------------------------------------------------------------
+  always @(posedge CLK_IN or posedge RESET_IN)
+    if (RESET_IN)
+      dly_cnt <= 0;
+    else
+      casex ({send_flit, (dly_cnt == 0)})
+        2'b1x: dly_cnt <= INTER_FLT_DELAY;   // flit sent
+        2'b00: dly_cnt <= dly_cnt - 1;       // wait before sending flit
+      endcase
+
 
   //-------------------------------------------------------------
   // state machine
   //-------------------------------------------------------------
   always @(posedge CLK_IN or posedge RESET_IN)
     if (RESET_IN)
-      state <= IDLE_ST;
+      state <= SYNC_ST;
     else
       case (state)
-        IDLE_ST: if (flt_vld)
-                   state <= TRAN_ST;  // send new flit
+        SYNC_ST: if ((ack_dne) && (pps == 1'b1))
+                   state <= ASYN_ST;
 
-        TRAN_ST:
-          case ({acked, flt_vld})
-            2'b10:   state <= IDLE_ST;  // no new flit
-	    2'b11:   state <= WAIT_ST;  // use flit and wait for ack
-            default: state <= TRAN_ST;  // wait for ack
-          endcase
-
-        default: if (acked)
-                   state <= IDLE_ST;
-                 else
-                   state <= TRAN_ST;
+        ASYN_ST: if (ack_dne)
+                   state <= SYNC_ST;
       endcase 
 endmodule
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

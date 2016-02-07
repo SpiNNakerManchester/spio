@@ -57,6 +57,7 @@ module spio_spinnaker_link_receiver
 
   wire [6:0] flt_data_2of7;  // 2of7-encoded data -- no need for vld signal
   wire       flt_rdy;
+  wire [4:0] flt_tot;        // number of flits in this packet
 
 
   spio_spinnaker_link_sync #(.SIZE(7)) sync
@@ -72,7 +73,8 @@ module spio_spinnaker_link_receiver
     .SL_DATA_2OF7_IN (synced_sl_data_2of7),
     .SL_ACK_OUT      (SL_ACK_OUT),
     .flt_data_2of7   (flt_data_2of7),
-    .flt_rdy         (flt_rdy)
+    .flt_rdy         (flt_rdy),
+    .flt_tot         (flt_tot)
   );
 
   pkt_deserializer pd
@@ -83,6 +85,7 @@ module spio_spinnaker_link_receiver
     .FRM_ERR_OUT     (FRM_ERR_OUT),
     .flt_data_2of7   (flt_data_2of7),
     .flt_rdy         (flt_rdy),
+    .flt_tot         (flt_tot),
     .PKT_DATA_OUT    (PKT_DATA_OUT),
     .PKT_VLD_OUT     (PKT_VLD_OUT),
     .PKT_RDY_IN      (PKT_RDY_IN)
@@ -104,15 +107,20 @@ module flit_input_if
 
   // packet deserializer interface
   output reg              [6:0] flt_data_2of7,
-  input                         flt_rdy
+  input                         flt_rdy,
+  input                   [4:0] flt_tot
 );
 
   //-------------------------------------------------------------
   // constants
   //-------------------------------------------------------------
-  localparam STATE_BITS = 1;
+  localparam STATE_BITS = 2;
   localparam STRT_ST    = 0;   // need to send an ack on reset exit!
   localparam IDLE_ST    = STRT_ST + 1;
+  localparam RECV_ST    = IDLE_ST + 1;
+  localparam EOPW_ST    = RECV_ST + 1;
+
+  localparam INTER_ACK_DELAY = 1;
 
 
   //-------------------------------------------------------------
@@ -121,25 +129,41 @@ module flit_input_if
   reg send_ack;  // send ack to SpiNNaker (toggle SL_ACK_OUT)
 
   reg new_flit;  // new flit arrived
+  reg eop_flit;  // end-of-packet flit arrived
  
-  reg flt_vld_i;  // keep track of flit data validity
-  reg flt_busy;  // deserializer not ready for new flit
+  reg [4:0] ack_cnt;   // number of acks already sent
+
+  reg [6:0] rtz_data;  // data translated from nrz to rtz
+
+  reg [2:0] dly_cnt;   // keep track of inter ack clock cycles
 
   reg [STATE_BITS - 1:0] state;  // current state
 
 
   //-------------------------------------------------------------
-  // NRZ 2-of-7 symbol detector (correct data, eop or error)
+  // 2-of-7 symbol detector (correct data, eop or error)
   //-------------------------------------------------------------
   function detect_nrz_2of7 ;
     input [6:0] data;
-    input [6:0] old_data;
 
-    case (data ^ old_data)
+    case (data)
       0, 1, 2, 4,
       8, 16, 32,
       64:         detect_nrz_2of7 = 0;  // incomplete (no/single-bit change)
       default:    detect_nrz_2of7 = 1;  // correct data, eop or error
+    endcase
+  endfunction
+
+
+  //-------------------------------------------------------------
+  // 2-of-7 end-of-packet detector
+  //-------------------------------------------------------------
+  function eop_2of7 ;
+    input [6:0] data;
+
+    case (data)
+      7'b1100000: eop_2of7 = 1;
+      default:    eop_2of7 = 0;  // anything else is not an end-of-packet
     endcase
   endfunction
 
@@ -162,18 +186,39 @@ module flit_input_if
     case (state)
       STRT_ST:   send_ack = 1'b1;  // mimic SpiNNaker: ack on reset exit
 
-      IDLE_ST: if (new_flit && !flt_busy)
+      IDLE_ST: if (new_flit && flt_rdy)
                  send_ack = 1'b1;  //  ack new flit when ready
                else
                  send_ack = 1'b0;   //  no ack!
+
+      RECV_ST: if ((dly_cnt == 0) && (ack_cnt < flt_tot))
+                 send_ack = 1'b1;  //  ack new flit when ready
+               else
+                 send_ack = 1'b0;   //  no ack!
+
+      EOPW_ST:   send_ack = 1'b0;   //  no ack!
     endcase 
+
+
+  //---------------------------------------------------------------
+  // translate data from nrz to rtz
+  //---------------------------------------------------------------
+  always @(*)
+    rtz_data = SL_DATA_2OF7_IN ^ flt_data_2of7;
 
 
   //-------------------------------------------------------------
   // detect the arrival of a new nrz flit (2 or more transitions)
   //-------------------------------------------------------------
   always @(*)
-    new_flit = detect_nrz_2of7 (SL_DATA_2OF7_IN, flt_data_2of7);
+    new_flit = detect_nrz_2of7 (rtz_data);
+
+
+  //-------------------------------------------------------------
+  // detect the arrival of an end-of-packet flit
+  //-------------------------------------------------------------
+  always @(*)
+    eop_flit = eop_2of7 (rtz_data);
 
 
   //-------------------------------------------------------------
@@ -182,33 +227,51 @@ module flit_input_if
   always @(posedge CLK_IN)
     case (state)
       STRT_ST:
-          flt_data_2of7 <= SL_DATA_2OF7_IN;  // remember initial data
+          flt_data_2of7 <= SL_DATA_2OF7_IN;  // send & remember initial data
 
       IDLE_ST:
-        if (new_flit && !flt_busy)
-          flt_data_2of7 <= SL_DATA_2OF7_IN;  // remember incoming data
+        if (new_flit && flt_rdy)
+          flt_data_2of7 <= SL_DATA_2OF7_IN;  // send & remember incoming data
+
+      RECV_ST:
+        if (new_flit)
+          flt_data_2of7 <= SL_DATA_2OF7_IN;  // send & remember incoming data
     endcase 
 
 
   //-------------------------------------------------------------
-  // packet deserializer interface: generate flt_vld
+  // keep track of inter ack clock cycles
   //-------------------------------------------------------------
   always @(posedge CLK_IN or posedge RESET_IN)
     if (RESET_IN)
-      flt_vld_i = 1'b0;
+      dly_cnt <= INTER_ACK_DELAY;
     else
-      if (!flt_busy)
-        if (new_flit)
-          flt_vld_i = 1'b1;
-        else
-          flt_vld_i = 1'b0;
+      case (state)
+        IDLE_ST:   dly_cnt <= INTER_ACK_DELAY;
+
+        RECV_ST: if (dly_cnt == 0)
+                   dly_cnt <= INTER_ACK_DELAY;  // ack sent
+	         else
+                   dly_cnt <= dly_cnt - 1;      // wait before sending ack
+
+        default:   dly_cnt <= INTER_ACK_DELAY;
+      endcase 
 
 
   //-------------------------------------------------------------
-  // deserializer not ready for new flit
+  // keep track of number of acks already sent
   //-------------------------------------------------------------
-  always @(*)
-    flt_busy = flt_vld_i && !flt_rdy;
+  always @(posedge CLK_IN or posedge RESET_IN)
+    if (RESET_IN)
+      ack_cnt <= 0;
+    else
+      case (state)
+        STRT_ST,
+        EOPW_ST:   ack_cnt <= 0;
+
+        default: if (send_ack)
+                   ack_cnt <= ack_cnt + 1;
+      endcase 
 
 
   //-------------------------------------------------------------
@@ -218,7 +281,17 @@ module flit_input_if
     if (RESET_IN)
       state <= STRT_ST;  // need to send an ack on reset exit!
     else
-      state <= IDLE_ST;
+      case (state)
+        STRT_ST:   state <= IDLE_ST;
+
+        IDLE_ST: if (new_flit && flt_rdy)
+                   state <= RECV_ST;
+
+        RECV_ST: if (eop_flit)
+                   state <= EOPW_ST;
+
+        EOPW_ST:   state <= IDLE_ST;
+      endcase 
 endmodule
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -237,6 +310,7 @@ module pkt_deserializer
   // flit interface
   input                   [6:0] flt_data_2of7,
   output reg                    flt_rdy,
+  output reg              [4:0] flt_tot,
 
   // spiNNlink interface
   output reg  [`PKT_BITS - 1:0] PKT_DATA_OUT,
@@ -419,6 +493,12 @@ module pkt_deserializer
         default:   flt_rdy <= 1'b1;
       endcase 
 
+  always @(posedge CLK_IN)
+    if ((state == IDLE_ST) && dat_flit)
+      if (new_data[1])
+	flt_tot <= 19;
+      else
+	flt_tot <= 11;
 
 
   //-------------------------------------------------------------

@@ -33,7 +33,8 @@ module spio_spinnaker_link_receiver_tb ();
 localparam UUT_CLK_HPER = (6.666 / 2);  // currently testing @ 150 MHz
 localparam TB_CLK_HPER  = (6.666 / 2);  // currently testing @ 150 MHz
 
-//!! localparam SPL_HSDLY = 16;  // external link delay estimate
+//!!localparam SPL_HSDLY = 12;  // external link delay estimate
+//!!localparam SPL_HSDLY = 16;  // external link delay estimate
 localparam SPL_HSDLY = 23;  // external link delay estimate (includes SpiNNaker)
 
 localparam INIT_DELAY = (10 * TB_CLK_HPER);

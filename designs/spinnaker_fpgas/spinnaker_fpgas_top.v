@@ -1280,6 +1280,8 @@ generate for (i = 0; i < 16; i = i + 1)
 		spio_spinnaker_link_sender
 		spio_spinnaker_link_sender_i( .CLK_IN           (spinnaker_link_clk0_i)
 		                            , .RESET_IN         (spinnaker_link_reset_i)
+		                              // back-pressure point interface
+		                            , .BPP_IN           (BPP[(64*FPGA_ID) + (4*i)+:4])
 		                              // Synchronous packet interface
 		                            , .PKT_DATA_IN      (slfc_pkt_txdata_i)
 		                            , .PKT_VLD_IN       (slfc_pkt_txvld_i)

@@ -34,4 +34,23 @@ localparam [(32*3)-1:0] FPGA_SL_TYPES = { // FPGA2
                                         , HIGH_SL, LOW_SL,  HIGH_SL, LOW_SL
                                         };
 
+// the back-pressure point (bpp) is different for each link
+// 3FPGAs, 16 links per FPGA, 4 bits per link
+localparam [(3*16*4)-1:0] BPP = { // FPGA2
+                                  4'd6, 4'd7, 4'd6, 4'd7
+                                , 4'd6, 4'd7, 4'd6, 4'd7
+                                , 4'd6, 4'd9, 4'd6, 4'd9
+                                , 4'd6, 4'd9, 4'd6, 4'd9
+                                  // FPGA1
+                                , 4'd6, 4'd9, 4'd6, 4'd9
+                                , 4'd6, 4'd9, 4'd6, 4'd9
+                                , 4'd6, 4'd6, 4'd6, 4'd6
+                                , 4'd6, 4'd6, 4'd6, 4'd6
+                                  // FPGA0
+                                , 4'd5, 4'd6, 4'd5, 4'd6
+                                , 4'd5, 4'd6, 4'd5, 4'd6
+                                , 4'd5, 4'd7, 4'd5, 4'd7
+                                , 4'd5, 4'd7, 4'd5, 4'd7
+                                };
+
 `endif
