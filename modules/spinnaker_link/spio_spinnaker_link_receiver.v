@@ -81,7 +81,7 @@ module spio_spinnaker_link_receiver
   (
     .CLK_IN          (CLK_IN),
     .RESET_IN        (RESET_IN),
-    .FLT_ERR_OUT     (FLT_ERROR_OUT),
+    .FLT_ERR_OUT     (FLT_ERR_OUT),
     .FRM_ERR_OUT     (FRM_ERR_OUT),
     .flt_data_2of7   (flt_data_2of7),
     .flt_rdy         (flt_rdy),
@@ -191,6 +191,7 @@ module flit_input_if
                else
                  send_ack = 1'b0;   //  no ack!
 
+//!      RECV_ST: if (((dly_cnt == 0) && (ack_cnt < flt_tot)) || eop_flit)
       RECV_ST: if ((dly_cnt == 0) && (ack_cnt < flt_tot))
                  send_ack = 1'b1;  //  ack new flit when ready
                else
@@ -328,6 +329,11 @@ module pkt_deserializer
   localparam TRAN_ST    = IDLE_ST + 1;
   localparam WAIT_ST    = TRAN_ST + 1;
   localparam FERR_ST    = WAIT_ST + 1;
+
+//!  localparam SPKT_FLTS = 10;
+//!  localparam LPKT_FLTS = 18;
+  localparam SPKT_FLTS = 11;
+  localparam LPKT_FLTS = 19;
 
 
   //---------------------------------------------------------------
@@ -493,12 +499,15 @@ module pkt_deserializer
         default:   flt_rdy <= 1'b1;
       endcase 
 
-  always @(posedge CLK_IN)
-    if ((state == IDLE_ST) && dat_flit)
-      if (new_data[1])
-	flt_tot <= 19;
-      else
-	flt_tot <= 11;
+  always @(posedge CLK_IN or posedge RESET_IN)
+    if (RESET_IN)
+      flt_tot <= SPKT_FLTS;
+    else
+      if ((state == IDLE_ST) && dat_flit)
+        if (new_data[1])
+          flt_tot <= LPKT_FLTS;
+        else
+          flt_tot <= SPKT_FLTS;
 
 
   //-------------------------------------------------------------
@@ -648,7 +657,7 @@ module pkt_deserializer
           else
             FLT_ERR_OUT <= 1'b0;
 
-        default: FLT_ERR_OUT <= 0;
+        default: FLT_ERR_OUT <= 1'b0;
       endcase
 
   always @(posedge CLK_IN or posedge RESET_IN)
@@ -663,7 +672,7 @@ module pkt_deserializer
           else
             FRM_ERR_OUT <= 1'b0;
 
-        default: FRM_ERR_OUT <= 0;
+        default: FRM_ERR_OUT <= 1'b0;
       endcase
   //---------------------------------------------------------------
 

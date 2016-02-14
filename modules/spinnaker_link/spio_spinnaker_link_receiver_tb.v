@@ -32,10 +32,12 @@ module spio_spinnaker_link_receiver_tb ();
 //---------------------------------------------------------------
 localparam UUT_CLK_HPER = (6.666 / 2);  // currently testing @ 150 MHz
 localparam TB_CLK_HPER  = (6.666 / 2);  // currently testing @ 150 MHz
+//!localparam UUT_CLK_HPER = (10.000 / 2);  // currently testing @ 100 MHz
+//!localparam TB_CLK_HPER  = (10.000 / 2);  // currently testing @ 100 MHz
 
-//!!localparam SPL_HSDLY = 12;  // external link delay estimate
+localparam SPL_HSDLY = 10;  // external link delay estimate
 //!!localparam SPL_HSDLY = 16;  // external link delay estimate
-localparam SPL_HSDLY = 23;  // external link delay estimate (includes SpiNNaker)
+//!!localparam SPL_HSDLY = 23;  // external link delay estimate (includes SpiNNaker)
 
 localparam INIT_DELAY = (10 * TB_CLK_HPER);
 localparam RST_DELAY  = (51 * TB_CLK_HPER);  // align with clock posedge
@@ -103,6 +105,7 @@ function [6:0] encode_nrz_2of7 ;
   casex (data)
     5'b00000 : encode_nrz_2of7 = old_data ^ 7'b0010001; // 0
     5'b00001 : encode_nrz_2of7 = old_data ^ 7'b0010010; // 1
+//!    5'b00001 : encode_nrz_2of7 = old_data ^ 7'b0011010; // 1  --- error!
     5'b00010 : encode_nrz_2of7 = old_data ^ 7'b0010100; // 2
     5'b00011 : encode_nrz_2of7 = old_data ^ 7'b0011000; // 3
     5'b00100 : encode_nrz_2of7 = old_data ^ 7'b0100001; // 4
@@ -169,7 +172,7 @@ begin
 
   wait (!tb_rst);  // wait for reset to be released
 
-  # COMB_DELAY;
+  # (3 * COMB_DELAY);
    
   // store first packet in fifo for later checking
   tb_fifo_pkt[tb_fifo_wrp] = tb_ipkt;
@@ -188,6 +191,9 @@ begin
     begin
       // send end-of-packet to uut
       uut_ispl_data = encode_nrz_2of7 (`EOP, tb_old_data);
+
+      // remember ack (for transition detection)
+      tb_old_ack = uut_ispl_ack;
 
       // generate next packet
       tb_ipkt_type = tb_ipkt_type + 1;
@@ -215,6 +221,9 @@ begin
                                         tb_old_data
                                       );
 
+      // remember ack (for transition detection)
+      tb_old_ack = uut_ispl_ack;
+
       # COMB_DELAY;
 
       // update flit counter
@@ -223,9 +232,6 @@ begin
 
     // remember data (for nrz encoding)
     tb_old_data = uut_ispl_data;
-
-    // remember ack (for transition detection)
-    tb_old_ack = uut_ispl_ack;
 
     // wait for ack from uut
     wait (tb_old_ack != uut_ispl_ack);
