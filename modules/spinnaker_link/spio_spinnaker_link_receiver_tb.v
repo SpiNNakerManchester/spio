@@ -170,8 +170,12 @@ begin
 
   tb_flt_cnt = 0;
 
-  wait (!tb_rst);  // wait for reset to be released
+  // wait for reset to be released
+  wait (!tb_rst);
 
+
+  // do not send data too early (receiver breaks)
+  wait (uut_ispl_ack)
   # (3 * COMB_DELAY);
    
   // store first packet in fifo for later checking
