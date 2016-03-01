@@ -56,6 +56,8 @@ reg         uut_clk;
 
 reg   [6:0] uut_ispl_data;
 wire        uut_ispl_ack;
+wire        uut_flt_err;
+wire        uut_frm_err;
 
 wire [71:0] uut_opkt_data;
 wire        uut_opkt_vld;
@@ -104,8 +106,8 @@ function [6:0] encode_nrz_2of7 ;
 
   casex (data)
     5'b00000 : encode_nrz_2of7 = old_data ^ 7'b0010001; // 0
-    5'b00001 : encode_nrz_2of7 = old_data ^ 7'b0010010; // 1
 //!    5'b00001 : encode_nrz_2of7 = old_data ^ 7'b0011010; // 1  --- error!
+    5'b00001 : encode_nrz_2of7 = old_data ^ 7'b0010010; // 1
     5'b00010 : encode_nrz_2of7 = old_data ^ 7'b0010100; // 2
     5'b00011 : encode_nrz_2of7 = old_data ^ 7'b0011000; // 3
     5'b00100 : encode_nrz_2of7 = old_data ^ 7'b0100001; // 4
@@ -133,6 +135,10 @@ spio_spinnaker_link_receiver uut
 (
   .CLK_IN           (uut_clk),
   .RESET_IN         (uut_rst),
+
+  // link error reporting
+  .FLT_ERR_OUT      (uut_flt_err),
+  .FRM_ERR_OUT      (uut_frm_err),
 
   // incoming SpiNNaker link interface
   .SL_DATA_2OF7_IN  (uut_ispl_data),
