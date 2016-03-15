@@ -34,7 +34,7 @@ module spinnaker_fpgas_top #( // Version number for top-level design
                               // include hss multiplexer module for FPGA ring
                             , parameter INCLUDE_RING_SUPPORT = 0
                               // Which FPGA should this module be compiled for
-                            , parameter FPGA_ID = 1
+                            , parameter FPGA_ID = 2
                               // Should North and South connections be connected
                               // to 0: J6 and J8 on the back respectively or 1:
                               // J9 and J11 on the front respectively.
@@ -273,8 +273,11 @@ wire          [15:0] sl_pkt_rxvld_i;
 wire          [15:0] sl_pkt_rxrdy_i;
 
 // SpiNNaker link (synchronous) error interfaces
+wire          [15:0] sl_tx_ack_err_i;
+wire          [15:0] sl_tx_tmo_err_i;
 wire          [15:0] sl_rx_flt_err_i;
 wire          [15:0] sl_rx_frm_err_i;
+wire          [15:0] sl_rx_gch_err_i;
 
 // A signal asserted whenever at least one packet link transfers a packet (used
 // for status indication)
@@ -1282,6 +1285,9 @@ generate for (i = 0; i < 16; i = i + 1)
 		                            , .RESET_IN         (spinnaker_link_reset_i)
 		                              // back-pressure point interface
 		                            , .BPP_IN           (BPP[(64*FPGA_ID) + (4*i)+:4])
+		                              // link error interface
+		                              , .ACK_ERR_OUT    (sl_tx_ack_err_i[i])
+		                              , .TMO_ERR_OUT    (sl_tx_tmo_err_i[i])
 		                              // Synchronous packet interface
 		                            , .PKT_DATA_IN      (slfc_pkt_txdata_i)
 		                            , .PKT_VLD_IN       (slfc_pkt_txvld_i)
@@ -1298,6 +1304,7 @@ generate for (i = 0; i < 16; i = i + 1)
 		                              // link error interface
 		                              , .FLT_ERR_OUT      (sl_rx_flt_err_i[i])
 		                              , .FRM_ERR_OUT      (sl_rx_frm_err_i[i])
+		                              , .GCH_ERR_OUT      (sl_rx_gch_err_i[i])
 		                              // SpiNNaker link asynchronous interface
 		                              , .SL_DATA_2OF7_IN  (sl_in_data_i[i])
 		                              , .SL_ACK_OUT       (sl_in_ack_i[i])
@@ -1673,8 +1680,9 @@ spio_pkt_ctr_tx( .CLK_IN    (pkt_ctr_clk_i)
                , .RESET_IN  (pkt_ctr_reset_i)
                , .pkt_vld   (sl_pkt_txvld_i)
                , .pkt_rdy   (sl_pkt_txrdy_i)
-               , .flt_err   (16'h0000)
-               , .frm_err   (16'h0000)
+               , .tp0_err   (sl_tx_ack_err_i)
+               , .tp1_err   (sl_tx_tmo_err_i)
+               , .tp2_err   (16'h0000)
                , .ctr_addr  (pkt_ctr_addr_i[0])
                , .ctr_data  (pkt_ctr_read_data_i[0])
                );
@@ -1684,8 +1692,9 @@ spio_pkt_ctr_rx( .CLK_IN    (pkt_ctr_clk_i)
                , .RESET_IN  (pkt_ctr_reset_i)
                , .pkt_vld   (sl_pkt_rxvld_i)
                , .pkt_rdy   (sl_pkt_rxrdy_i)
-               , .flt_err   (sl_rx_flt_err_i)
-               , .frm_err   (sl_rx_frm_err_i)
+               , .tp0_err   (sl_rx_flt_err_i)
+               , .tp1_err   (sl_rx_frm_err_i)
+               , .tp2_err   (sl_rx_gch_err_i)
                , .ctr_addr  (pkt_ctr_addr_i[1])
                , .ctr_data  (pkt_ctr_read_data_i[1])
                );

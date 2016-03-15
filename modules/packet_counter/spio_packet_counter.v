@@ -42,8 +42,9 @@ module spio_packet_counter
   input  wire             [15:0] pkt_rdy,
 
   // error interface
-  input  wire             [15:0] flt_err,
-  input  wire             [15:0] frm_err,
+  input  wire             [15:0] tp0_err,
+  input  wire             [15:0] tp1_err,
+  input  wire             [15:0] tp2_err,
 
   // register access interface
   input  wire [`CTRA_BITS - 1:0] ctr_addr,
@@ -54,8 +55,9 @@ module spio_packet_counter
   // internal signals
   //---------------------------------------------------------------
   reg  [`CTRD_BITS - 1:0] pkt_ctr [15:0];
-  reg  [`CTRD_BITS - 1:0] fle_ctr [15:0];
-  reg  [`CTRD_BITS - 1:0] fre_ctr [15:0];
+  reg  [`CTRD_BITS - 1:0] tp0_ctr [15:0];
+  reg  [`CTRD_BITS - 1:0] tp1_ctr [15:0];
+  reg  [`CTRD_BITS - 1:0] tp2_ctr [15:0];
 
 
   //---------------------------------------------------------------
@@ -74,17 +76,24 @@ module spio_packet_counter
 
     always @ (posedge CLK_IN or posedge RESET_IN)
       if (RESET_IN)
-        fle_ctr[i] <= 1'b0;
+        tp0_ctr[i] <= 1'b0;
       else
-        if (flt_err[i])
-          fle_ctr[i] <= fle_ctr[i] + 1;
+        if (tp0_err[i])
+          tp0_ctr[i] <= tp0_ctr[i] + 1;
 
     always @ (posedge CLK_IN or posedge RESET_IN)
       if (RESET_IN)
-        fre_ctr[i] <= 1'b0;
+        tp1_ctr[i] <= 1'b0;
       else
-        if (frm_err[i])
-          fre_ctr[i] <= fre_ctr[i] + 1;
+        if (tp1_err[i])
+          tp1_ctr[i] <= tp1_ctr[i] + 1;
+
+    always @ (posedge CLK_IN or posedge RESET_IN)
+      if (RESET_IN)
+        tp2_ctr[i] <= 1'b0;
+      else
+        if (tp2_err[i])
+          tp2_ctr[i] <= tp2_ctr[i] + 1;
   end
   endgenerate
   //---------------------------------------------------------------
@@ -95,8 +104,9 @@ module spio_packet_counter
   always @ (*)
     case (ctr_addr[5:4])
       `PKT_CNT_BITS: ctr_data = pkt_ctr[ctr_addr[3:0]];
-      `FLT_ERR_BITS: ctr_data = fle_ctr[ctr_addr[3:0]];
-      `FRM_ERR_BITS: ctr_data = fre_ctr[ctr_addr[3:0]];
+      `TP0_ERR_BITS: ctr_data = tp0_ctr[ctr_addr[3:0]];
+      `TP1_ERR_BITS: ctr_data = tp1_ctr[ctr_addr[3:0]];
+      `TP2_ERR_BITS: ctr_data = tp2_ctr[ctr_addr[3:0]];
       default:       ctr_data = {`CTRD_BITS {1'b1}};
     endcase
   //---------------------------------------------------------------

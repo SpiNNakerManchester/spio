@@ -31,13 +31,17 @@ module spio_spinnaker_link_sender_tb ();
 localparam UUT_CLK_HPER = (6.666 / 2);  // currently testing @ 150 MHz
 localparam TB_CLK_HPER  = (6.666 / 2);  // currently testing @ 150 MHz
 
+ localparam SPL_HSDLY = 12;  // external link delay estimate
 //!! localparam SPL_HSDLY = 16;  // external link delay estimate
-localparam SPL_HSDLY = 23;  // external link delay estimate (includes SpiNNaker)
+//!!localparam SPL_HSDLY = 23;  // external link delay estimate (includes SpiNNaker)
 
 localparam INIT_DELAY = (10 * TB_CLK_HPER);
 localparam RST_DELAY  = (51 * TB_CLK_HPER);  // align with clock posedge
 
 localparam COMB_DELAY = 2;
+
+localparam BPP_PNT = 6;
+localparam BPP_DELAY = 20;
 
 
 //---------------------------------------------------------------
@@ -174,8 +178,11 @@ spio_spinnaker_link_sender uut
   .CLK_IN           (uut_clk),
   .RESET_IN         (uut_rst),
 
-  .LNK_ERR_OUT      (),
-  .BPP_IN           (4'd6),
+  .BPP_IN           (BPP_PNT),
+
+  // link error interface
+  .ACK_ERR_OUT      (),
+  .TMO_ERR_OUT      (),
 
   // incoming packet interface
   .PKT_DATA_IN      (uut_ipkt_data),
@@ -299,7 +306,9 @@ always @ (posedge tb_clk or posedge tb_rst)
   if (tb_rst)
     tb_ipkt_send_pld <= 1'b0;
   else
-    if (tb_pkt_cnt > 13)
+    if (tb_pkt_cnt >= 12)
+      tb_ipkt_send_pld <= 1'b0;
+    else if (tb_pkt_cnt >= 6)
       tb_ipkt_send_pld <= 1'b1;
 
 
@@ -380,9 +389,12 @@ begin
       tb_flt_cnt = tb_flt_cnt + 1;
     end
 
-    # SPL_HSDLY;
-    uut_ospl_ack = ~uut_ospl_ack;
     tb_old_data = uut_ospl_data;
+
+    # SPL_HSDLY;
+    if (tb_flt_cnt == BPP_PNT) # BPP_DELAY;
+//!    if ((tb_flt_cnt != BPP_PNT) || (tb_pkt_cnt <= 10)) uut_ospl_ack = ~uut_ospl_ack;
+    uut_ospl_ack = ~uut_ospl_ack;
   end
 end
 

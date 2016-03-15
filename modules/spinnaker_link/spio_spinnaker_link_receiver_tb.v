@@ -54,10 +54,11 @@ reg         tb_clk;
 reg         uut_rst;
 reg         uut_clk;
 
-reg   [6:0] uut_ispl_data;
+wire  [6:0] uut_ispl_data;
 wire        uut_ispl_ack;
 wire        uut_flt_err;
 wire        uut_frm_err;
+wire        uut_gch_err;
 
 wire [71:0] uut_opkt_data;
 wire        uut_opkt_vld;
@@ -71,6 +72,9 @@ reg  [31:0] tb_ipkt_key;
 reg  [31:0] tb_ipkt_pld;
 reg         tb_ipkt_send_pld;
 wire        tb_ipkt_send_eop;
+
+reg   [6:0] tb_ispl_data;
+reg   [6:0] tb_glitch_data;
 
 reg   [6:0] tb_old_data;
 reg         tb_old_ack;
@@ -106,7 +110,7 @@ function [6:0] encode_nrz_2of7 ;
 
   casex (data)
     5'b00000 : encode_nrz_2of7 = old_data ^ 7'b0010001; // 0
-//!    5'b00001 : encode_nrz_2of7 = old_data ^ 7'b0011010; // 1  --- error!
+//! 5'b00001 : encode_nrz_2of7 = old_data ^ 7'b0011010; // 1  --- error!
     5'b00001 : encode_nrz_2of7 = old_data ^ 7'b0010010; // 1
     5'b00010 : encode_nrz_2of7 = old_data ^ 7'b0010100; // 2
     5'b00011 : encode_nrz_2of7 = old_data ^ 7'b0011000; // 3
@@ -139,6 +143,7 @@ spio_spinnaker_link_receiver uut
   // link error reporting
   .FLT_ERR_OUT      (uut_flt_err),
   .FRM_ERR_OUT      (uut_frm_err),
+  .GCH_ERR_OUT      (uut_gch_err),
 
   // incoming SpiNNaker link interface
   .SL_DATA_2OF7_IN  (uut_ispl_data),
@@ -152,7 +157,13 @@ spio_spinnaker_link_receiver uut
 
 
 //--------------------------------------------------
-// SpiNNaker link interface: generate 2of7 data flits
+// SpiNNaker link interface: send 2of7 data flits
+//--------------------------------------------------
+assign uut_ispl_data = tb_ispl_data | tb_glitch_data;
+
+
+//--------------------------------------------------
+// testbench: generate 2of7 data to send to SpiNNaker
 //--------------------------------------------------
 //TODO: test different (maybe time-varying) asynchronous delays!
 initial
@@ -162,7 +173,7 @@ begin
   # COMB_DELAY;
 
   // initialize interface signals
-  uut_ispl_data = 0;
+  tb_ispl_data = 0;
   tb_old_data = 0;
 
   // initialize first packet
@@ -200,7 +211,7 @@ begin
     if (tb_ipkt_send_eop)
     begin
       // send end-of-packet to uut
-      uut_ispl_data = encode_nrz_2of7 (`EOP, tb_old_data);
+      tb_ispl_data = encode_nrz_2of7 (`EOP, tb_old_data);
 
       // remember ack (for transition detection)
       tb_old_ack = uut_ispl_ack;
@@ -227,9 +238,9 @@ begin
     else
     begin
       // send next flit to uut
-      uut_ispl_data = encode_nrz_2of7 (tb_ipkt[(tb_flt_cnt * 4) +: 4],
-                                        tb_old_data
-                                      );
+      tb_ispl_data = encode_nrz_2of7 (tb_ipkt[(tb_flt_cnt * 4) +: 4],
+                                       tb_old_data
+                                     );
 
       // remember ack (for transition detection)
       tb_old_ack = uut_ispl_ack;
@@ -241,8 +252,56 @@ begin
     end
 
     // remember data (for nrz encoding)
-    tb_old_data = uut_ispl_data;
+    tb_old_data = tb_ispl_data;
 
+    // wait for ack from uut
+    wait (tb_old_ack != uut_ispl_ack);
+
+    # SPL_HSDLY;  // handshake delay
+  end
+end
+
+
+//--------------------------------------------------
+// testbench: generate 2of7 data glitches
+//--------------------------------------------------
+initial
+begin
+  wait (tb_rst);   // wait for reset to be applied
+
+  # COMB_DELAY;
+
+  // initialize interface signals
+  tb_glitch_data = 7'b0000000;
+
+  // wait for reset to be released
+  wait (!tb_rst);
+
+
+  // do not send data too early (receiver breaks)
+  # (3 * COMB_DELAY);
+   
+  forever
+  begin
+    if (tb_ispl_data == 7'b0010010)
+    begin
+      # COMB_DELAY;
+
+      tb_glitch_data = 7'b0001000;
+//!      tb_glitch_data = 7'b0000000;
+
+      # (3 * COMB_DELAY);
+      # (3 * COMB_DELAY);
+
+      tb_glitch_data = 7'b0000000;
+    end
+    else
+    begin
+      # COMB_DELAY;
+
+      tb_glitch_data = 7'b0000000;
+    end
+  
     // wait for ack from uut
     wait (tb_old_ack != uut_ispl_ack);
 

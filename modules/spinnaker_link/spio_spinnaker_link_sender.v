@@ -37,7 +37,8 @@ module spio_spinnaker_link_sender
   input                        RESET_IN,
 
   // link error reporting
-  output wire                  LNK_ERR_OUT,
+  output wire                  ACK_ERR_OUT,
+  output wire                  TMO_ERR_OUT,
 
   // back-pressure point interface
   input                  [3:0] BPP_IN,
@@ -83,6 +84,8 @@ module spio_spinnaker_link_sender
     .CLK_IN           (CLK_IN),
     .RESET_IN         (RESET_IN),
     .BPP_IN           (BPP_IN),
+    .ACK_ERR_OUT      (ACK_ERR_OUT),
+    .TMO_ERR_OUT      (TMO_ERR_OUT),
     .flt_data         (flt_data),
     .flt_eop          (flt_eop),
     .flt_psz          (flt_psz),
@@ -349,6 +352,10 @@ module flit_output_if
   // back-pressure point interface
   input      [3:0] BPP_IN,
 
+  // link error reporting
+  output reg       ACK_ERR_OUT,
+  output reg       TMO_ERR_OUT,
+
   // packet serializer interface
   input      [6:0] flt_data,
   input            flt_eop,
@@ -581,6 +588,24 @@ module flit_output_if
         2'b1x: dly_cnt <= INTER_FLT_DELAY;   // flit sent
         2'b00: dly_cnt <= dly_cnt - 1;       // wait before sending flit
       endcase
+
+
+  //---------------------------------------------------------------
+  // error reporting (2 clock cycles -- counter runs on slower clock)
+  //---------------------------------------------------------------
+  always @(posedge CLK_IN or posedge RESET_IN)
+    if (RESET_IN)
+      ACK_ERR_OUT <= 1'b0;
+    else
+      ACK_ERR_OUT <= 1'b0;
+
+
+  always @(posedge CLK_IN or posedge RESET_IN)
+    if (RESET_IN)
+      TMO_ERR_OUT <= 1'b0;
+    else
+      TMO_ERR_OUT <= 1'b0;
+  //---------------------------------------------------------------
 
 
   //-------------------------------------------------------------
