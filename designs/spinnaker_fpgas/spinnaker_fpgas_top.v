@@ -1283,16 +1283,18 @@ generate for (i = 0; i < 16; i = i + 1)
 		spio_spinnaker_link_sender
 		spio_spinnaker_link_sender_i( .CLK_IN           (spinnaker_link_clk0_i)
 		                            , .RESET_IN         (spinnaker_link_reset_i)
+		                              // link error interface
+		                            , .ACK_ERR_OUT    (sl_tx_ack_err_i[i])
+		                            , .TMO_ERR_OUT    (sl_tx_tmo_err_i[i])
 		                              // back-pressure point interface
 		                            , .BPP_IN           (BPP[(64*FPGA_ID) + (4*i)+:4])
-		                              // link error interface
-		                              , .ACK_ERR_OUT    (sl_tx_ack_err_i[i])
-		                              , .TMO_ERR_OUT    (sl_tx_tmo_err_i[i])
+		                            , .BSF_LONG_IN      (BSF_LONG[(80*FPGA_ID) + (5*i)+:5])
+		                            , .BAF_LONG_IN      (BAF_LONG[(48*FPGA_ID) + (3*i)+:3])
 		                              // Synchronous packet interface
 		                            , .PKT_DATA_IN      (slfc_pkt_txdata_i)
 		                            , .PKT_VLD_IN       (slfc_pkt_txvld_i)
 		                            , .PKT_RDY_OUT      (slfc_pkt_txrdy_i)
-		                            // SpiNNaker link asynchronous interface
+		                              // SpiNNaker link asynchronous interface
 		                            , .SL_DATA_2OF7_OUT (sl_out_data_i[i])
 		                            , .SL_ACK_IN        (sl_out_ack_i[i])
 		                            );
@@ -1301,11 +1303,11 @@ generate for (i = 0; i < 16; i = i + 1)
 		spio_spinnaker_link_receiver
 		spio_spinnaker_link_receiver_i( .CLK_IN           (spinnaker_link_clk0_i)
 		                              , .RESET_IN         (spinnaker_link_reset_i)
-		                              // link error interface
+		                                // link error interface
 		                              , .FLT_ERR_OUT      (sl_rx_flt_err_i[i])
 		                              , .FRM_ERR_OUT      (sl_rx_frm_err_i[i])
 		                              , .GCH_ERR_OUT      (sl_rx_gch_err_i[i])
-		                              // SpiNNaker link asynchronous interface
+		                                // SpiNNaker link asynchronous interface
 		                              , .SL_DATA_2OF7_IN  (sl_in_data_i[i])
 		                              , .SL_ACK_OUT       (sl_in_ack_i[i])
 		                                // Synchronous packet interface

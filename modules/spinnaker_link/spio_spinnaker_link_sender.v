@@ -42,6 +42,8 @@ module spio_spinnaker_link_sender
 
   // back-pressure point interface
   input                  [3:0] BPP_IN,
+  input                  [4:0] BSF_LONG_IN,
+  input                  [2:0] BAF_LONG_IN,
 
   // synchronous packet interface
   input      [`PKT_BITS - 1:0] PKT_DATA_IN,
@@ -84,6 +86,8 @@ module spio_spinnaker_link_sender
     .CLK_IN           (CLK_IN),
     .RESET_IN         (RESET_IN),
     .BPP_IN           (BPP_IN),
+    .BSF_LONG_IN      (BSF_LONG_IN),
+    .BAF_LONG_IN      (BAF_LONG_IN),
     .ACK_ERR_OUT      (ACK_ERR_OUT),
     .TMO_ERR_OUT      (TMO_ERR_OUT),
     .flt_data         (flt_data),
@@ -351,6 +355,8 @@ module flit_output_if
 
   // back-pressure point interface
   input      [3:0] BPP_IN,
+  input      [4:0] BSF_LONG_IN,
+  input      [2:0] BAF_LONG_IN,
 
   // link error reporting
   output reg       ACK_ERR_OUT,
@@ -374,6 +380,10 @@ module flit_output_if
   localparam STATE_BITS = 1;
   localparam SYNC_ST    = 0;
   localparam ASYN_ST    = SYNC_ST + 1;
+
+  localparam BSF_SHRT = 11;
+//!  localparam BSF_LONG = 15;
+//!  localparam BAF_LONG = 19 - BSF_LONG;
 
   localparam INTER_FLT_DELAY = 1;
 
@@ -531,16 +541,16 @@ module flit_output_if
         SYNC_ST:
           casex ({send_flit, ack_dne, pps, flt_psz})
             4'b1xxx: dat_cnt <= dat_cnt - 1;
-	    4'bx100: dat_cnt <= 11;
-	    4'bx101: dat_cnt <= 17;
-	    4'bx11x: dat_cnt <= 2;
+	    4'bx100: dat_cnt <= BSF_SHRT;
+	    4'bx101: dat_cnt <= BSF_LONG_IN;
+	    4'bx11x: dat_cnt <= BAF_LONG_IN;
           endcase
 
         ASYN_ST:
           casex ({send_flit, ack_dne, flt_psz})
             3'b1xx: dat_cnt <= dat_cnt - 1;
-	    3'bx10: dat_cnt <= 11;
-	    3'bx11: dat_cnt <= 17;
+	    3'bx10: dat_cnt <= BSF_SHRT;
+	    3'bx11: dat_cnt <= BSF_LONG_IN;
           endcase
       endcase 
 
@@ -560,16 +570,16 @@ module flit_output_if
         SYNC_ST:
           casex ({akp, ack_dne, pps, flt_psz})
             4'b10xx: ack_cnt <= ack_cnt - 1;
-	    4'bx100: ack_cnt <= 11;
-	    4'bx101: ack_cnt <= 17;
-	    4'bx11x: ack_cnt <= 2;
+	    4'bx100: ack_cnt <= BSF_SHRT;
+	    4'bx101: ack_cnt <= BSF_LONG_IN;
+	    4'bx11x: ack_cnt <= BAF_LONG_IN;
           endcase
 
         ASYN_ST:
           casex ({akp, ack_dne, flt_psz})
             3'b10x: ack_cnt <= ack_cnt - 1;
-	    3'bx10: ack_cnt <= 11;
-	    3'bx11: ack_cnt <= 17;
+	    3'bx10: ack_cnt <= BSF_SHRT;
+	    3'bx11: ack_cnt <= BSF_LONG_IN;
           endcase
       endcase 
 

@@ -40,8 +40,11 @@ localparam RST_DELAY  = (51 * TB_CLK_HPER);  // align with clock posedge
 
 localparam COMB_DELAY = 2;
 
-localparam BPP_PNT = 6;
 localparam BPP_DELAY = 20;
+
+localparam BPP_UUT =  4'd6;
+localparam BSF_UUT = 5'd17;
+localparam BAF_UUT =  3'd2;
 
 
 //---------------------------------------------------------------
@@ -178,11 +181,14 @@ spio_spinnaker_link_sender uut
   .CLK_IN           (uut_clk),
   .RESET_IN         (uut_rst),
 
-  .BPP_IN           (BPP_PNT),
-
   // link error interface
   .ACK_ERR_OUT      (),
   .TMO_ERR_OUT      (),
+
+  // back-pressure point interface
+  .BPP_IN           (BPP_UUT),
+  .BSF_LONG_IN      (BSF_UUT),
+  .BAF_LONG_IN      (BAF_UUT),
 
   // incoming packet interface
   .PKT_DATA_IN      (uut_ipkt_data),
@@ -392,8 +398,8 @@ begin
     tb_old_data = uut_ospl_data;
 
     # SPL_HSDLY;
-    if (tb_flt_cnt == BPP_PNT) # BPP_DELAY;
-//!    if ((tb_flt_cnt != BPP_PNT) || (tb_pkt_cnt <= 10)) uut_ospl_ack = ~uut_ospl_ack;
+    if (tb_flt_cnt == BPP_UUT) # BPP_DELAY;
+//!    if ((tb_flt_cnt != BPP_UUT) || (tb_pkt_cnt <= 10)) uut_ospl_ack = ~uut_ospl_ack;
     uut_ospl_ack = ~uut_ospl_ack;
   end
 end
