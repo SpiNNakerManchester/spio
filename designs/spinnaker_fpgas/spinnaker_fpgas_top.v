@@ -398,7 +398,7 @@ wire [3:0] device_led_states_i;
 // links) this 1/4 duty-cycle PWM signal is ANDed with the LED pattern produced
 // by the status generator.
 reg [1:0] led_dim_pwm_counter_i;
-always @ (posedge clk, posedge led_reset_i)
+always @ (posedge led_clk_i, posedge led_reset_i)
 	if (led_reset_i)
 		led_dim_pwm_counter_i = 2'b0;
 	else
