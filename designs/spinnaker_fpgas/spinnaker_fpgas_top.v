@@ -518,13 +518,13 @@ generate for (i = 0; i < 16; i = i + 1)
 			HIGH_SL:
 				begin
 					// SpiNNaker -> FPGA
-					IBUF sl_in_data_buf_i [6:0] ( .I(SL_INOUT[(i*16)+1 +: 7]), .O(sl_in_data_i[i]));
-					IOBUF sl_in_ack_buf_i       ( .IO(SL_INOUT[(i*16)+0])
-					                            , .I(sl_in_ack_i[i])
+					IBUF sl_in_data_buf_i [6:0] (.I(SL_INOUT[(i*16)+1 +: 7]), .O(sl_in_data_i[i]));
+					OBUFT sl_in_ack_buf_i       ( .O(SL_INOUT[(i*16)+0])
+                                                                    , .I(sl_in_ack_i[i])
 					                            , .T(spinnaker_link_enable_i[(i*2) + 0])
 					                            );
 					// FPGA -> SpiNNaker
-					IOBUF sl_out_data_buf_i [6:0] ( .IO(SL_INOUT[(i*16)+9 +: 7])
+					OBUFT sl_out_data_buf_i [6:0] ( .O(SL_INOUT[(i*16)+9 +: 7])
 					                              , .I(sl_out_data_i[i])
 					                              , .T({7{spinnaker_link_enable_i[(i*2) + 1]}})
 					                              );
@@ -535,12 +535,12 @@ generate for (i = 0; i < 16; i = i + 1)
 				begin
 					// SpiNNaker -> FPGA
 					IBUF sl_in_data_buf_i [6:0] (.I(SL_INOUT[(i*16)+9 +: 7]), .O(sl_in_data_i[i]));
-					IOBUF sl_in_ack_buf_i       ( .IO(SL_INOUT[(i*16)+8])
+					OBUFT sl_in_ack_buf_i       ( .O(SL_INOUT[(i*16)+8])
 					                            , .I(sl_in_ack_i[i])
 					                            , .T(spinnaker_link_enable_i[(i*2) + 0])
 					                            );
 					// FPGA -> SpiNNaker
-					IOBUF sl_out_data_buf_i [6:0] ( .IO(SL_INOUT[(i*16)+1 +: 7])
+					OBUFT sl_out_data_buf_i [6:0] ( .O(SL_INOUT[(i*16)+1 +: 7])
 					                              , .I(sl_out_data_i[i])
 					                              , .T({7{spinnaker_link_enable_i[(i*2) + 1]}})
 					                              );
