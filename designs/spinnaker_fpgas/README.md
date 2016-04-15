@@ -163,8 +163,8 @@ address: 0x00040000
 	                                   , 3: FORCE_ERROR_RING
 	                                   , 2: FORCE_ERROR_PERIPH
 	                                   , 1: FORCE_ERROR_B2B1
-                                     , 0: FORCE_ERROR_B2B0
-                                     }
+	                                   , 0: FORCE_ERROR_B2B0
+	                                   }
 
 Note that disabling a link with the SLEN register tristates the associated link
 pins and holds the corresponding SpiNNaker link interface block in the FPGA in
