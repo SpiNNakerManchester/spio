@@ -139,20 +139,32 @@ address: 0x00040000
 	                                                 ,   2: north/south on front
 	                                                 , 1-0: FPGA ID
 	                                                 }
-	PKEY       2   0x08  RW        32  Peripheral MC route key
-	PMSK       3   0x0C  RW        32  Peripheral MC route mask
-	SCRM       4   0x10  RW         4  Scrambler on  { 3: ring link
-	                                                 , 2: peripheral link
-	                                                 , 1: board-to-board link1
-	                                                 , 0: board-to-board link0
-	                                                 }
+	PKEY       2   0x08  RW        32  Peripheral MC route key (default: 0xFFFFFFFF)
+	PMSK       3   0x0C  RW        32  Peripheral MC route mask (default: 0x00000000)
+	SCRM       4   0x10  RW         4  Scrambler on (default: 0xF)
+	                                   { 3: ring link
+	                                   , 2: peripheral link
+	                                   , 1: board-to-board link1
+	                                   , 0: board-to-board link0
+	                                   }
 	SLEN       5   0x14  RW        32  Enable SpiNNaker chip (2-of-7) link.
+	                                   (Default: 0x00000000)
 	                                   { 0: Link 0 SpiNN->FPGA enable
 	                                   , 1: Link 0 FPGA->SpiNN enable
 	                                   , 2: Link 1 SpiNN->FPGA enable
 	                                   , 3: Link 1 FPGA->SpiNN enable
 	                                   , ...
 	                                   }
+	LEDO       6   0x18  RW         8  Override status LED (default: 0x0F)
+	                                   { 7: DIM_RING
+	                                   , 6: DIM_PERIPH
+	                                   , 5: DIM_B2B1
+	                                   , 4: DIM_B2B0
+	                                   , 3: FORCE_ERROR_RING
+	                                   , 2: FORCE_ERROR_PERIPH
+	                                   , 1: FORCE_ERROR_B2B1
+                                     , 0: FORCE_ERROR_B2B0
+                                     }
 
 Note that disabling a link with the SLEN register tristates the associated link
 pins and holds the corresponding SpiNNaker link interface block in the FPGA in
@@ -160,9 +172,19 @@ reset. This register may be useful to allow specific 2-of-7 link ports on,
 e.g., SpiNN5 boards to be connected to external devices while other links are
 connected via high-speed serial to neighbouring boards as usual. By default the
 register is all-0s (i.e. all links disabled) and must be configured immediately
-after power-up and before system boot if any other configuration is to be used.
-The STOP register should be preferred for the purposes of simply isolating
-boards.
+after power-up and before SpiNNaker system boot if any other configuration is
+to be used.  The STOP register should be preferred for the purposes of simply
+isolating boards.
+
+The LEDO register may be used to override the status displayed by LED to
+indicate special device conditions. On reset, this register is configured to
+force all LEDs to display the error signal (i.e. on with brief, infrequent
+off-pulses). It is intended that once the SLEN register has been configured,
+the LEDO register should also be written to clear the `FORCE_ERROR_*` bits,
+indicating that the device has been configured and is ready to use. The `DIM_*`
+bits of LEDO cause the specified LEDs to be dimmed. It is suggested that when
+the 2-of-7 link exposed by SpiNN-5 boards is not being driven by the FPGA the
+corresponding LED is dimmed.
 
 Finally, there are SpiNNaker-link packet counters on all SpiNNaker - FPGA links.
 

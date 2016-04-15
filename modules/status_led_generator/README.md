@@ -10,7 +10,7 @@ Patterns
 The following patterns are used (in order of priority)
 
 
-### Error (e.g. protocol version mismatch): Brief, Inrequent brief off-pulses
+### Error (e.g. protocol version mismatch, unconfigured): Brief, Inrequent brief off-pulses
 
 	___________,,_________________________,,_________________________,,_______
 	           ||                         ||                         ||

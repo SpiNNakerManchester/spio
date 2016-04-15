@@ -330,6 +330,7 @@ wire [31:0] periph_mc_mask_i;
 
 // control wires from the top-level register bank
 wire [31:0] scrmbl_idl_dat_i;
+wire [7:0] led_override_i;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -391,13 +392,22 @@ assign pkt_ctr_reset_i = !usrclks_stable_i;
 OBUFT red_led_buf_i (.I (1'b0), .O (RED_LED_OUT), .T(~red_led_i));
 OBUFT grn_led_buf_i (.I (1'b0), .O (GRN_LED_OUT), .T(~grn_led_i));
 
-wire animation_repeat_i;
-
 wire [3:0] device_led_states_i;
 
-// XXX: TODO: Somehow share these two LEDs between all the status indicatorS
-assign red_led_i = device_led_states_i[0];
-assign grn_led_i = device_led_states_i[1];
+// To allow dimming of the LEDs (e.g. to indicate the disabling of some 2-of-7
+// links) this 1/4 duty-cycle PWM signal is ANDed with the LED pattern produced
+// by the status generator.
+reg [1:0] led_dim_pwm_counter_i;
+always @ (posedge clk, posedge led_reset_i)
+	if (led_reset_i)
+		led_dim_pwm_counter_i = 2'b0;
+	else
+		led_dim_pwm_counter_i = led_dim_pwm_counter_i + 1;
+
+// XXX: TODO: Somehow share these two LEDs between all four status indicators,
+// not just the B2B links...
+assign red_led_i = device_led_states_i[0] & (~led_override_i[4] | led_dim_pwm_counter_i==2'b0);
+assign grn_led_i = device_led_states_i[1] & (~led_override_i[5] | led_dim_pwm_counter_i==2'b0);
 
 // Generate a LED status for each serial link
 spio_status_led_generator #( // The number of devices (and thus LEDs)
@@ -418,10 +428,10 @@ spio_status_led_generator #( // The number of devices (and thus LEDs)
                            )
 spio_status_led_generator_i( .CLK_IN               (led_clk_i)
                            , .RESET_IN             (led_reset_i)
-                           , .ERROR_IN             ({   ring_version_mismatch_i
-                                                    , periph_version_mismatch_i
-                                                    ,    b2b_version_mismatch_i[1]
-                                                    ,    b2b_version_mismatch_i[0]
+                           , .ERROR_IN             ({ led_override_i[3] |   ring_version_mismatch_i
+                                                    , led_override_i[2] | periph_version_mismatch_i
+                                                    , led_override_i[1] |    b2b_version_mismatch_i[1]
+                                                    , led_override_i[0] |    b2b_version_mismatch_i[0]
                                                     })
                            , .CONNECTED_IN         ({   ring_handshake_complete_i
                                                     , periph_handshake_complete_i
@@ -1696,6 +1706,7 @@ spinnaker_fpgas_reg_bank_i( .CLK_IN         (reg_bank_clk_i)
                           , .PERIPH_MC_KEY  (periph_mc_key_i)
                           , .PERIPH_MC_MASK (periph_mc_mask_i)
                           , .SCRMBL_IDL_DAT (scrmbl_idl_dat_i)
+                          , .LED_OVERRIDE   (led_override_i)
                           );
 
 
