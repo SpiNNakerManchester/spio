@@ -406,8 +406,8 @@ always @ (posedge clk, posedge led_reset_i)
 
 // XXX: TODO: Somehow share these two LEDs between all four status indicators,
 // not just the B2B links...
-assign red_led_i = device_led_states_i[0] & (~led_override_i[4] | led_dim_pwm_counter_i==2'b0);
-assign grn_led_i = device_led_states_i[1] & (~led_override_i[5] | led_dim_pwm_counter_i==2'b0);
+assign red_led_i = device_led_states_i[0] & ((~led_override_i[4]) | (led_dim_pwm_counter_i==2'b0));
+assign grn_led_i = device_led_states_i[1] & ((~led_override_i[5]) | (led_dim_pwm_counter_i==2'b0));
 
 // Generate a LED status for each serial link
 spio_status_led_generator #( // The number of devices (and thus LEDs)
