@@ -531,12 +531,12 @@ generate for (i = 0; i < 16; i = i + 1)
 					IBUF sl_in_data_buf_i [6:0] (.I(SL_INOUT[(i*16)+1 +: 7]), .O(sl_in_data_i[i]));
 					OBUFT sl_in_ack_buf_i       ( .O(SL_INOUT[(i*16)+0])
                                                                     , .I(sl_in_ack_i[i])
-					                            , .T(spinnaker_link_enable_i[(i*2) + 0])
+					                            , .T(~spinnaker_link_enable_i[(i*2) + 0])
 					                            );
 					// FPGA -> SpiNNaker
 					OBUFT sl_out_data_buf_i [6:0] ( .O(SL_INOUT[(i*16)+9 +: 7])
 					                              , .I(sl_out_data_i[i])
-					                              , .T({7{spinnaker_link_enable_i[(i*2) + 1]}})
+					                              , .T({7{~spinnaker_link_enable_i[(i*2) + 1]}})
 					                              );
 					IBUF sl_out_ack_buf_i         (.I(SL_INOUT[(i*16)+8]), .O(sl_out_ack_i[i]));
 				end
@@ -547,12 +547,12 @@ generate for (i = 0; i < 16; i = i + 1)
 					IBUF sl_in_data_buf_i [6:0] (.I(SL_INOUT[(i*16)+9 +: 7]), .O(sl_in_data_i[i]));
 					OBUFT sl_in_ack_buf_i       ( .O(SL_INOUT[(i*16)+8])
 					                            , .I(sl_in_ack_i[i])
-					                            , .T(spinnaker_link_enable_i[(i*2) + 0])
+					                            , .T(~spinnaker_link_enable_i[(i*2) + 0])
 					                            );
 					// FPGA -> SpiNNaker
 					OBUFT sl_out_data_buf_i [6:0] ( .O(SL_INOUT[(i*16)+1 +: 7])
 					                              , .I(sl_out_data_i[i])
-					                              , .T({7{spinnaker_link_enable_i[(i*2) + 1]}})
+					                              , .T({7{~spinnaker_link_enable_i[(i*2) + 1]}})
 					                              );
 					IBUF sl_out_ack_buf_i         (.I(SL_INOUT[(i*16)+0]), .O(sl_out_ack_i[i]));
 				end

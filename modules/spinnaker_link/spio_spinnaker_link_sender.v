@@ -66,6 +66,8 @@ module spio_spinnaker_link_sender
   reg                     old_ack;
   reg                     acked;
 
+  reg                     pkt_accept;
+
   reg   [`PKT_BITS - 1:0] pkt_buf;
   reg                     long_pkt;
   reg               [4:0] symbol_cnt;
@@ -117,7 +119,7 @@ module spio_spinnaker_link_sender
       SL_DATA_2OF7_OUT <= 7'd0;
     else
       case (state)
-        IDLE_ST: if (PKT_VLD_IN)
+        IDLE_ST: if (pkt_accept)
                    SL_DATA_2OF7_OUT <= encode_2of7 ({1'b0, PKT_DATA_IN[3:0]},
                                                      SL_DATA_2OF7_OUT
                                                    );     // first nibble
@@ -131,7 +133,7 @@ module spio_spinnaker_link_sender
                  else
                    SL_DATA_2OF7_OUT <= SL_DATA_2OF7_OUT;  // no change!
 
-        EOP_ST:  if (acked && PKT_VLD_IN)
+        EOP_ST:  if (acked && pkt_accept)
                    SL_DATA_2OF7_OUT <= encode_2of7 ({1'b0, PKT_DATA_IN[3:0]},
                                                      SL_DATA_2OF7_OUT
                                                    );     // first nibble
@@ -153,7 +155,7 @@ module spio_spinnaker_link_sender
       old_ack   <= 1'b0;  // not really necessary!
     else
       case (state)
-        IDLE_ST: if (PKT_VLD_IN)
+        IDLE_ST: if (pkt_accept)
                    old_ack <= SL_ACK_IN;  // remember SL_ACK_IN value
                  else
                    old_ack <= old_ack;    // no change!
@@ -164,7 +166,7 @@ module spio_spinnaker_link_sender
                  else
                    old_ack <= old_ack;    // no change!
 
-        EOP_ST:  if (acked && PKT_VLD_IN)
+        EOP_ST:  if (acked && pkt_accept)
                    old_ack <= SL_ACK_IN;  // remember SL_ACK_IN value
                  else
                    old_ack <= old_ack;    // no change!
@@ -178,10 +180,10 @@ module spio_spinnaker_link_sender
   //---------------------------------------------------------------
   always @(posedge CLK_IN or posedge RESET_IN)
     if (RESET_IN)
-      PKT_RDY_OUT <= 1'b1;
+      PKT_RDY_OUT <= 1'b0;
     else
       case (state)
-        IDLE_ST: if (PKT_VLD_IN)
+        IDLE_ST: if (pkt_accept)
                    PKT_RDY_OUT <= 1'b0;
                  else
                    PKT_RDY_OUT <= 1'b1;
@@ -191,7 +193,7 @@ module spio_spinnaker_link_sender
                  else
                    PKT_RDY_OUT <= 1'b0;
 
-        EOP_ST:  if (PKT_VLD_IN)
+        EOP_ST:  if (pkt_accept)
                    PKT_RDY_OUT <= 1'b0;
                  else
                    PKT_RDY_OUT <= 1'b1;
@@ -204,7 +206,7 @@ module spio_spinnaker_link_sender
       pkt_buf <= {(`PKT_BITS) {1'b0}};  // not really necessary!
     else
       case (state)
-        IDLE_ST: if (PKT_VLD_IN)
+        IDLE_ST: if (pkt_accept)
                    pkt_buf <= PKT_DATA_IN >> 4;    // first nibble gone
                  else
                    pkt_buf <= pkt_buf;             // no change!
@@ -215,9 +217,9 @@ module spio_spinnaker_link_sender
                    pkt_buf <= pkt_buf;             // no change!
 
         EOP_ST: 
-          case ({acked, PKT_VLD_IN})
-	    2'b01:   pkt_buf <= PKT_DATA_IN;       // park new packet
-	    2'b11:   pkt_buf <= PKT_DATA_IN >> 4;  // first nibble gone
+          case ({acked, pkt_accept})
+            2'b01:   pkt_buf <= PKT_DATA_IN;       // park new packet
+            2'b11:   pkt_buf <= PKT_DATA_IN >> 4;  // first nibble gone
             default: pkt_buf <= pkt_buf;           // no change!
 	  endcase
 	
@@ -234,7 +236,7 @@ module spio_spinnaker_link_sender
       symbol_cnt <= 5'd0;  // not really necessary!
     else
       case (state)
-        IDLE_ST: if (PKT_VLD_IN)
+        IDLE_ST: if (pkt_accept)
                    symbol_cnt <= 5'd1;  // start counting symbols (nibbles)
                  else
                    symbol_cnt <= 5'd0;
@@ -244,7 +246,7 @@ module spio_spinnaker_link_sender
                  else
                    symbol_cnt <= symbol_cnt;  // no change!
 
-        EOP_ST:  if (acked && PKT_VLD_IN)
+        EOP_ST:  if (acked && pkt_accept)
                    symbol_cnt <= 5'd1;  // start counting symbols (nibbles)
                  else
                    symbol_cnt <= 5'd0;
@@ -262,12 +264,12 @@ module spio_spinnaker_link_sender
       long_pkt <= 1'b0;  // not really necessary!
     else
       case (state)
-        IDLE_ST: if (PKT_VLD_IN)
+        IDLE_ST: if (pkt_accept)
                    long_pkt <= PKT_DATA_IN[1];  // remember packet size
                  else
                    long_pkt <= long_pkt;        // no change!
 
-        EOP_ST:  if (acked && PKT_VLD_IN)
+        EOP_ST:  if (acked && pkt_accept)
                    long_pkt <= PKT_DATA_IN[1];  // remember packet size
                  else
                    long_pkt <= long_pkt;        // no change!
@@ -301,6 +303,13 @@ module spio_spinnaker_link_sender
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------
+  // accept an input packet (combinatorial)
+  //---------------------------------------------------------------
+  always @ (*)
+    pkt_accept = (PKT_VLD_IN && PKT_RDY_OUT);
+  //---------------------------------------------------------------
+
+  //---------------------------------------------------------------
   // state
   //---------------------------------------------------------------
   always @(posedge CLK_IN or posedge RESET_IN)
@@ -308,7 +317,7 @@ module spio_spinnaker_link_sender
       state <= IDLE_ST;
     else
       case (state)
-        IDLE_ST: if (PKT_VLD_IN)
+        IDLE_ST: if (pkt_accept)
                    state <= TRAN_ST;    // start new packet
                  else
                    state <= IDLE_ST;    // no change!
@@ -319,10 +328,10 @@ module spio_spinnaker_link_sender
                    state <= TRAN_ST;    // no change!
 
         EOP_ST:  
-          case({acked, PKT_VLD_IN})
-	    2'b01:   state <= PARK_ST;  // park new packet
+          case({acked, pkt_accept})
+            2'b01:   state <= PARK_ST;  // park new packet
             2'b10:   state <= IDLE_ST;  // wait for new packet
-	    2'b11:   state <= TRAN_ST;  // start new packet
+            2'b11:   state <= TRAN_ST;  // start new packet
             default: state <= EOP_ST;   // no change!
           endcase
                    

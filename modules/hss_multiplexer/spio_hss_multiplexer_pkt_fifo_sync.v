@@ -79,7 +79,7 @@ module spio_hss_multiplexer_pkt_fifo_sync
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   always @(posedge WCLK_IN or posedge RESET_IN)
     if (RESET_IN)
-      SFI_RDY_OUT <= 1'b1;
+      SFI_RDY_OUT <= 1'b0;
     else
       if (full || (nf && vld_wr))  // stall if full or going full
         SFI_RDY_OUT <= 1'b0;
