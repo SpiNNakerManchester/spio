@@ -141,8 +141,9 @@ module pkt_serializer
   //---------------------------------------------------------------
   // internal signals
   //---------------------------------------------------------------
-  reg   [`PKT_BITS - 1:0] pkt_buf;   // buffer incoming pkt
-  reg                     long_pkt;  // remember pkt length
+  reg                     pkt_acpt;  // accept a new input packet
+  reg   [`PKT_BITS - 1:0] pkt_buf;   // buffer for input pkt
+  reg                     pkt_long;  // remember input pkt length
 
   reg                     flt_busy;  // flit interface busy
   reg               [4:0] flt_cnt;   // count sent flits
@@ -187,10 +188,10 @@ module pkt_serializer
   //-------------------------------------------------------------
   always @(posedge CLK_IN or posedge RESET_IN)
     if (RESET_IN)
-      PKT_RDY_OUT <= 1'b1;
+      PKT_RDY_OUT <= 1'b0;
     else
       case (state)
-        IDLE_ST: if (PKT_VLD_IN)
+        IDLE_ST: if (pkt_acpt)
                    PKT_RDY_OUT <= 1'b0;  // start new pkt, not ready for next
                  else
                    PKT_RDY_OUT <= 1'b1;  // waiting for next pkt
@@ -204,13 +205,20 @@ module pkt_serializer
       endcase 
 
 
+  //---------------------------------------------------------------
+  // accept a new input packet
+  //---------------------------------------------------------------
+  always @ (*)
+    pkt_acpt = (PKT_VLD_IN && PKT_RDY_OUT);
+  //---------------------------------------------------------------
+
   //-------------------------------------------------------------
   // buffer packet (or part of it) to serialize it
   //-------------------------------------------------------------
   always @(posedge CLK_IN)
     case (state)
       IDLE_ST:
-        case ({PKT_VLD_IN, flt_busy})
+        case ({pkt_acpt, flt_busy})
           2'b10:   pkt_buf <= PKT_DATA_IN >> 4;  // first nibble gone
           2'b11:   pkt_buf <= PKT_DATA_IN;       // park new packet
         endcase
@@ -224,8 +232,8 @@ module pkt_serializer
   // remember length of packet
   //-------------------------------------------------------------
   always @(posedge CLK_IN)
-    if ((state == IDLE_ST) && PKT_VLD_IN)
-      long_pkt <= PKT_DATA_IN[1];
+    if ((state == IDLE_ST) && pkt_acpt)
+      pkt_long <= PKT_DATA_IN[1];
 
 
   //-------------------------------------------------------------
@@ -236,7 +244,7 @@ module pkt_serializer
       flt_data <= 7'd0;
     else
       case (state)
-        IDLE_ST: if (PKT_VLD_IN && !flt_busy)
+        IDLE_ST: if (pkt_acpt && !flt_busy)
                    flt_data <= encode_nrz_2of7 ({1'b0, PKT_DATA_IN[3:0]},
                                                  flt_data
                                                );  // first nibble
@@ -257,7 +265,7 @@ module pkt_serializer
       flt_eop <= 1'b0;
     else
       case (state)
-        IDLE_ST: if (PKT_VLD_IN && !flt_busy)
+        IDLE_ST: if (pkt_acpt && !flt_busy)
                    flt_eop <= 1'b0;  // never eop
 	
         default: if (!flt_busy)
@@ -272,7 +280,7 @@ module pkt_serializer
     if (RESET_IN)
       flt_psz <= 1'b0;
     else
-    if ((state == IDLE_ST) && PKT_VLD_IN)
+    if ((state == IDLE_ST) && pkt_acpt)
       flt_psz <= PKT_DATA_IN[1];
 
 
@@ -285,7 +293,7 @@ module pkt_serializer
     else
       case (state)
         IDLE_ST: if (!flt_busy)
-                   if (PKT_VLD_IN)
+                   if (pkt_acpt)
                      flt_vld <= 1'b1;  // first flit in pkt
                    else
                      flt_vld <= 1'b0;  // no new flit to send
@@ -318,7 +326,7 @@ module pkt_serializer
   // time to send end-of-packet
   //-------------------------------------------------------------
   always @ (*)
-    eop = (!long_pkt && (flt_cnt == 10)) || (flt_cnt == 18);
+    eop = (!pkt_long && (flt_cnt == 10)) || (flt_cnt == 18);
 
 
   //-------------------------------------------------------------
@@ -330,7 +338,7 @@ module pkt_serializer
     else
       case (state)
         IDLE_ST:
-          case ({PKT_VLD_IN, flt_busy})
+          case ({pkt_acpt, flt_busy})
             2'b10:   state <= TRAN_ST;  // start new packet
 	    2'b11:   state <= PARK_ST;  // park new packet
             default: state <= IDLE_ST;  // wait for new packet
@@ -382,8 +390,6 @@ module flit_output_if
   localparam ASYN_ST    = SYNC_ST + 1;
 
   localparam BSF_SHRT = 11;
-//!  localparam BSF_LONG = 15;
-//!  localparam BAF_LONG = 19 - BSF_LONG;
 
   localparam INTER_FLT_DELAY = 1;
 
@@ -555,7 +561,6 @@ module flit_output_if
       endcase 
 
   always @(*)
-//!    dat_dne <= (dat_cnt == 0) || ((dat_cnt == 1) && send_flit);
     dat_dne <= (dat_cnt == 0);
 
 

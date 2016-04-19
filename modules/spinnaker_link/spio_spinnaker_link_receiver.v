@@ -301,7 +301,6 @@ module flit_input_if
   // detect the arrival of a new nrz flit
   //-------------------------------------------------------------
   always @(*)
-//!    new_flit = detect_2of7 (rtz_data);
     new_flit = dat_flit || eop_flit || (bad_flit && glitch);
 
 
@@ -356,7 +355,6 @@ module flit_input_if
                else
                  send_ack = 1'b0;  //  no ack!
 
-//!      RECV_ST: if ((dly_cnt == 0) && (ack_cnt < ack_tot))
       RECV_ST: if (((dly_cnt == 0) && (ack_cnt < ack_tot))
                     || eop_flit || (new_flit && (nf_cnt >= ack_tot))
                   )
@@ -390,7 +388,6 @@ module flit_input_if
     if (RESET_IN)
       ack_tot <= SPKT_FLTS + 1;  //  send ack on reset exit!
     else
-//!      casex ({(state == IDLE_ST), dat_flit, new_data[1]})
       casex ({(state == IDLE_ST), dat_flit, new_data[1], (bad_flit && glitch)})
 	4'b1xx1,
 	4'b110x: ack_tot <= SPKT_FLTS;
@@ -452,11 +449,6 @@ module flit_input_if
   //-------------------------------------------------------------
   always @(posedge CLK_IN)
     flt_data_bad <= rtz_data;  // send rtz incoming data
-//!    case (state)
-//!      IDLE_ST,
-//!      RECV_ST:  if (new_flit && flt_cts)
-//!                  flt_data_bad <= rtz_data;  // send rtz incoming data
-//!    endcase 
 
 
   //-------------------------------------------------------------
@@ -538,9 +530,9 @@ module flit_input_if
 
 
   //---------------------------------------------------------------
-  // error reporting
+  // error reporting (2 clock cycles -- counter runs on slower clock)
   //---------------------------------------------------------------
-  reg gch_err_ext;
+  reg gch_err_ext;  // extend error indication by 1 clock cycle
   always @(posedge CLK_IN or posedge RESET_IN)
     if (RESET_IN)
       gch_err_ext <= 1'b0;
@@ -618,8 +610,6 @@ module pkt_deserializer
 
   localparam SPKT_FLTS = 10;
   localparam LPKT_FLTS = 18;
-
-//!  localparam BAD_PKT = {32'hbadc0ffe, 8'b00000001};  // packet with wrong parity!
 
 
   //---------------------------------------------------------------
@@ -700,7 +690,6 @@ module pkt_deserializer
       flit_cnt <= 0;  // prepare for first packet
     else
       if (flt_dat || flt_bad)
-//!      if (flt_dat)
         flit_cnt <= flit_cnt + 1;  // count new flit
       else if (pkt_out)
         flit_cnt <= 0;             // prepare for next packet
@@ -711,7 +700,6 @@ module pkt_deserializer
   //-------------------------------------------------------------
   always @(posedge CLK_IN)
     if (pkt_out)
-//!      if (send_bad_pkt || !exp_eop)
       if (!exp_eop)
         PKT_DATA_OUT <= bad_pkt;
       else if (long_pkt)
@@ -908,7 +896,6 @@ module pkt_deserializer
         STRT_ST: state <= IDLE_ST;
 
         IDLE_ST: casex ({flt_dat, flt_bad, flt_eop, pkt_busy})
-//!	IDLE_ST: casex ({flt_dat, 1'b0, flt_eop, pkt_busy})
                    4'b1xxx,                    // first flit in new packet
                    4'bx1xx: state <= TRAN_ST;  // first flit in new packet
                    4'bxx11: state <= WAIT_ST;  // wait for pkt if to be free
