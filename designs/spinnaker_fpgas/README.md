@@ -167,14 +167,15 @@ address: 0x00040000
 	                                   }
 
 Note that disabling a link with the SLEN register tristates the associated link
-pins and holds the corresponding SpiNNaker link interface block in the FPGA in
-reset. This register may be useful to allow specific 2-of-7 link ports on,
+pins and holds in reset the corresponding SpiNNaker link interface block in the
+FPGA. This register may be useful to allow specific 2-of-7 link ports on,
 e.g., SpiNN5 boards to be connected to external devices while other links are
 connected via high-speed serial to neighbouring boards as usual. By default the
 register is all-0s (i.e. all links disabled) and must be configured immediately
 after power-up and before SpiNNaker system boot if any other configuration is
-to be used.  The STOP register should be preferred for the purposes of simply
-isolating boards.
+to be used. On a SpiNN5 board, the BMP can be used to configure automatically
+the links after power up using the `xreg' command. The STOP register should be
+preferred for the purposes of simply isolating boards in a multi-board system.
 
 The LEDO register may be used to override the status displayed by LED to
 indicate special device conditions. On reset, this register is configured to
