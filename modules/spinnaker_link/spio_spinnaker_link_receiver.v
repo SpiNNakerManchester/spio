@@ -6,6 +6,30 @@
 //  lap - luis.plana@manchester.ac.uk
 //  Based on work by J Pepper (Date 08/08/2012)
 //
+//  This implementation is based on the predictive handshake scheme
+//  introduced by Amir Yousefzadeh from Instituto de Microelectrónica
+//  de Sevilla (IMSE-CNM), CSIC and Universidad de Sevilla, Spain
+//  (e-mail: reza@imse-cnm.csic.es) in: Amir Yousefzadeh, Luis A. Plana,
+//  Steve Temple, Teresa Serrano-Gotarredona, Steven Furber and Bernabe
+//  Linares-Barranco, "Fast Predictive Handshaking in Synchronous
+//  FPGAs for Fully Asynchronous Multi-Symbol Chip Links. Application
+//  to SpiNNaker 2-of-7 Links", IEEE Transactions on Circuits and Systems II:
+//  Express Briefs, 2016. DOI: 10.1109/TCSII.2016.2531092
+//
+//  This implementation differs from the original scheme in two ways:
+//
+//  1. There is no training step. This module works at a fixed frequency
+//  which guarantees correct operation. This results in a simpler
+//  implementation that can be used in both directions of communication
+//  (which is not possible with the original, trained implementation),
+//  possibly with lower throughput.
+//
+//  2. This implementation is aware of the possibility of back pressure
+//  in asynchronous communication and combines predicitve handshakes with
+//  appropriate asynchronous handshakes for a correct response to back
+//  pressure. This avoids a potential breach of communication protocol,
+//  packet loss or corruption, and the need to resend packets.
+//
 // -------------------------------------------------------------------------
 // Taken from:
 // https://solem.cs.man.ac.uk/svn/spiNNlink/testing/src/packet_receiver.v
