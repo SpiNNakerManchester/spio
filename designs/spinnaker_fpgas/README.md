@@ -187,46 +187,21 @@ bits of LEDO cause the specified LEDs to be dimmed. It is suggested that when
 the 2-of-7 link exposed by SpiNN-5 boards is not being driven by the FPGA the
 corresponding LED is dimmed.
 
-Finally, there are SpiNNaker-link packet counters on all SpiNNaker - FPGA links.
+Finally, there is a set of counters associated to every SpiNNaker - FPGA link.
 
-The sent packet counters (FPGA -> SpiNNaker packets) are at base address: 0x00050000
+The counters on FPGA -> SpiNNaker links are at base address: 0x00050000
 
-	Name  Number Offset  Access  Size  Description
-	----  ------ ------  ------  ----  ---------------------------------------------
-	PSL0       0   0x00  RO        32  packets sent on link 0
-	PSL1       1   0x04  RO        32  packets sent on link 1
-	PSL2       2   0x08  RO        32  packets sent on link 2
-	PSL3       3   0x0c  RO        32  packets sent on link 3
-	PSL4       4   0x10  RO        32  packets sent on link 4
-	PSL5       5   0x14  RO        32  packets sent on link 5
-	PSL6       6   0x18  RO        32  packets sent on link 6
-	PSL7       7   0x1c  RO        32  packets sent on link 7
-	PSL8       8   0x20  RO        32  packets sent on link 8
-	PSL9       9   0x24  RO        32  packets sent on link 9
-	PSL10     10   0x28  RO        32  packets sent on link 10
-	PSL11     11   0x2c  RO        32  packets sent on link 11
-	PSL12     12   0x30  RO        32  packets sent on link 12
-	PSL13     13   0x34  RO        32  packets sent on link 13
-	PSL14     14   0x38  RO        32  packets sent on link 14
-	PSL15     15   0x3c  RO        32  packets sent on link 15
+	Name    Number Offset    Access  Size  Description
+	----    ------ ------    ------  ----  ---------------------------------------------
+	PSTL[n]      n 4*n       RO        32  packets sent on link n
+	ACKE[n]      n 4*(n+16)  RO        32  unexpected acknowledges on link n
+	TMOE[n]      n 4*(n+32)  RO        32  timeouts on link n
 
-The received packet counters (SpiNNaker -> FPGA packets) are at base address: 0x00060000
+The ounters on SpiNNaker -> FPGA links are at base address: 0x00060000
 
-	Name  Number Offset  Access  Size  Description
-	----  ------ ------  ------  ----  ---------------------------------------------
-	PRL0       0   0x00  RO        32  packets received on link 0
-	PRL1       1   0x04  RO        32  packets received on link 1
-	PRL2       2   0x08  RO        32  packets received on link 2
-	PRL3       3   0x0c  RO        32  packets received on link 3
-	PRL4       4   0x10  RO        32  packets received on link 4
-	PRL5       5   0x14  RO        32  packets received on link 5
-	PRL6       6   0x18  RO        32  packets received on link 6
-	PRL7       7   0x1c  RO        32  packets received on link 7
-	PRL8       8   0x20  RO        32  packets received on link 8
-	PRL9       9   0x24  RO        32  packets received on link 9
-	PRL10     10   0x28  RO        32  packets received on link 10
-	PRL11     11   0x2c  RO        32  packets received on link 11
-	PRL12     12   0x30  RO        32  packets received on link 12
-	PRL13     13   0x34  RO        32  packets received on link 13
-	PRL14     14   0x38  RO        32  packets received on link 14
-	PRL15     15   0x3c  RO        32  packets received on link 15
+	Name    Number Offset    Access  Size  Description
+	----    ------ ------    ------  ----  ---------------------------------------------
+	PRVL[n]      n 4*n       RO        32  packets received on link n
+	FLTE[n]      n 4*(n+16)  RO        32  incorrect 2-of-7 flits received on link n
+	FRME[n]      n 4*(n+32)  RO        32  framing errors on link n
+	GLTE[n]      n 4*(n+48)  RO        32  glitches detected on link n

@@ -267,11 +267,18 @@ wire                 periph_pkt_rxrdy_i  [`NUM_CHANS-1:0];
 
 // SpiNNaker link (synchronous) packet interfaces
 wire [`PKT_BITS-1:0] sl_pkt_txdata_i [15:0];
-wire                 sl_pkt_txvld_i  [15:0];
-wire                 sl_pkt_txrdy_i  [15:0];
+wire          [15:0] sl_pkt_txvld_i;
+wire          [15:0] sl_pkt_txrdy_i;
 wire [`PKT_BITS-1:0] sl_pkt_rxdata_i [15:0];
-wire                 sl_pkt_rxvld_i  [15:0];
-wire                 sl_pkt_rxrdy_i  [15:0];
+wire          [15:0] sl_pkt_rxvld_i;
+wire          [15:0] sl_pkt_rxrdy_i;
+
+// SpiNNaker link (synchronous) error interfaces
+wire          [15:0] sl_tx_ack_err_i;
+wire          [15:0] sl_tx_tmo_err_i;
+wire          [15:0] sl_rx_flt_err_i;
+wire          [15:0] sl_rx_frm_err_i;
+wire          [15:0] sl_rx_gch_err_i;
 
 // A signal asserted whenever at least one packet link transfers a packet (used
 // for status indication)
@@ -1297,10 +1304,6 @@ endgenerate
 // SpiNNaker link to packet interface conversion
 generate for (i = 0; i < 16; i = i + 1)
 	begin : spinnaker_link_interface
-		// SpiNNaker link signals after passing through a synchroniser
-		wire       synced_sl_out_ack_i;
-		wire [6:0] synced_sl_in_data_i;
-		
 		// SpiNNaker link (synchronous) fast clock packet interfaces
 		wire [`PKT_BITS-1:0] slfc_pkt_rxdata_i;
 		wire                 slfc_pkt_rxvld_i;
@@ -1315,21 +1318,32 @@ generate for (i = 0; i < 16; i = i + 1)
 		spio_spinnaker_link_sender
 		spio_spinnaker_link_sender_i( .CLK_IN           (spinnaker_link_clk0_i)
 		                            , .RESET_IN         (spinnaker_link_reset_i[(i*2) + 1])
+		                              // link error interface
+		                            , .ACK_ERR_OUT      (sl_tx_ack_err_i[i])
+		                            , .TMO_ERR_OUT      (sl_tx_tmo_err_i[i])
+		                              // back-pressure point interface
+		                            , .BPP_IN           (BPP[(64*FPGA_ID) + (4*i)+:4])
+		                            , .BSF_LONG_IN      (BSF_LONG[(80*FPGA_ID) + (5*i)+:5])
+		                            , .BAF_LONG_IN      (BAF_LONG[(48*FPGA_ID) + (3*i)+:3])
 		                              // Synchronous packet interface
 		                            , .PKT_DATA_IN      (slfc_pkt_txdata_i)
 		                            , .PKT_VLD_IN       (slfc_pkt_txvld_i)
 		                            , .PKT_RDY_OUT      (slfc_pkt_txrdy_i)
-		                            // SpiNNaker link asynchronous interface
+		                              // SpiNNaker link asynchronous interface
 		                            , .SL_DATA_2OF7_OUT (sl_out_data_i[i])
-		                            , .SL_ACK_IN        (synced_sl_out_ack_i)
+		                            , .SL_ACK_IN        (sl_out_ack_i[i])
 		                            );
 		
 		// SpiNNaker -> FPGA
 		spio_spinnaker_link_receiver
 		spio_spinnaker_link_receiver_i( .CLK_IN           (spinnaker_link_clk0_i)
 		                              , .RESET_IN         (spinnaker_link_reset_i[(i*2) + 0])
-		                              // SpiNNaker link asynchronous interface
-		                              , .SL_DATA_2OF7_IN  (synced_sl_in_data_i)
+		                                // link error interface
+		                              , .FLT_ERR_OUT      (sl_rx_flt_err_i[i])
+		                              , .FRM_ERR_OUT      (sl_rx_frm_err_i[i])
+		                              , .GCH_ERR_OUT      (sl_rx_gch_err_i[i])
+		                                // SpiNNaker link asynchronous interface
+		                              , .SL_DATA_2OF7_IN  (sl_in_data_i[i])
 		                              , .SL_ACK_OUT       (sl_in_ack_i[i])
 		                                // Synchronous packet interface
 		                              , .PKT_DATA_OUT     (slfc_pkt_rxdata_i)
@@ -1367,19 +1381,6 @@ generate for (i = 0; i < 16; i = i + 1)
 						      , .SFO_RDY_IN       (slfc_pkt_txrdy_i)
 						      );
 
-		// async flit synchronisers
-		spio_spinnaker_link_sync#(.SIZE(1))
-		spio_spinnaker_link_sync_i( .CLK_IN (spinnaker_link_clk0_i)
-		                          , .IN     (sl_out_ack_i[i])
-		                          , .OUT    (synced_sl_out_ack_i)
-		                          );
-		
-		spio_spinnaker_link_sync#(.SIZE(7))
-		spio_spinnaker_link_sync2_i( .CLK_IN (spinnaker_link_clk0_i)
-		                           , .IN      (sl_in_data_i[i])
-		                           , .OUT     (synced_sl_in_data_i)
-		                           );
-		
 	end
 endgenerate
 
@@ -1587,20 +1588,20 @@ IBUF  spi_sclk_buf (.I  (SPI_SCLK_IN),  .O (spi_sclk_i));
 IBUF  spi_mosi_buf (.I  (SPI_MOSI_IN),  .O (spi_mosi_i));
 IOBUF spi_miso_buf (.IO (SPI_MISO_OUT), .I (spi_miso_i), .T (spi_nss_i), .O());
 
-// Synchronising flip-flops
-spinnaker_fpgas_sync #( .SIZE(1)
+// SPI signals synchronising flip-flops
+spio_spinnaker_link_sync #( .SIZE(1)
                       )
 sync_nss_i            ( .CLK_IN(spi_clk_i)
                       , .IN(spi_nss_i)
                       , .OUT(synced_spi_nss_i)
                       );
-spinnaker_fpgas_sync #( .SIZE(1)
+spio_spinnaker_link_sync #( .SIZE(1)
                       )
 sync_sclk_i           ( .CLK_IN(spi_clk_i)
                       , .IN(spi_sclk_i)
                       , .OUT(synced_spi_sclk_i)
                       );
-spinnaker_fpgas_sync #( .SIZE(1)
+spio_spinnaker_link_sync #( .SIZE(1)
                       )
 sync_mosi_i           ( .CLK_IN(spi_clk_i)
                       , .IN(spi_mosi_i)
@@ -1717,38 +1718,11 @@ spinnaker_fpgas_reg_bank_i( .CLK_IN         (reg_bank_clk_i)
 spio_packet_counter
 spio_pkt_ctr_tx( .CLK_IN    (pkt_ctr_clk_i)
                , .RESET_IN  (pkt_ctr_reset_i)
-               , .pkt_vld0  (sl_pkt_txvld_i[0])
-               , .pkt_rdy0  (sl_pkt_txrdy_i[0])
-               , .pkt_vld1  (sl_pkt_txvld_i[1])
-               , .pkt_rdy1  (sl_pkt_txrdy_i[1])
-               , .pkt_vld2  (sl_pkt_txvld_i[2])
-               , .pkt_rdy2  (sl_pkt_txrdy_i[2])
-               , .pkt_vld3  (sl_pkt_txvld_i[3])
-               , .pkt_rdy3  (sl_pkt_txrdy_i[3])
-               , .pkt_vld4  (sl_pkt_txvld_i[4])
-               , .pkt_rdy4  (sl_pkt_txrdy_i[4])
-               , .pkt_vld5  (sl_pkt_txvld_i[5])
-               , .pkt_rdy5  (sl_pkt_txrdy_i[5])
-               , .pkt_vld6  (sl_pkt_txvld_i[6])
-               , .pkt_rdy6  (sl_pkt_txrdy_i[6])
-               , .pkt_vld7  (sl_pkt_txvld_i[7])
-               , .pkt_rdy7  (sl_pkt_txrdy_i[7])
-               , .pkt_vld8  (sl_pkt_txvld_i[8])
-               , .pkt_rdy8  (sl_pkt_txrdy_i[8])
-               , .pkt_vld9  (sl_pkt_txvld_i[9])
-               , .pkt_rdy9  (sl_pkt_txrdy_i[9])
-               , .pkt_vld10 (sl_pkt_txvld_i[10])
-               , .pkt_rdy10 (sl_pkt_txrdy_i[10])
-               , .pkt_vld11 (sl_pkt_txvld_i[11])
-               , .pkt_rdy11 (sl_pkt_txrdy_i[11])
-               , .pkt_vld12 (sl_pkt_txvld_i[12])
-               , .pkt_rdy12 (sl_pkt_txrdy_i[12])
-               , .pkt_vld13 (sl_pkt_txvld_i[13])
-               , .pkt_rdy13 (sl_pkt_txrdy_i[13])
-               , .pkt_vld14 (sl_pkt_txvld_i[14])
-               , .pkt_rdy14 (sl_pkt_txrdy_i[14])
-               , .pkt_vld15 (sl_pkt_txvld_i[15])
-               , .pkt_rdy15 (sl_pkt_txrdy_i[15])
+               , .pkt_vld   (sl_pkt_txvld_i)
+               , .pkt_rdy   (sl_pkt_txrdy_i)
+               , .tp0_err   (sl_tx_ack_err_i)
+               , .tp1_err   (sl_tx_tmo_err_i)
+               , .tp2_err   (16'h0000)
                , .ctr_addr  (pkt_ctr_addr_i[0])
                , .ctr_data  (pkt_ctr_read_data_i[0])
                );
@@ -1756,38 +1730,11 @@ spio_pkt_ctr_tx( .CLK_IN    (pkt_ctr_clk_i)
 spio_packet_counter
 spio_pkt_ctr_rx( .CLK_IN    (pkt_ctr_clk_i)
                , .RESET_IN  (pkt_ctr_reset_i)
-               , .pkt_vld0  (sl_pkt_rxvld_i[0])
-               , .pkt_rdy0  (sl_pkt_rxrdy_i[0])
-               , .pkt_vld1  (sl_pkt_rxvld_i[1])
-               , .pkt_rdy1  (sl_pkt_rxrdy_i[1])
-               , .pkt_vld2  (sl_pkt_rxvld_i[2])
-               , .pkt_rdy2  (sl_pkt_rxrdy_i[2])
-               , .pkt_vld3  (sl_pkt_rxvld_i[3])
-               , .pkt_rdy3  (sl_pkt_rxrdy_i[3])
-               , .pkt_vld4  (sl_pkt_rxvld_i[4])
-               , .pkt_rdy4  (sl_pkt_rxrdy_i[4])
-               , .pkt_vld5  (sl_pkt_rxvld_i[5])
-               , .pkt_rdy5  (sl_pkt_rxrdy_i[5])
-               , .pkt_vld6  (sl_pkt_rxvld_i[6])
-               , .pkt_rdy6  (sl_pkt_rxrdy_i[6])
-               , .pkt_vld7  (sl_pkt_rxvld_i[7])
-               , .pkt_rdy7  (sl_pkt_rxrdy_i[7])
-               , .pkt_vld8  (sl_pkt_rxvld_i[8])
-               , .pkt_rdy8  (sl_pkt_rxrdy_i[8])
-               , .pkt_vld9  (sl_pkt_rxvld_i[9])
-               , .pkt_rdy9  (sl_pkt_rxrdy_i[9])
-               , .pkt_vld10 (sl_pkt_rxvld_i[10])
-               , .pkt_rdy10 (sl_pkt_rxrdy_i[10])
-               , .pkt_vld11 (sl_pkt_rxvld_i[11])
-               , .pkt_rdy11 (sl_pkt_rxrdy_i[11])
-               , .pkt_vld12 (sl_pkt_rxvld_i[12])
-               , .pkt_rdy12 (sl_pkt_rxrdy_i[12])
-               , .pkt_vld13 (sl_pkt_rxvld_i[13])
-               , .pkt_rdy13 (sl_pkt_rxrdy_i[13])
-               , .pkt_vld14 (sl_pkt_rxvld_i[14])
-               , .pkt_rdy14 (sl_pkt_rxrdy_i[14])
-               , .pkt_vld15 (sl_pkt_rxvld_i[15])
-               , .pkt_rdy15 (sl_pkt_rxrdy_i[15])
+               , .pkt_vld   (sl_pkt_rxvld_i)
+               , .pkt_rdy   (sl_pkt_rxrdy_i)
+               , .tp0_err   (sl_rx_flt_err_i)
+               , .tp1_err   (sl_rx_frm_err_i)
+               , .tp2_err   (sl_rx_gch_err_i)
                , .ctr_addr  (pkt_ctr_addr_i[1])
                , .ctr_data  (pkt_ctr_read_data_i[1])
                );

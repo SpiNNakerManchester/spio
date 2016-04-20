@@ -31,13 +31,20 @@ module spio_spinnaker_link_sender_tb ();
 localparam UUT_CLK_HPER = (6.666 / 2);  // currently testing @ 150 MHz
 localparam TB_CLK_HPER  = (6.666 / 2);  // currently testing @ 150 MHz
 
+ localparam SPL_HSDLY = 12;  // external link delay estimate
 //!! localparam SPL_HSDLY = 16;  // external link delay estimate
-localparam SPL_HSDLY = 23;  // external link delay estimate (includes SpiNNaker)
+//!!localparam SPL_HSDLY = 23;  // external link delay estimate (includes SpiNNaker)
 
 localparam INIT_DELAY = (10 * TB_CLK_HPER);
 localparam RST_DELAY  = (51 * TB_CLK_HPER);  // align with clock posedge
 
 localparam COMB_DELAY = 2;
+
+localparam BPP_DELAY = 20;
+
+localparam BPP_UUT =  4'd6;
+localparam BSF_UUT = 5'd17;
+localparam BAF_UUT =  3'd2;
 
 
 //---------------------------------------------------------------
@@ -55,7 +62,6 @@ wire        uut_ipkt_rdy;
 
 wire  [6:0] uut_ospl_data;
 reg         uut_ospl_ack;
-wire        uut_ospl_sync_ack;
 
 wire  [7:0] tb_ipkt_hdr; 
 reg   [1:0] tb_ipkt_type; 
@@ -175,6 +181,15 @@ spio_spinnaker_link_sender uut
   .CLK_IN           (uut_clk),
   .RESET_IN         (uut_rst),
 
+  // link error interface
+  .ACK_ERR_OUT      (),
+  .TMO_ERR_OUT      (),
+
+  // back-pressure point interface
+  .BPP_IN           (BPP_UUT),
+  .BSF_LONG_IN      (BSF_UUT),
+  .BAF_LONG_IN      (BAF_UUT),
+
   // incoming packet interface
   .PKT_DATA_IN      (uut_ipkt_data),
   .PKT_VLD_IN       (uut_ipkt_vld),
@@ -182,21 +197,7 @@ spio_spinnaker_link_sender uut
 
   // outpoing SpiNNaker link interface
   .SL_DATA_2OF7_OUT (uut_ospl_data),
-  .SL_ACK_IN        (uut_ospl_sync_ack)
-);
-
-
-//---------------------------------------------------------------
-// synchronize SpiNNaker acknowledge to uut_clk
-//---------------------------------------------------------------
-spio_spinnaker_link_sync 
-#(.SIZE (1)
-)
-sync
-(
-  .CLK_IN (uut_clk),
-  .IN     (uut_ospl_ack),
-  .OUT    (uut_ospl_sync_ack)
+  .SL_ACK_IN        (uut_ospl_ack)
 );
 
 
@@ -311,7 +312,9 @@ always @ (posedge tb_clk or posedge tb_rst)
   if (tb_rst)
     tb_ipkt_send_pld <= 1'b0;
   else
-    if (tb_pkt_cnt > 13)
+    if (tb_pkt_cnt >= 12)
+      tb_ipkt_send_pld <= 1'b0;
+    else if (tb_pkt_cnt >= 6)
       tb_ipkt_send_pld <= 1'b1;
 
 
@@ -392,9 +395,12 @@ begin
       tb_flt_cnt = tb_flt_cnt + 1;
     end
 
-    # SPL_HSDLY;
-    uut_ospl_ack = ~uut_ospl_ack;
     tb_old_data = uut_ospl_data;
+
+    # SPL_HSDLY;
+    if (tb_flt_cnt == BPP_UUT) # BPP_DELAY;
+//!    if ((tb_flt_cnt != BPP_UUT) || (tb_pkt_cnt <= 10)) uut_ospl_ack = ~uut_ospl_ack;
+    uut_ospl_ack = ~uut_ospl_ack;
   end
 end
 
