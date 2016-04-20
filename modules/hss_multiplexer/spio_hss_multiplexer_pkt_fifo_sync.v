@@ -79,7 +79,7 @@ module spio_hss_multiplexer_pkt_fifo_sync
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   always @(posedge WCLK_IN or posedge RESET_IN)
     if (RESET_IN)
-      SFI_RDY_OUT <= 1'b1;
+      SFI_RDY_OUT <= 1'b0;
     else
       if (full || (nf && vld_wr))  // stall if full or going full
         SFI_RDY_OUT <= 1'b0;
@@ -165,14 +165,14 @@ module spio_hss_multiplexer_pkt_fifo_sync
   //---------------------------------------------------------------
   // synchronize the buffer pointers -- cross clock boundaries
   //---------------------------------------------------------------
-  spio_spinnaker_link_sync #(.SIZE (ADDR_WIDTH)) rdp_sync
+  spinnaker_fpgas_sync #(.SIZE (ADDR_WIDTH)) rdp_sync
   (
     .CLK_IN (WCLK_IN),
     .IN     (rdpg),
     .OUT    (s_rdpg)
   );
 
-  spio_spinnaker_link_sync #(.SIZE (ADDR_WIDTH)) wrp_sync
+  spinnaker_fpgas_sync #(.SIZE (ADDR_WIDTH)) wrp_sync
   (
     .CLK_IN (RCLK_IN),
     .IN     (wrpg),
