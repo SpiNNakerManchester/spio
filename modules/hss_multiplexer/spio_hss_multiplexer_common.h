@@ -5,8 +5,8 @@
 `ifndef SPIO_HSS_MUTLIPLEXER_COMMON_H
 `define SPIO_HSS_MUTLIPLEXER_COMMON_H
 
-// Version identifier for module (ddmmyy)
-`define HSS_MULTIPLEXER_VERSION 24'h120914
+// Version identifier for module (deprecated -- moved to the top-level reg bank)
+`define HSS_MULTIPLEXER_VERSION 24'h000000
 
 // Protocol Version Identifier (checked at time of handshake)
 `define PROTOCOL_VERSION 8'h03

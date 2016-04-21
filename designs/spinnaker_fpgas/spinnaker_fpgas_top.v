@@ -20,7 +20,7 @@
 
 
 module spinnaker_fpgas_top #( // Version number for top-level design
-                              parameter VERSION = 32'h28010900
+                              parameter VERSION = 32'h00210416
                               // Enable simulation mode for GTP tile
                             , parameter SIMULATION = 0
                               // Speed up simulated reset of GTP tile
