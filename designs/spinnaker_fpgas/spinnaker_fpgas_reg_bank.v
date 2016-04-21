@@ -24,10 +24,24 @@ module spinnaker_fpgas_reg_bank #( // Address bits
                                    //                   , FPGAID
                                    //                   }
                                  , input  wire             [5:0] FLAGS_IN
+                                   // 2-of-7 Link enable signals
+                                 , output reg             [31:0] SPINNAKER_LINK_ENABLE
                                    // Peripheral routing key/mask
                                  , output reg             [31:0] PERIPH_MC_KEY
                                  , output reg             [31:0] PERIPH_MC_MASK
                                  , output reg             [31:0] SCRMBL_IDL_DAT
+                                   // Status LED overrides (for indicating
+                                   // configuration status of the FPGA)
+                                   //     { DIM_RING
+                                   //     , DIM_PERIPH
+                                   //     , DIM_B2B1
+                                   //     , DIM_B2B0
+                                   //     , FORCE_ERROR_RING
+                                   //     , FORCE_ERROR_PERIPH
+                                   //     , FORCE_ERROR_B2B1
+                                   //     , FORCE_ERROR_B2B0
+                                   //     }
+                                 , output reg              [7:0] LED_OVERRIDE
                                  );
 
 localparam VERS_REG = 0; // Top level design version
@@ -40,6 +54,16 @@ localparam FLAG_REG = 1; // Compile flags {   5: chip scope
 localparam PKEY_REG = 2; // Peripheral MC route key
 localparam PMSK_REG = 3; // Peripheral MC route mask
 localparam SCRM_REG = 4; // idle data scrambling control
+localparam SLEN_REG = 5; // SpiNNaker (2-of-7) link enable
+localparam LEDO_REG = 6; // LED link override { 7: DIM_RING
+                         //                   , 6: DIM_PERIPH
+                         //                   , 5: DIM_B2B1
+                         //                   , 4: DIM_B2B0
+                         //                   , 3: FORCE_ERROR_RING
+                         //                   , 2: FORCE_ERROR_PERIPH
+                         //                   , 1: FORCE_ERROR_B2B1
+                         //                   , 0: FORCE_ERROR_B2B0
+                         //                   }
 
 
 // Write address decode
@@ -49,6 +73,8 @@ always @ (posedge CLK_IN, posedge RESET_IN)
 			PERIPH_MC_KEY  <= 32'hFFFFFFFF;
 			PERIPH_MC_MASK <= 32'h00000000;
 			SCRMBL_IDL_DAT <= 32'hFFFFFFFF;
+			SPINNAKER_LINK_ENABLE <= 32'h00000000;
+			LED_OVERRIDE <= 8'h0F;
 		end
 	else
 		if (WRITE_IN)
@@ -56,6 +82,8 @@ always @ (posedge CLK_IN, posedge RESET_IN)
 				PKEY_REG: PERIPH_MC_KEY  <= WRITE_DATA_IN;
 				PMSK_REG: PERIPH_MC_MASK <= WRITE_DATA_IN;
 				SCRM_REG: SCRMBL_IDL_DAT <= WRITE_DATA_IN;
+				SLEN_REG: SPINNAKER_LINK_ENABLE <= WRITE_DATA_IN;
+				LEDO_REG: LED_OVERRIDE <= WRITE_DATA_IN;
 			endcase
 
 
@@ -67,6 +95,8 @@ always @ (*)
 		PKEY_REG: READ_DATA_OUT = PERIPH_MC_KEY;
 		PMSK_REG: READ_DATA_OUT = PERIPH_MC_MASK;
 		SCRM_REG: READ_DATA_OUT = SCRMBL_IDL_DAT;
+		SLEN_REG: READ_DATA_OUT = SPINNAKER_LINK_ENABLE;
+		LEDO_REG: READ_DATA_OUT = LED_OVERRIDE;
 		default:  READ_DATA_OUT = {REGD_BITS{1'b1}};
 	endcase
 

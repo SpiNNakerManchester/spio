@@ -143,10 +143,10 @@ generate for (i = 0; i < NUM_DEVICES; i = i + 1)
 	begin : animation_selection
 		always @ (posedge CLK_IN)
 			casex ({ERROR_IN[i], CONNECTED_IN[i], activity_i[i]})
-				3'b1xx:  pwm_value_i[i] <= ~animation_pulse_i;
-				3'b011:  pwm_value_i[i] <= animation_blink_i;
-				3'b010:  pwm_value_i[i] <= animation_throb_i;
-				default: pwm_value_i[i] <= animation_pulse_i;
+				3'b1xx:  pwm_value_i[i] <= {1'b0, ~animation_pulse_i};
+				3'b011:  pwm_value_i[i] <= {1'b0, animation_blink_i};
+				3'b010:  pwm_value_i[i] <= {1'b0, animation_throb_i};
+				default: pwm_value_i[i] <= {1'b0, animation_pulse_i};
 			endcase
 	end
 endgenerate

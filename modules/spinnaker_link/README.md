@@ -54,6 +54,28 @@ inidcates its own validity and, therefore, it's safe to use a 2-flop synchronise
 on every data line. This, of course, would be unsafe in a binary-encoded data bus.
 
 
+Link enabling/disabling
+-----------------------
+
+Links to SpiNNaker chips can be individually enabled/disabled. Disabling an FPGA
+link to SpiNNaker may be useful to allow specific 2-of-7 link ports on a SpiNN5
+board to be connected to external devices while other links are connected via
+high-speed serial links to neighbouring boards as usual.
+
+A disabled link tristates the associated output pins and holds in reset the
+corresponding SpiNNaker link interface block in the FPGA. By default, all links
+are disabled to prevent potential conflicts with external devices.
+
+Link enable/disable is controlled through FPGA register SLEN. On reset, the
+register is all-0s (i.e., all links disabled) and must be configured immediately
+after power-up and before SpiNNaker system boot if any other configuration is
+to be used. On a SpiNN5 board, the BMP can be used to configure automatically
+the links after power up using the `xreg' command.
+
+The FPGA STOP register should be preferred for the purposes of simply isolating
+boards in a multi-board system.
+
+
 Authors
 -------
 
