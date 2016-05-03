@@ -7,7 +7,7 @@
 //  Based on work by J Pepper (Date 08/08/2012)
 //
 //  This module uses the STAC (synchronous timing/asynchronous control)
-//  scheme to interface to SpiNNaker aynchronous channels.
+//  scheme to interface to SpiNNaker asynchronous channels.
 //  This scheme is based on the predictive handshake scheme introduced
 //  by Amir Yousefzadeh et al. from Instituto de Microelectrónica
 //  de Sevilla (IMSE-CNM), CSIC and Universidad de Sevilla, Spain
@@ -18,10 +18,10 @@
 //  to SpiNNaker 2-of-7 Links", IEEE Transactions on Circuits and Systems II:
 //  Express Briefs, 2016. DOI: 10.1109/TCSII.2016.2531092
 //
-//  STAC differs from the predicitve scheme in two ways:
+//  STAC differs from the predictive scheme in two ways:
 //
 //  1. It is aware of the possibility of back pressure
-//  in asynchronous communication and combines predicitve handshakes with
+//  in asynchronous communication and combines predictive handshakes with
 //  appropriate asynchronous handshakes for a correct response to back
 //  pressure. This avoids potential breaches of communication protocol,
 //  packet loss or corruption, and the need to resend packets.
@@ -726,7 +726,7 @@ module pkt_deserializer
   //-------------------------------------------------------------
   always @(posedge CLK_IN)
     if (pkt_out)
-      if (!exp_eop)
+      if (!exp_eop  || send_bad_pkt)
         PKT_DATA_OUT <= bad_pkt;
       else if (long_pkt)
         PKT_DATA_OUT <= pkt_buf;
