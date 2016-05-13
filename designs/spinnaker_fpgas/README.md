@@ -197,7 +197,7 @@ The counters on FPGA -> SpiNNaker links are at base address: 0x00050000
 	ACKE[n]      n 4*(n+16)  RO        32  unexpected acknowledges on link n
 	TMOE[n]      n 4*(n+32)  RO        32  timeouts on link n
 
-The ounters on SpiNNaker -> FPGA links are at base address: 0x00060000
+The counters on SpiNNaker -> FPGA links are at base address: 0x00060000
 
 	Name    Number Offset    Access  Size  Description
 	----    ------ ------    ------  ----  ---------------------------------------------

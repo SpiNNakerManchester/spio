@@ -186,13 +186,7 @@ tied to zeros for normal operation.
 
 ### 9. Channel Bonding, Clock Correction
 
-Though the module does not use channel bonding, it should be enabled to
-work-around a bug in the GTP hard tile's loss-of-sync state machine (see [Xilinx
-AR # 29218](http://www.xilinx.com/support/answers/29218.htm)) (which is used by
-the module). The channel bonding sequence length should be set to 1 and the
-sequence's first (and only byte) is a K-character with value `00000000`. Since
-this is an invalid K-character, it cannot appear in the stream and thus channel
-bonding remains functionally disabled.
+The module does not use channel bonding. It should be left disabled.
 
 The 'use clock correction' option should be selected and the sequence length set
 to 4. The minimum and maximum latency may be left as the defaults. Only a single
