@@ -135,7 +135,7 @@ arriving commas will be treated as byte-alignment characters.
 
 The optional ports `ENPCOMMAALIGN` and `ENNCOMMAALIGN` should be enabled and
 tied off high. This enables automatic byte alignment within the GTP tile. The
-other optional ports are not used and my be left disabled.
+other optional ports are not used and may be left disabled.
 
 
 ### 6. Preemphasis, Termination and Equalisation
