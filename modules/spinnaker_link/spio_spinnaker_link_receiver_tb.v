@@ -393,17 +393,28 @@ assign tb_opkt_pld = uut_opkt_data[`PKT_PLD_RNG];
 // testbench: check received packet
 //--------------------------------------------------
 //TODO: assumes fifo is never empty (safe for now!)
-always @ (posedge tb_clk)
-  if (uut_opkt_vld && uut_opkt_rdy)
-    if ((tb_opkt_hdr !== tb_fifo_pkt[tb_fifo_rdp][`PKT_HDR_RNG])
-         || (tb_opkt_key !== tb_fifo_pkt[tb_fifo_rdp][`PKT_KEY_RNG])
-         || (tb_fifo_pkt[tb_fifo_rdp][1]
-              && (tb_opkt_pld !== tb_fifo_pkt[tb_fifo_rdp][`PKT_PLD_RNG])
-            )
-       )
-      tb_bad_pkt = 1;
-    else
-      tb_bad_pkt = 0;
+always @ (posedge tb_clk or posedge tb_rst)
+  if (tb_rst)
+    tb_bad_pkt <= 0;
+  else
+    if (uut_opkt_vld && uut_opkt_rdy)
+      if ((tb_opkt_hdr !== tb_fifo_pkt[tb_fifo_rdp][`PKT_HDR_RNG])
+           || (tb_opkt_key !== tb_fifo_pkt[tb_fifo_rdp][`PKT_KEY_RNG])
+           || (tb_fifo_pkt[tb_fifo_rdp][1]
+                && (tb_opkt_pld !== tb_fifo_pkt[tb_fifo_rdp][`PKT_PLD_RNG])
+              )
+         )
+        if ((tb_opkt_hdr !== tb_fifo_pkt[tb_fifo_rdp + 1][`PKT_HDR_RNG])
+             || (tb_opkt_key !== tb_fifo_pkt[tb_fifo_rdp + 1][`PKT_KEY_RNG])
+             || (tb_fifo_pkt[tb_fifo_rdp][1]
+                  && (tb_opkt_pld !== tb_fifo_pkt[tb_fifo_rdp + 1][`PKT_PLD_RNG])
+                )
+           )
+          tb_bad_pkt <= 1;
+        else
+          tb_bad_pkt <= 0;
+      else
+        tb_bad_pkt <= 0;
 
 
 //--------------------------------------------------
@@ -414,7 +425,23 @@ always @ (posedge tb_clk or posedge tb_rst)
     tb_fifo_rdp <= 0;
   else
     if (uut_opkt_vld && uut_opkt_rdy)
-      tb_fifo_rdp <= tb_fifo_rdp + 1;
+      if ((tb_opkt_hdr !== tb_fifo_pkt[tb_fifo_rdp][`PKT_HDR_RNG])
+           || (tb_opkt_key !== tb_fifo_pkt[tb_fifo_rdp][`PKT_KEY_RNG])
+           || (tb_fifo_pkt[tb_fifo_rdp][1]
+                && (tb_opkt_pld !== tb_fifo_pkt[tb_fifo_rdp][`PKT_PLD_RNG])
+              )
+         )
+        if ((tb_opkt_hdr !== tb_fifo_pkt[tb_fifo_rdp + 1][`PKT_HDR_RNG])
+             || (tb_opkt_key !== tb_fifo_pkt[tb_fifo_rdp + 1][`PKT_KEY_RNG])
+             || (tb_fifo_pkt[tb_fifo_rdp][1]
+                  && (tb_opkt_pld !== tb_fifo_pkt[tb_fifo_rdp + 1][`PKT_PLD_RNG])
+                )
+           )
+          tb_fifo_rdp <= tb_fifo_rdp + 1;
+        else
+          tb_fifo_rdp <= tb_fifo_rdp + 2;
+      else
+        tb_fifo_rdp <= tb_fifo_rdp + 1;
 
 
 //--------------------------------------------------
