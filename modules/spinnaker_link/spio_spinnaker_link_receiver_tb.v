@@ -406,7 +406,7 @@ always @ (posedge tb_clk or posedge tb_rst)
          )
         if ((tb_opkt_hdr !== tb_fifo_pkt[tb_fifo_rdp + 1][`PKT_HDR_RNG])
              || (tb_opkt_key !== tb_fifo_pkt[tb_fifo_rdp + 1][`PKT_KEY_RNG])
-             || (tb_fifo_pkt[tb_fifo_rdp][1]
+             || (tb_fifo_pkt[tb_fifo_rdp + 1][1]
                   && (tb_opkt_pld !== tb_fifo_pkt[tb_fifo_rdp + 1][`PKT_PLD_RNG])
                 )
            )
@@ -433,7 +433,7 @@ always @ (posedge tb_clk or posedge tb_rst)
          )
         if ((tb_opkt_hdr !== tb_fifo_pkt[tb_fifo_rdp + 1][`PKT_HDR_RNG])
              || (tb_opkt_key !== tb_fifo_pkt[tb_fifo_rdp + 1][`PKT_KEY_RNG])
-             || (tb_fifo_pkt[tb_fifo_rdp][1]
+             || (tb_fifo_pkt[tb_fifo_rdp + 1][1]
                   && (tb_opkt_pld !== tb_fifo_pkt[tb_fifo_rdp + 1][`PKT_PLD_RNG])
                 )
            )
