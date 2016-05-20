@@ -7,7 +7,7 @@
 //
 // -------------------------------------------------------------------------
 // COPYRIGHT
-//  Copyright (c) The University of Manchester, 2012. All rights reserved.
+//  Copyright (c) The University of Manchester, 2012-2016.
 //  SpiNNaker Project
 //  Advanced Processor Technologies Group
 //  School of Computer Science

@@ -67,12 +67,34 @@ Authors
 The designs in this repository are largely the work of:
 
 * Luis Plana
-* Jeff Pepper
 * Jonathan Heathcote
+* Jeff Pepper
+
+With the collaboration of:
+
+* Simon Davidson
+* Jim Garside
+* Steve Temple
+* Steve Furber
+
+All affiliated to The University of Manchester.
 
 
 Copyright
 ---------
 
-For the moment, all the designs are copyright of the University of Manchester,
-all rights reserved. This will hopefuly change in the near future.
+Copyright (C) 2012-2016 The University of Manchester.
+
+This library is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation; either version 2
+of the License, or (at your option) any later version.
+
+This library is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this library; if not, write to the Free Software
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
