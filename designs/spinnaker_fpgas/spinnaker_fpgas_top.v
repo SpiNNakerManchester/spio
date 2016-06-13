@@ -40,7 +40,7 @@ module spinnaker_fpgas_top #( // Version number for top-level design
                               // J9 and J11 on the front respectively.
                               // (peripheral connections will be placed on the
                               // opposing side).
-                            , parameter NORTH_SOUTH_ON_FRONT = 1
+                            , parameter NORTH_SOUTH_ON_FRONT = 2
                               // The interval at which clock correction sequences should
                               // be inserted (in cycles).
                             , parameter    B2B_CLOCK_CORRECTION_INTERVAL = 1000
@@ -101,25 +101,20 @@ localparam    B2B_GTP_LOOPBACK = 3'b000;
 localparam PERIPH_GTP_LOOPBACK = 3'b000;
 localparam   RING_GTP_LOOPBACK = 3'b000;
 
-// GTP Analog signal generation settings (either found via IBERT or left as zeros)
-localparam    B2B_RXEQMIX = 2'b10;   // 5.4 dB
-localparam PERIPH_RXEQMIX = 2'b00;   // Default
-localparam   RING_RXEQMIX = 2'b00;   // Default
-
-// !!lap localparam    B2B_TXDIFFCTRL = 4'b0010; // 495 mV
-localparam    B2B_TXDIFFCTRL = 4'b0110; // 762 mV
-// !!lap localparam    B2B_TXDIFFCTRL = 4'b1010; // 1054 mV
-localparam PERIPH_TXDIFFCTRL = 4'b0000; // Default
-localparam   RING_TXDIFFCTRL = 4'b0000; // Default
-
-localparam    B2B_TXPREEMPHASIS = 3'b010;  // 1.7 dB
-localparam PERIPH_TXPREEMPHASIS = 3'b000;  // Default
-localparam   RING_TXPREEMPHASIS = 3'b000;  // Default
+////////////////////////////////////////////////////////////////////////////////
+// analog parameters moved to register bank -- now controlled by registers!
+////////////////////////////////////////////////////////////////////////////////
 
 
 ////////////////////////////////////////////////////////////////////////////////
 // Internal signals
 ////////////////////////////////////////////////////////////////////////////////
+
+// analog parameters controlled from registers
+wire  [7:0] rxeqmix_i;
+wire [15:0] txdiffctrl_i;
+wire [11:0] txpreemphasis_i;
+
 
 // External reset signal
 wire n_reset_i;
@@ -733,12 +728,12 @@ generate case ({NORTH_SOUTH_ON_FRONT, FPGA_ID})
 		             ,   .TILE0_TXP0_OUT             (HSS_TXP_OUT[0])
 		             ,   .TILE0_TXP1_OUT             (HSS_TXP_OUT[1])
 		                 // Analog signal generation settings
-		             ,   .TILE0_RXEQMIX0_IN              (B2B_RXEQMIX)
-		             ,   .TILE0_RXEQMIX1_IN              (B2B_RXEQMIX)
-		             ,   .TILE0_TXDIFFCTRL0_IN           (B2B_TXDIFFCTRL)
-		             ,   .TILE0_TXDIFFCTRL1_IN           (B2B_TXDIFFCTRL)
-		             ,   .TILE0_TXPREEMPHASIS0_IN        (B2B_TXPREEMPHASIS)
-		             ,   .TILE0_TXPREEMPHASIS1_IN        (B2B_TXPREEMPHASIS)
+		             ,   .TILE0_RXEQMIX0_IN          (rxeqmix_i[1:0])
+		             ,   .TILE0_RXEQMIX1_IN          (rxeqmix_i[3:2])
+		             ,   .TILE0_TXDIFFCTRL0_IN       (txdiffctrl_i[3:0])
+		             ,   .TILE0_TXDIFFCTRL1_IN       (txdiffctrl_i[7:4])
+		             ,   .TILE0_TXPREEMPHASIS0_IN    (txpreemphasis_i[2:0])
+		             ,   .TILE0_TXPREEMPHASIS1_IN    (txpreemphasis_i[5:3])
 		             );
 	
 	{1, 0}:
@@ -808,12 +803,12 @@ generate case ({NORTH_SOUTH_ON_FRONT, FPGA_ID})
 		             ,   .TILE0_TXP0_OUT             (HSS_TXP_OUT[0])
 		             ,   .TILE0_TXP1_OUT             (HSS_TXP_OUT[1])
 		                 // Analog signal generation settings
-		             ,   .TILE0_RXEQMIX0_IN              (   B2B_RXEQMIX)
-		             ,   .TILE0_RXEQMIX1_IN              (PERIPH_RXEQMIX)
-		             ,   .TILE0_TXDIFFCTRL0_IN           (   B2B_TXDIFFCTRL)
-		             ,   .TILE0_TXDIFFCTRL1_IN           (PERIPH_TXDIFFCTRL)
-		             ,   .TILE0_TXPREEMPHASIS0_IN        (   B2B_TXPREEMPHASIS)
-		             ,   .TILE0_TXPREEMPHASIS1_IN        (PERIPH_TXPREEMPHASIS)
+		             ,   .TILE0_RXEQMIX0_IN          (rxeqmix_i[1:0])
+		             ,   .TILE0_RXEQMIX1_IN          (rxeqmix_i[5:4])
+		             ,   .TILE0_TXDIFFCTRL0_IN       (txdiffctrl_i[3:0])
+		             ,   .TILE0_TXDIFFCTRL1_IN       (txdiffctrl_i[11:8])
+		             ,   .TILE0_TXPREEMPHASIS0_IN    (txpreemphasis_i[2:0])
+		             ,   .TILE0_TXPREEMPHASIS1_IN    (txpreemphasis_i[8:6])
 		             );
 	
 	{1, 2}:
@@ -883,12 +878,12 @@ generate case ({NORTH_SOUTH_ON_FRONT, FPGA_ID})
 		             ,   .TILE0_TXP0_OUT             (HSS_TXP_OUT[0])
 		             ,   .TILE0_TXP1_OUT             (HSS_TXP_OUT[1])
 		                 // Analog signal generation settings
-		             ,   .TILE0_RXEQMIX0_IN              (PERIPH_RXEQMIX)
-		             ,   .TILE0_RXEQMIX1_IN              (   B2B_RXEQMIX)
-		             ,   .TILE0_TXDIFFCTRL0_IN           (PERIPH_TXDIFFCTRL)
-		             ,   .TILE0_TXDIFFCTRL1_IN           (   B2B_TXDIFFCTRL)
-		             ,   .TILE0_TXPREEMPHASIS0_IN        (PERIPH_TXPREEMPHASIS)
-		             ,   .TILE0_TXPREEMPHASIS1_IN        (   B2B_TXPREEMPHASIS)
+		             ,   .TILE0_RXEQMIX0_IN          (rxeqmix_i[5:4])
+		             ,   .TILE0_RXEQMIX1_IN          (rxeqmix_i[3:2])
+		             ,   .TILE0_TXDIFFCTRL0_IN       (txdiffctrl_i[11:8])
+		             ,   .TILE0_TXDIFFCTRL1_IN       (txdiffctrl_i[7:4])
+		             ,   .TILE0_TXPREEMPHASIS0_IN    (txpreemphasis_i[8:6])
+		             ,   .TILE0_TXPREEMPHASIS1_IN    (txpreemphasis_i[5:3])
 		             );
 endcase endgenerate
 
@@ -963,12 +958,12 @@ generate case ({NORTH_SOUTH_ON_FRONT, FPGA_ID})
 		             ,   .TILE0_TXP0_OUT             (HSS_TXP_OUT[2])
 		             ,   .TILE0_TXP1_OUT             (HSS_TXP_OUT[3])
 		                 // Analog signal generation settings
-		             ,   .TILE0_RXEQMIX0_IN              (PERIPH_RXEQMIX)
-		             ,   .TILE0_RXEQMIX1_IN              (  RING_RXEQMIX)
-		             ,   .TILE0_TXDIFFCTRL0_IN           (PERIPH_TXDIFFCTRL)
-		             ,   .TILE0_TXDIFFCTRL1_IN           (  RING_TXDIFFCTRL)
-		             ,   .TILE0_TXPREEMPHASIS0_IN        (PERIPH_TXPREEMPHASIS)
-		             ,   .TILE0_TXPREEMPHASIS1_IN        (  RING_TXPREEMPHASIS)
+		             ,   .TILE0_RXEQMIX0_IN          (rxeqmix_i[5:4])
+		             ,   .TILE0_RXEQMIX1_IN          (rxeqmix_i[7:6])
+		             ,   .TILE0_TXDIFFCTRL0_IN       (txdiffctrl_i[11:8])
+		             ,   .TILE0_TXDIFFCTRL1_IN       (txdiffctrl_i[15:12])
+		             ,   .TILE0_TXPREEMPHASIS0_IN    (txpreemphasis_i[8:6])
+		             ,   .TILE0_TXPREEMPHASIS1_IN    (txpreemphasis_i[11:9])
 		            );
 	
 	{1, 0}:
@@ -1038,12 +1033,12 @@ generate case ({NORTH_SOUTH_ON_FRONT, FPGA_ID})
 		             ,   .TILE0_TXP0_OUT             (HSS_TXP_OUT[2])
 		             ,   .TILE0_TXP1_OUT             (HSS_TXP_OUT[3])
 		                 // Analog signal generation settings
-		             ,   .TILE0_RXEQMIX0_IN              ( B2B_RXEQMIX)
-		             ,   .TILE0_RXEQMIX1_IN              (RING_RXEQMIX)
-		             ,   .TILE0_TXDIFFCTRL0_IN           ( B2B_TXDIFFCTRL)
-		             ,   .TILE0_TXDIFFCTRL1_IN           (RING_TXDIFFCTRL)
-		             ,   .TILE0_TXPREEMPHASIS0_IN        ( B2B_TXPREEMPHASIS)
-		             ,   .TILE0_TXPREEMPHASIS1_IN        (RING_TXPREEMPHASIS)
+		             ,   .TILE0_RXEQMIX0_IN          (rxeqmix_i[3:2])
+		             ,   .TILE0_RXEQMIX1_IN          (rxeqmix_i[7:6])
+		             ,   .TILE0_TXDIFFCTRL0_IN       (txdiffctrl_i[7:4])
+		             ,   .TILE0_TXDIFFCTRL1_IN       (txdiffctrl_i[15:12])
+		             ,   .TILE0_TXPREEMPHASIS0_IN    (txpreemphasis_i[5:3])
+		             ,   .TILE0_TXPREEMPHASIS1_IN    (txpreemphasis_i[11:9])
 		            );
 	
 	{1, 2}:
@@ -1113,12 +1108,12 @@ generate case ({NORTH_SOUTH_ON_FRONT, FPGA_ID})
 		             ,   .TILE0_TXP0_OUT             (HSS_TXP_OUT[2])
 		             ,   .TILE0_TXP1_OUT             (HSS_TXP_OUT[3])
 		                 // Analog signal generation settings
-		             ,   .TILE0_RXEQMIX0_IN              ( B2B_RXEQMIX)
-		             ,   .TILE0_RXEQMIX1_IN              (RING_RXEQMIX)
-		             ,   .TILE0_TXDIFFCTRL0_IN           ( B2B_TXDIFFCTRL)
-		             ,   .TILE0_TXDIFFCTRL1_IN           (RING_TXDIFFCTRL)
-		             ,   .TILE0_TXPREEMPHASIS0_IN        ( B2B_TXPREEMPHASIS)
-		             ,   .TILE0_TXPREEMPHASIS1_IN        (RING_TXPREEMPHASIS)
+		             ,   .TILE0_RXEQMIX0_IN          (rxeqmix_i[1:0])
+		             ,   .TILE0_RXEQMIX1_IN          (rxeqmix_i[7:6])
+		             ,   .TILE0_TXDIFFCTRL0_IN       (txdiffctrl_i[3:0])
+		             ,   .TILE0_TXDIFFCTRL1_IN       (txdiffctrl_i[15:12])
+		             ,   .TILE0_TXPREEMPHASIS0_IN    (txpreemphasis_i[2:0])
+		             ,   .TILE0_TXPREEMPHASIS1_IN    (txpreemphasis_i[11:9])
 		            );
 endcase endgenerate
 
@@ -1708,6 +1703,9 @@ spinnaker_fpgas_reg_bank_i( .CLK_IN         (reg_bank_clk_i)
                           , .PERIPH_MC_MASK (periph_mc_mask_i)
                           , .SCRMBL_IDL_DAT (scrmbl_idl_dat_i)
                           , .LED_OVERRIDE   (led_override_i)
+                          , .RXEQMIX        (rxeqmix_i)
+                          , .TXDIFFCTRL     (txdiffctrl_i)
+                          , .TXPREEMPHASIS  (txpreemphasis_i)
                           );
 
 
