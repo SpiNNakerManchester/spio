@@ -40,7 +40,7 @@ module spinnaker_fpgas_top #( // Version number for top-level design
                               // J9 and J11 on the front respectively.
                               // (peripheral connections will be placed on the
                               // opposing side).
-                            , parameter NORTH_SOUTH_ON_FRONT = 2
+                            , parameter NORTH_SOUTH_ON_FRONT = 1
                               // The interval at which clock correction sequences should
                               // be inserted (in cycles).
                             , parameter    B2B_CLOCK_CORRECTION_INTERVAL = 1000
