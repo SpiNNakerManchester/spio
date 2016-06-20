@@ -37,6 +37,35 @@ This design makes use of the following modules from the spI/O module collection:
 * `switch/*`
 * `packet_counter/*`
 
+BMP Firmware Version
+--------------------
+
+The Board Monitor Processor (BMP) of the SpiNNaker board you load this design
+onto must have at least BMP firmware version v2.1.0. To determine what firmware
+version your BMP is using you can use `bmpc` like so:
+
+	$ echo sver | bmpc YOUR_BOARD_IP_HERE
+	# bmpc - version 2.2.0
+	YOUR_BOARD_IP_HERE:0 > sver
+	BC&MP 2.1.0 at Spin5-BMP:0 (built Wed Mar 16 14:42:38 2016) [C=0, F=240, B=1]
+
+In the example above, the last line indicates "BC&MP 2.1.0" is running on the
+BMP meaning this board is sufficiently up-to-date. The `bmpc` command is
+distributed as part of the SpiNNaker low-level software tools which can be
+downloaded
+[here](http://apt.cs.manchester.ac.uk/projects/SpiNNaker/downloads/).
+
+Please contact the group if your board requires a firmware update and we'll
+arrange this.
+
+If your BMP firmware is out of date, this FPGA design will still work but on
+power-on all of the FPGA-to-SpiNNaker-chip links will be disabled and the LEDs
+will show an error pattern (on, flashing briefly off every second or so). You
+can enable the links and clear the error signalling by writing the `SLEN` and
+`LEDO` registers using the `xreg` command in `bmpc`. In BMP firmware versions
+since v2.1.0, these registers are configured immediately after bitfile loading
+is completed.
+
 Synthesis
 ---------
 
