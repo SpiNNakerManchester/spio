@@ -194,6 +194,24 @@ address: 0x00040000
 	                                   , 1: FORCE_ERROR_B2B1
 	                                   , 0: FORCE_ERROR_B2B0
 	                                   }
+	RXEQ       7   0x1C  RW         8  rx equalization (default: 0x0A)
+                                           { 7-6: RING_RXEQMIX
+                                           , 5-4: PERIPH_RXEQMIX
+                                           , 3-2: B2B1_RXEQMIX
+                                           , 1-0: B2B0_RXEQMIX
+                                           }
+	TXDS       7   0x20  RW        16  tx driver swing (default: 0x0077)
+                                           { 15-12: RING_TXDIFFCTRL
+                                           ,  11-8: PERIPH_TXDIFFCTRL
+                                           ,   7-4: B2B1_TXDIFFCTRL
+                                           ,   3-0: B2B0_TXDIFFCTRL
+                                           }
+	TXPE       7   0x24  RW        12  tx pre-emphasis (default: 0x00A)
+                                           { 11-9: RING_TXPREEMPHASIS
+                                           ,  8-6: PERIPH_TXPREEMPHASIS
+                                           ,  5-3: B2B1_TXPREEMPHASIS
+                                           ,  2-0: B2B0_TXPREEMPHASIS
+                                           }
 
 Note that disabling a link with the SLEN register tristates the associated link
 pins and holds in reset the corresponding SpiNNaker link interface block in the
@@ -215,6 +233,16 @@ indicating that the device has been configured and is ready to use. The `DIM_*`
 bits of LEDO cause the specified LEDs to be dimmed. It is suggested that when
 the 2-of-7 link exposed by SpiNN-5 boards is not being driven by the FPGA the
 corresponding LED is dimmed.
+
+Registers RXEQ, TXDV and TXPE can be used to set/overrride the high-speed
+receiver and transmitter analog parameters described in the Xilinx Spartan6
+documentation. The documentation also contains the parameter values and
+encodings. Incorrect settings may affect the operation of the high-speed
+links. The chosen default values for the board-to-board links have been tested
+and work correctly in many different board configurations and should not be
+changed without good cause. The peripheral and ring link parameters are not
+set and, therefore, need to be set by the user. The default board-to-board
+values may be a good starting point.
 
 Finally, there is a set of counters associated to every SpiNNaker - FPGA link.
 

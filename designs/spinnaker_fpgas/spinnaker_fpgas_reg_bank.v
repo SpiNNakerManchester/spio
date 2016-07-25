@@ -42,7 +42,44 @@ module spinnaker_fpgas_reg_bank #( // Address bits
                                    //     , FORCE_ERROR_B2B0
                                    //     }
                                  , output reg              [7:0] LED_OVERRIDE
+                                   // rx equalization
+                                   //   {RING_RXEQMIX
+                                   //   , PERIPH_RXEQMIX
+                                   //   , B2B_RXEQMIX
+                                   //   , B2B_RXEQMIX
+                                   //   };
+                                 , output reg              [7:0] RXEQMIX
+                                   // tx driver swing
+                                   //   {RING_TXDIFFCTRL
+                                   //   , PERIPH_TXDIFFCTRL
+                                   //   , B2B_TXDIFFCTRL
+                                   //   , B2B_TXDIFFCTRL
+                                   //   };
+                                 , output reg             [15:0] TXDIFFCTRL
+                                   // tx pre-emphasis
+                                   //   {RING_TXPREEMPHASIS
+                                   //   , PERIPH_TXPREEMPHASIS
+                                   //   , B2B_TXPREEMPHASIS
+                                   //   , B2B_TXPREEMPHASIS
+                                   //   };
+                                 , output reg             [11:0] TXPREEMPHASIS
                                  );
+
+// GTP Analog signal generation settings (either found via IBERT or left as zeros)
+localparam    B2B_RXEQMIX = 2'b10;   // 5.4 dB
+localparam PERIPH_RXEQMIX = 2'b00;   // Default
+localparam   RING_RXEQMIX = 2'b00;   // Default
+
+// !!lap localparam    B2B_TXDIFFCTRL = 4'b0010; // 495 mV
+lap localparam    B2B_TXDIFFCTRL = 4'b0110; // 762 mV
+// !!localparam    B2B_TXDIFFCTRL = 4'b0111; // 849 mV
+// !!lap localparam    B2B_TXDIFFCTRL = 4'b1010; // 1054 mV
+localparam PERIPH_TXDIFFCTRL = 4'b0000; // Default
+localparam   RING_TXDIFFCTRL = 4'b0000; // Default
+
+localparam    B2B_TXPREEMPHASIS = 3'b010;  // 1.7 dB
+localparam PERIPH_TXPREEMPHASIS = 3'b000;  // Default
+localparam   RING_TXPREEMPHASIS = 3'b000;  // Default
 
 localparam VERS_REG = 0; // Top level design version
 localparam FLAG_REG = 1; // Compile flags {   5: chip scope
@@ -64,6 +101,21 @@ localparam LEDO_REG = 6; // LED link override { 7: DIM_RING
                          //                   , 1: FORCE_ERROR_B2B1
                          //                   , 0: FORCE_ERROR_B2B0
                          //                   }
+localparam RXEQ_REG = 7; // rx equalization   { 7-6: RING_RXEQMIX
+                         //                   , 5-4: PERIPH_RXEQMIX
+                         //                   , 3-2: B2B1_RXEQMIX
+                         //                   , 1-0: B2B0_RXEQMIX
+                         //                   }
+localparam TXDS_REG = 8; // tx driver swing   { 15-12: RING_TXDIFFCTRL
+                         //                   ,  11-8: PERIPH_TXDIFFCTRL
+                         //                   ,   7-4: B2B1_TXDIFFCTRL
+                         //                   ,   3-0: B2B0_TXDIFFCTRL
+                         //                   }
+localparam TXPE_REG = 9; // tx pre-emphasis   { 11-9: RING_TXPREEMPHASIS
+                         //                   ,  8-6: PERIPH_TXPREEMPHASIS
+                         //                   ,  5-3: B2B1_TXPREEMPHASIS
+                         //                   ,  2-0: B2B0_TXPREEMPHASIS
+                         //                   }
 
 
 // Write address decode
@@ -75,6 +127,21 @@ always @ (posedge CLK_IN, posedge RESET_IN)
 			SCRMBL_IDL_DAT <= 32'hFFFFFFFF;
 			SPINNAKER_LINK_ENABLE <= 32'h00000000;
 			LED_OVERRIDE <= 8'h0F;
+			RXEQMIX <= {RING_RXEQMIX
+			           , PERIPH_RXEQMIX
+			           , B2B_RXEQMIX
+			           , B2B_RXEQMIX
+			           };
+			TXDIFFCTRL <= {RING_TXDIFFCTRL
+			              , PERIPH_TXDIFFCTRL
+			              , B2B_TXDIFFCTRL
+			              , B2B_TXDIFFCTRL
+			              };
+			TXPREEMPHASIS <= {RING_TXPREEMPHASIS
+			                 , PERIPH_TXPREEMPHASIS
+			                 , B2B_TXPREEMPHASIS
+			                 , B2B_TXPREEMPHASIS
+			                 };
 		end
 	else
 		if (WRITE_IN)
@@ -84,6 +151,9 @@ always @ (posedge CLK_IN, posedge RESET_IN)
 				SCRM_REG: SCRMBL_IDL_DAT <= WRITE_DATA_IN;
 				SLEN_REG: SPINNAKER_LINK_ENABLE <= WRITE_DATA_IN;
 				LEDO_REG: LED_OVERRIDE <= WRITE_DATA_IN;
+				RXEQ_REG: RXEQMIX <= WRITE_DATA_IN;
+				TXDS_REG: TXDIFFCTRL <= WRITE_DATA_IN;
+				TXPE_REG: TXPREEMPHASIS <= WRITE_DATA_IN;
 			endcase
 
 
@@ -97,6 +167,9 @@ always @ (*)
 		SCRM_REG: READ_DATA_OUT = SCRMBL_IDL_DAT;
 		SLEN_REG: READ_DATA_OUT = SPINNAKER_LINK_ENABLE;
 		LEDO_REG: READ_DATA_OUT = LED_OVERRIDE;
+		RXEQ_REG: READ_DATA_OUT = RXEQMIX;
+		TXDS_REG: READ_DATA_OUT = TXDIFFCTRL;
+		TXPE_REG: READ_DATA_OUT = TXPREEMPHASIS;
 		default:  READ_DATA_OUT = {REGD_BITS{1'b1}};
 	endcase
 
