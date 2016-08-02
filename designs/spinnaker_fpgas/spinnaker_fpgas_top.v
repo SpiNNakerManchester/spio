@@ -12,6 +12,8 @@
  *  * Ring network implementation.
  */
 
+`include "../../version.h"
+
 `include "../../modules/spinnaker_link/spio_spinnaker_link.h"
 `include "../../modules/packet_counter/spio_packet_counter.h"
 
@@ -20,7 +22,7 @@
 
 
 module spinnaker_fpgas_top #( // Version number for top-level design
-                              parameter VERSION = 32'h00210416
+                              parameter VERSION = `SPIO_VER_NUM
                               // Enable simulation mode for GTP tile
                             , parameter SIMULATION = 0
                               // Speed up simulated reset of GTP tile

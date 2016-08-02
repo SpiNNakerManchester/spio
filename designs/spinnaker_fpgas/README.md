@@ -200,13 +200,13 @@ address: 0x00040000
                                            , 3-2: B2B1_RXEQMIX
                                            , 1-0: B2B0_RXEQMIX
                                            }
-	TXDS       7   0x20  RW        16  tx driver swing (default: 0x0077)
+	TXDS       7   0x20  RW        16  tx driver swing (default: 0x0066)
                                            { 15-12: RING_TXDIFFCTRL
                                            ,  11-8: PERIPH_TXDIFFCTRL
                                            ,   7-4: B2B1_TXDIFFCTRL
                                            ,   3-0: B2B0_TXDIFFCTRL
                                            }
-	TXPE       7   0x24  RW        12  tx pre-emphasis (default: 0x00A)
+	TXPE       7   0x24  RW        12  tx pre-emphasis (default: 0x012)
                                            { 11-9: RING_TXPREEMPHASIS
                                            ,  8-6: PERIPH_TXPREEMPHASIS
                                            ,  5-3: B2B1_TXPREEMPHASIS

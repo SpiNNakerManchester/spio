@@ -35,7 +35,7 @@ localparam [(32*3)-1:0] FPGA_SL_TYPES = { // FPGA2
                                         };
 
 // the back-pressure point (bpp) is different for each link
-// 3FPGAs, 16 links per FPGA, 4 bits per link
+// 3 FPGAs, 16 links per FPGA, 4 bits per link
 localparam [(3*16*4)-1:0] BPP = { // FPGA2
                                   4'd6, 4'd7, 4'd6, 4'd7
                                 , 4'd6, 4'd7, 4'd6, 4'd7
@@ -55,7 +55,7 @@ localparam [(3*16*4)-1:0] BPP = { // FPGA2
 
 // the number of "synchronous" flits before the back-pressure point
 // is different for each link
-// 3FPGAs, 16 links per FPGA, 5 bits per link
+// 3 FPGAs, 16 links per FPGA, 5 bits per link
 localparam [(3*16*5)-1:0] BSF_LONG = { // FPGA2
                                        5'd17, 5'd17, 5'd17, 5'd17
                                      , 5'd17, 5'd17, 5'd17, 5'd17
@@ -75,7 +75,7 @@ localparam [(3*16*5)-1:0] BSF_LONG = { // FPGA2
 
 // the number of "asynchronous" flits before the back-pressure point
 // is different for each link
-// 3FPGAs, 16 links per FPGA, 3 bits per link
+// 3 FPGAs, 16 links per FPGA, 3 bits per link
 localparam [(3*16*3)-1:0] BAF_LONG = { // FPGA2
                                        3'd2, 3'd2, 3'd2, 3'd2
                                      , 3'd2, 3'd2, 3'd2, 3'd2
