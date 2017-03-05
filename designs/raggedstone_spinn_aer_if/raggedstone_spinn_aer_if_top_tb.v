@@ -21,7 +21,7 @@
 //---------------------- spinn_aer2_if_tb -----------------------
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 `timescale 1ns / 1ps
-module spinn_aer2_if_tb ();
+module raggedstone_spinn_aer_if_top_tb ();
 //---------------------------------------------------------------
 // constants
 //---------------------------------------------------------------
@@ -229,7 +229,7 @@ endfunction
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 //--------------------------- datapath --------------------------
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-spinn_aer2_if
+raggedstone_spinn_aer_if_top
 #(
   .DBNCER_CONST (DBNCER_CONST)
 ) dut
@@ -323,8 +323,6 @@ reg        old_ack;
 
 assign parity = ~(^pkt_data);
 assign packet = {8'hff, 8'hff, pkt_data, 7'b0000000, parity};
-
-integer i;
 
 initial
 begin

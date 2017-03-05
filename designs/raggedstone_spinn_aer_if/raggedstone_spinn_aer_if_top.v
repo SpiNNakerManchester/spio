@@ -1,28 +1,29 @@
 // -------------------------------------------------------------------------
-// $Id: spinn_aer2_if.v 2644 2013-10-24 15:18:41Z plana $
+//  bidirectional SpiNNaker link to AER device interface
+//
+// -------------------------------------------------------------------------
+// AUTHOR
+//  lap - luis.plana@manchester.ac.uk
+//  Based on work by J Pepper (Date 08/08/2012)
+//
+// -------------------------------------------------------------------------
+// Taken from:
+// https://solem.cs.man.ac.uk/svn/spinn_aer2_if/spinn_aer2_if.v
+// Revision 2644 (Last-modified date: 2013-10-24 16:18:41 +0100)
+//
 // -------------------------------------------------------------------------
 // COPYRIGHT
-// Copyright (c) The University of Manchester, 2012. All rights reserved.
-// SpiNNaker Project
-// Advanced Processor Technologies Group
-// School of Computer Science
+//  Copyright (c) The University of Manchester, 2012-2016.
+//  SpiNNaker Project
+//  Advanced Processor Technologies Group
+//  School of Computer Science
 // -------------------------------------------------------------------------
-// Project            : bidirectional SpiNNaker link to AER device interface
-// Module             : top-level module
-// Author             : lap/Jeff Pepper/Simon Davidson
-// Status             : Review pending
-// $HeadURL: https://solem.cs.man.ac.uk/svn/spinn_aer2_if/spinn_aer2_if.v $
-// Last modified on   : $Date: 2013-10-24 16:18:41 +0100 (Thu, 24 Oct 2013) $
-// Last modified by   : $Author: plana $
-// Version            : $Revision: 2644 $
+// TODO
 // -------------------------------------------------------------------------
 
-
-//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-//------------------------ spinn_aer2_if ------------------------
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 `timescale 1ns / 1ps
-module spinn_aer2_if 
+module raggedstone_spinn_aer_if_top
 #(
   // debouncer constant (can be adjusted for simulation!)
   parameter DBNCER_CONST = 20'hfffff
@@ -97,7 +98,6 @@ module spinn_aer2_if
 
   wire  [6:0] i_ospinn_data;
   wire        i_ospinn_ack;
-  wire        s_ospinn_ack;  // synchronized signal 
 
   // internal AER interface signals
   // ---------------------------------------------------------
@@ -139,15 +139,14 @@ module spinn_aer2_if
   // synchronize the AER_IN asynchronous request line
   // NOTE: AER request is active LOW -- initialize to HIGH
   //---------------------------------------------------------------
-  synchronizer
+  spio_spinnaker_link_sync
   #(
-    .SIZE  (1),
-    .DEPTH (2)
+    .SIZE  (1)
   ) sreq
   (
-    .clk (clk_sync),
-    .in  (i_iaer_req),
-    .out (s_iaer_req)
+    .CLK_IN (clk_sync),
+    .IN     (i_iaer_req),
+    .OUT    (s_iaer_req)
    );
   //---------------------------------------------------------------
 
@@ -155,45 +154,28 @@ module spinn_aer2_if
   // synchronize the AER_OUT asynchronous ack line
   // NOTE: AER ack is active LOW -- initialize to HIGH
   //---------------------------------------------------------------
-  synchronizer
+  spio_spinnaker_link_sync
   #(
-    .SIZE  (1),
-    .DEPTH (2)
+    .SIZE  (1)
   ) sack
   (
-    .clk (clk_sync),
-    .in  (i_oaer_ack),
-    .out (s_oaer_ack)
-   );
-  //---------------------------------------------------------------
-
-  //---------------------------------------------------------------
-  // Synchronise the output SpiNNaker async i/f ack
-  //---------------------------------------------------------------
-  synchronizer
-  #(
-    .SIZE  (1),
-    .DEPTH (2)
-  ) ssack
-  (
-    .clk (clk_sync),
-    .in  (i_ospinn_ack),
-    .out (s_ospinn_ack)
+    .CLK_IN (clk_sync),
+    .IN     (i_oaer_ack),
+    .OUT    (s_oaer_ack)
    );
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------
   // Synchronise the input SpiNNaker async i/f data
   //---------------------------------------------------------------
-  synchronizer
+  spio_spinnaker_link_sync
   #(
-    .SIZE  (7),
-    .DEPTH (2)
+    .SIZE  (7)
   ) sdat
   (
-    .clk (clk_sync),
-    .in  (i_ispinn_data),
-    .out (s_ispinn_data)
+    .CLK_IN (clk_sync),
+    .IN     (i_ispinn_data),
+    .OUT    (s_ispinn_data)
    );
   //---------------------------------------------------------------
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -202,16 +184,18 @@ module spinn_aer2_if
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   //------------------------ spinn_receiver -----------------------
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-  spinn_receiver sr
+  spio_spinnaker_link_synchronous_receiver sr
   (
-    .rst       (rst),
-    .clk       (clk_mod),
-    .err       (led5),
-    .data_2of7 (s_ispinn_data),
-    .ack       (i_ispinn_ack),
-    .pkt_data  (opkt_data),
-    .pkt_vld   (opkt_vld),
-    .pkt_rdy   (opkt_rdy)
+    .RESET_IN        (rst),
+    .CLK_IN          (clk_mod),
+    .FLT_ERR_OUT     (),
+    .FRM_ERR_OUT     (),
+    .GCH_ERR_OUT     (),
+    .SL_DATA_2OF7_IN (s_ispinn_data),
+    .SL_ACK_OUT      (i_ispinn_ack),
+    .PKT_DATA_OUT    (opkt_data),
+    .PKT_VLD_OUT     (opkt_vld),
+    .PKT_RDY_IN      (opkt_rdy)
   );
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -219,7 +203,7 @@ module spinn_aer2_if
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   //------------------------- out_mapper --------------------------
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-  out_mapper om
+  spio_spinn2aer_mapper om
   (
     .rst       (rst),
     .clk       (clk_mod),
@@ -236,7 +220,7 @@ module spinn_aer2_if
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   //-------------------------- in_mapper --------------------------
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-  in_mapper
+  spio_aer2spinn_mapper
   #(
     .MODE_BITS (MODE_BITS)
   ) im
@@ -258,15 +242,17 @@ module spinn_aer2_if
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   //------------------------- spinn_driver ------------------------
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-  spinn_driver sd
+  spio_spinnaker_link_synchronous_sender sd
   (
-    .rst       (rst),
-    .clk       (clk_mod),
-    .pkt_data  (ipkt_data),
-    .pkt_vld   (ipkt_vld),
-    .pkt_rdy   (ipkt_rdy),
-    .data_2of7 (i_ospinn_data),
-    .ack       (s_ospinn_ack)
+    .RESET_IN         (rst),
+    .CLK_IN           (clk_mod),
+    .ACK_ERR_OUT      (),
+    .TMO_ERR_OUT      (),
+    .PKT_DATA_IN      (ipkt_data),
+    .PKT_VLD_IN       (ipkt_vld),
+    .PKT_RDY_OUT      (ipkt_rdy),
+    .SL_DATA_2OF7_OUT (i_ospinn_data),
+    .SL_ACK_IN        (i_ospinn_ack)
   );
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
  
@@ -274,7 +260,7 @@ module spinn_aer2_if
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   //------------------------ user_interface -----------------------
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-  user_int
+  raggedstone_spinn_aer_if_user_int
   #(
     .DBNCER_CONST (DBNCER_CONST),
     .MODE_BITS    (MODE_BITS)

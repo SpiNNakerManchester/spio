@@ -22,7 +22,7 @@
 //------------------------ user_interface -----------------------
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 `timescale 1ns / 1ps
-module user_int
+module raggedstone_spinn_aer_if_user_int
 #(
   // debouncer constant (can be adjusted for simulation!)
   parameter DBNCER_CONST = 20'hfffff,

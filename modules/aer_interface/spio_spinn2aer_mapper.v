@@ -1,28 +1,30 @@
 // -------------------------------------------------------------------------
-// $Id: out_mapper.v 2615 2013-10-02 10:39:58Z plana $
+//  SpiNNaker packet to AER event mapper
+//
+// -------------------------------------------------------------------------
+// AUTHOR
+//  lap - luis.plana@manchester.ac.uk
+//  Based on work by J Pepper (Date 08/08/2012)
+//
+// -------------------------------------------------------------------------
+// Taken from:
+// https://solem.cs.man.ac.uk/svn/spinn_aer2_if/out_mapper.v
+// Revision 2615 (Last-modified date: 2013-10-02 11:39:58 +0100)
+//
 // -------------------------------------------------------------------------
 // COPYRIGHT
-// Copyright (c) The University of Manchester, 2012. All rights reserved.
-// SpiNNaker Project
-// Advanced Processor Technologies Group
-// School of Computer Science
+//  Copyright (c) The University of Manchester, 2012-2016.
+//  SpiNNaker Project
+//  Advanced Processor Technologies Group
+//  School of Computer Science
 // -------------------------------------------------------------------------
-// Project            : bidirectional SpiNNaker link to AER device interface
-// Module             : SpiNNaker packet to AER event mapper
-// Author             : lap/Jeff Pepper/Simon Davidson
-// Status             : Review pending
-// $HeadURL: https://solem.cs.man.ac.uk/svn/spinn_aer2_if/out_mapper.v $
-// Last modified on   : $Date: 2013-10-02 11:39:58 +0100 (Wed, 02 Oct 2013) $
-// Last modified by   : $Author: plana $
-// Version            : $Revision: 2615 $
+// TODO
 // -------------------------------------------------------------------------
 
 
-//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-//-------------------------- out_mapper -------------------------
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 `timescale 1ns / 1ps
-module out_mapper
+module spio_spinn2aer_mapper
 (
   input wire         rst,
   input wire         clk,
@@ -37,6 +39,7 @@ module out_mapper
   output reg         oaer_req,
   input  wire        oaer_ack
 );
+
   //---------------------------------------------------------------
   // constants
   //---------------------------------------------------------------
@@ -53,12 +56,12 @@ module out_mapper
   wire                    mc_pkt;
 
 
-  //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-  //------------------------- out_mapper --------------------------
-  // NOTE: must throw away non-multicast packets!
-  //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+  //---------------------------------------------------------------
   // check if multicast packet
+  // NOTE: must throw away non-multicast packets!
+  //---------------------------------------------------------------
   assign mc_pkt = ~opkt_data[7] & ~opkt_data[6];
+
 
   //---------------------------------------------------------------
   // generate opkt_rdy signal
@@ -156,6 +159,5 @@ module out_mapper
 	default:  
             ostate <= ostate;    // no change!
       endcase
-  //---------------------------------------------------------------
-  //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 endmodule
+//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
