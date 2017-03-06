@@ -23,40 +23,28 @@
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 `timescale 1ns / 1ps
 module raggedstone_spinn_aer_if_user_int
-#(
-  // debouncer constant (can be adjusted for simulation!)
-  parameter DBNCER_CONST = 20'hfffff,
-  parameter MODE_BITS    = 4
-)
 (
   input  wire                   rst,
   input  wire                   clk,
 
   // control and status interface
+  input  wire                   error,
+  output reg    [VC_BITS - 1:0] vc_sel,
   output reg  [MODE_BITS - 1:0] mode,
 
   // display interface (7-segment and leds)
   input  wire                   mode_sel,
   output reg              [7:0] o_7seg,
   output reg              [3:0] o_strobe,
-  output wire                   o_led2
+  output wire                   o_led_act,
+  output reg                    o_led_err
 );
   //---------------------------------------------------------------
   // constants
   //---------------------------------------------------------------
-  localparam RET_128_DEF = 0;
-  localparam RET_64_DEF  = RET_128_DEF + 1;
-  localparam RET_32_DEF  = RET_64_DEF  + 1;
-  localparam RET_16_DEF  = RET_32_DEF  + 1;
-  localparam COCHLEA_DEF = RET_16_DEF  + 1;
-  localparam DIRECT_DEF  = COCHLEA_DEF + 1;
-  localparam RET_128_ALT = DIRECT_DEF  + 1;
-  localparam RET_64_ALT  = RET_128_ALT + 1;
-  localparam RET_32_ALT  = RET_64_ALT  + 1;
-  localparam RET_16_ALT  = RET_32_ALT  + 1;
-  localparam COCHLEA_ALT = RET_16_ALT  + 1;
-  localparam DIRECT_ALT  = COCHLEA_ALT + 1;
-  localparam LAST_VALUE  = DIRECT_ALT;
+
+  // design constants, including operating modes
+  `include "raggedstone_spinn_aer_if_top.h"
 
   localparam PRESCALE_BITS = 14;
 
@@ -108,14 +96,62 @@ module raggedstone_spinn_aer_if_user_int
 
 
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-  //----------------------- leds and buttons ----------------------
+  //------------------------ mode selection -----------------------
+  //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+  // ---------------------------------------------------------
+  // NOTE: only one mode change per button pressing
+  // ---------------------------------------------------------
+  reg sel_state;
+
+  always @(posedge clk or posedge rst)
+    if (rst)
+      sel_state <= 0;
+    else
+      if (mode_sel == 1'b0)
+        sel_state <= 1;
+      else
+        sel_state <= 0;
+  // ---------------------------------------------------------
+
+  // ---------------------------------------------------------
+  // sequence through modes and virtual coords
+  // ---------------------------------------------------------
+  always @(posedge clk or posedge rst)
+    if (rst)
+      mode <= 0;
+    else
+      if ((sel_state == 0) && (mode_sel == 1'b0))
+      begin
+        if (mode == LAST_MODE)
+          mode <= 0;
+        else
+          mode <= mode + 1;
+      end
+
+  always @(posedge clk or posedge rst)
+    if (rst)
+      vc_sel <= 0;
+    else
+      if ((sel_state == 0) && (mode_sel == 1'b0) && (mode == LAST_MODE))
+      begin
+        if (vc_sel == LAST_VC)
+	  vc_sel <= 0;
+        else
+	  vc_sel <= vc_sel + 1;
+      end
+  // ---------------------------------------------------------
+  //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+
+  //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+  //----------------------------- leds ----------------------------
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   //---------------------------------------------------------------
-  // Flash LED2 (activity indicator)
+  // indicate activity by flashing "activity led"
   //---------------------------------------------------------------
   reg [23:0] lstate;
 
-  assign o_led2 = lstate[23];
+  assign o_led_act = lstate[23];
 
   always @(posedge clk or posedge rst)
     if (rst)
@@ -126,92 +162,41 @@ module raggedstone_spinn_aer_if_user_int
       else
         lstate <= lstate + 1;
   //---------------------------------------------------------------
-  
-  // ---------------------------------------------------------
-  // debounce mode select pushbutton
-  // ---------------------------------------------------------
-  reg [19:0] mode_debounce_state;
-  reg  [2:0] mode_bounce;
-  reg        mode_sel_debounced;
 
-  always @(posedge clk)
-    begin
-      mode_bounce[0] <= mode_sel;  
-      mode_bounce[1] <= mode_bounce[0];
-      mode_bounce[2] <= mode_bounce[1];
-    end
-
-  always @(posedge clk)
-    if (mode_bounce[2] != mode_bounce[1]) 
-      mode_debounce_state <= DBNCER_CONST;
-    else
-      if (mode_debounce_state != 0)
-        mode_debounce_state <= mode_debounce_state - 1;
-      else
-        mode_debounce_state <= mode_debounce_state;  // no change!
-
+  //---------------------------------------------------------------
+  // report errors using "error led"
+  //---------------------------------------------------------------
   always @(posedge clk or posedge rst)
     if (rst)
-      mode_sel_debounced <= 1'b1;
+      o_led_err <= 1'b0;
     else
-      if ((mode_bounce[2] == mode_bounce[1])
-           && (mode_debounce_state == 0)
-         )
-        mode_sel_debounced <= mode_bounce[2];
-      else
-        mode_sel_debounced <= mode_sel_debounced;  // no change!
-   // ---------------------------------------------------------
-  //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
-
-  //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-  //------------------------ mode selection -----------------------
-  //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-  // ---------------------------------------------------------
-  // NOTE: only one mode change per button press
-  // ---------------------------------------------------------
-  reg sel_state;
-
-  always @(posedge clk or posedge rst)
-    if (rst)
-      sel_state <= 0;
-    else
-      if (mode_sel_debounced == 1'b0)
-        sel_state <= 1;
-      else
-        sel_state <= 0;
-  // ---------------------------------------------------------
-
-  // ---------------------------------------------------------
-  // sequence through modes
-  // ---------------------------------------------------------
-  always @(posedge clk or posedge rst)
-    if (rst)
-      mode <= 3'b000;
-    else
-      if ((sel_state == 0) && (mode_sel_debounced == 1'b0))
-      begin
-        if (mode == LAST_VALUE)
-          mode <= 0;
-        else
-          mode <= mode + 1;
-      end
-      else
-        mode <= mode;  // no change!
-  // ---------------------------------------------------------
+      if (error)
+        o_led_err <= 1'b1;
+  //---------------------------------------------------------------
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   //------------------------ display driver -----------------------
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+  //---------------------------------------------------------------
+  // use decimal point to show virtual coord selection
+  //---------------------------------------------------------------
+  always @(posedge clk)
+    case (vc_sel)
+      VC_ALT:  point <= 4'b1110;
+
+      // no decimal point is the default
+      default: point <= 4'b1111;
+    endcase
+  //---------------------------------------------------------------
+
   // ---------------------------------------------------------
   // display current mode in 7-segment displays
   // ---------------------------------------------------------
   always @(posedge clk)
     case (mode)
-      RET_128_DEF,
-      RET_128_ALT:
+      RET_128:
         begin
           digit[0] <= 4'd10;
           digit[1] <= 4'd1;
@@ -219,8 +204,7 @@ module raggedstone_spinn_aer_if_user_int
           digit[3] <= 4'd8;
         end
 
-      RET_64_DEF,
-      RET_64_ALT:
+      RET_64:
         begin
           digit[0] <= 4'd10;
           digit[1] <= 4'd10;
@@ -228,8 +212,7 @@ module raggedstone_spinn_aer_if_user_int
           digit[3] <= 4'd4;
         end
 
-      RET_32_DEF,
-      RET_32_ALT:
+      RET_32:
         begin
           digit[0] <= 4'd10;
           digit[1] <= 4'd10;
@@ -237,8 +220,7 @@ module raggedstone_spinn_aer_if_user_int
           digit[3] <= 4'd2;
         end
 
-      RET_16_DEF,
-      RET_16_ALT:
+      RET_16:
         begin
           digit[0] <= 4'd10;
           digit[1] <= 4'd10;
@@ -246,8 +228,7 @@ module raggedstone_spinn_aer_if_user_int
           digit[3] <= 4'd6;
         end
 
-      COCHLEA_DEF,
-      COCHLEA_ALT:
+      COCHLEA:
         begin
           digit[0] <= 4'd11;
           digit[1] <= 4'd12;
@@ -255,8 +236,7 @@ module raggedstone_spinn_aer_if_user_int
           digit[3] <= 4'd13;
         end
 
-      DIRECT_DEF,
-      DIRECT_ALT:
+      DIRECT:
         begin
           digit[0] <= 4'd0;
           digit[1] <= 4'd0;
@@ -269,23 +249,6 @@ module raggedstone_spinn_aer_if_user_int
   // ---------------------------------------------------------
   // 7-segment display driver
   // ---------------------------------------------------------
-  //---------------------------------------------------------------
-  // use decimal point to signal alternate chip_address
-  //---------------------------------------------------------------
-  always @(posedge clk)
-    case (mode)
-      RET_128_ALT,
-      RET_64_ALT,
-      RET_32_ALT,
-      RET_16_ALT,
-      COCHLEA_ALT,
-      DIRECT_ALT:  point <= 4'b1110;
-
-                   // no decimal point is the default
-      default:     point <= 4'b1111;
-    endcase
-  //---------------------------------------------------------------
-
   //---------------------------------------------------------------
   // current digit selection
   //---------------------------------------------------------------
@@ -314,7 +277,7 @@ module raggedstone_spinn_aer_if_user_int
   // ---------------------------------------------------------
 
   // ---------------------------------------------------------
-  // display clock generator (external clock scaled down)
+  // display clock generator (scaled-down external clock)
   // ---------------------------------------------------------
   always @(posedge clk or posedge rst)
     if (rst)

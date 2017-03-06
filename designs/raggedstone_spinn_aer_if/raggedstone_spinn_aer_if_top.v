@@ -60,14 +60,11 @@ module raggedstone_spinn_aer_if_top
   input  wire        oaer_ack
 );
   //---------------------------------------------------------------
-  // options
-  //---------------------------------------------------------------
-
-
-  //---------------------------------------------------------------
   // constants
   //---------------------------------------------------------------
-  localparam MODE_BITS = 4;
+
+  // design constants, including operating modes
+  `include "raggedstone_spinn_aer_if_top.h"
 
 
   //---------------------------------------------------------------
@@ -85,7 +82,6 @@ module raggedstone_spinn_aer_if_top
   wire        clk_64;
   wire        clk_96;
 
-  wire        clk_vio;
   wire        clk_sync;
   wire        clk_mod;
   wire        clk_deb;
@@ -93,7 +89,6 @@ module raggedstone_spinn_aer_if_top
   // internal SpiNNaker interface signals
   // ---------------------------------------------------------
   wire  [6:0] i_ispinn_data;
-  wire  [6:0] s_ispinn_data;  // synchronized signal 
   wire        i_ispinn_ack;
 
   wire  [6:0] i_ospinn_data;
@@ -111,6 +106,10 @@ module raggedstone_spinn_aer_if_top
   wire        i_oaer_ack;
   wire        s_oaer_ack;  // synchronized signal 
 
+  wire [15:0] i_maer_data;
+  wire        i_maer_req;
+  wire        i_maer_ack;
+
   // internal packet data and hadshake signals
   // ---------------------------------------------------------
   wire [71:0] opkt_data;
@@ -123,12 +122,20 @@ module raggedstone_spinn_aer_if_top
 
   // signals for user interface
   // ---------------------------------------------------------
+  wire    [VC_BITS - 1:0] vc_sel;
+
+  wire                    mode_sel;
+  wire                    mode_sel_debounced;
   wire  [MODE_BITS - 1:0] mode;
   wire                    dump_mode;
   wire              [7:0] o_7seg;
   wire              [3:0] o_strobe;
   wire                    led2;
-  wire                    led5;
+  reg                     led5;
+
+  wire                    err_flt;
+  wire                    err_frm;
+  wire                    err_gch;
   //---------------------------------------------------------------
 
 
@@ -164,20 +171,6 @@ module raggedstone_spinn_aer_if_top
     .OUT    (s_oaer_ack)
    );
   //---------------------------------------------------------------
-
-  //---------------------------------------------------------------
-  // Synchronise the input SpiNNaker async i/f data
-  //---------------------------------------------------------------
-  spio_spinnaker_link_sync
-  #(
-    .SIZE  (7)
-  ) sdat
-  (
-    .CLK_IN (clk_sync),
-    .IN     (i_ispinn_data),
-    .OUT    (s_ispinn_data)
-   );
-  //---------------------------------------------------------------
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 
@@ -188,10 +181,10 @@ module raggedstone_spinn_aer_if_top
   (
     .RESET_IN        (rst),
     .CLK_IN          (clk_mod),
-    .FLT_ERR_OUT     (),
-    .FRM_ERR_OUT     (),
-    .GCH_ERR_OUT     (),
-    .SL_DATA_2OF7_IN (s_ispinn_data),
+    .FLT_ERR_OUT     (err_flt),
+    .FRM_ERR_OUT     (err_frm),
+    .GCH_ERR_OUT     (err_gch),
+    .SL_DATA_2OF7_IN (i_ispinn_data),
     .SL_ACK_OUT      (i_ispinn_ack),
     .PKT_DATA_OUT    (opkt_data),
     .PKT_VLD_OUT     (opkt_vld),
@@ -218,20 +211,36 @@ module raggedstone_spinn_aer_if_top
 
 
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-  //-------------------------- in_mapper --------------------------
+  //------------------------ AER event dump -----------------------
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-  spio_aer2spinn_mapper
-  #(
-    .MODE_BITS (MODE_BITS)
-  ) im
+  raggedstone_spinn_aer_if_dump ed
   (
     .rst       (rst),
     .clk       (clk_mod),
-    .mode      (mode),
+    .go        (1'b1),
     .dump_mode (dump_mode),
     .iaer_data (i_iaer_data),
     .iaer_req  (s_iaer_req),
     .iaer_ack  (i_iaer_ack),
+    .maer_data (i_maer_data),
+    .maer_req  (i_maer_req),
+    .maer_ack  (i_maer_ack)
+  );
+  //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+
+  //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+  //-------------------------- in_mapper --------------------------
+  //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+  spio_aer2spinn_mapper im
+  (
+    .rst       (rst),
+    .clk       (clk_mod),
+    .vc_sel    (vc_sel),
+    .mode      (mode),
+    .iaer_data (i_maer_data),
+    .iaer_req  (i_maer_req),
+    .iaer_ack  (i_maer_ack),
     .ipkt_data (ipkt_data),
     .ipkt_vld  (ipkt_vld),
     .ipkt_rdy  (ipkt_rdy)
@@ -260,19 +269,32 @@ module raggedstone_spinn_aer_if_top
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   //------------------------ user_interface -----------------------
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-  raggedstone_spinn_aer_if_user_int
+  // ---------------------------------------------------------
+  // debounce mode select pushbutton
+  // ---------------------------------------------------------
+  raggedstone_spinn_aer_if_debouncer
   #(
-    .DBNCER_CONST (DBNCER_CONST),
-    .MODE_BITS    (MODE_BITS)
-  ) ui
+    .DBNCER_CONST (DBNCER_CONST)
+  ) md
   (
     .rst          (rst),
     .clk          (clk_deb),
-    .mode         (mode),
-    .mode_sel     (mode_sel),
-    .o_7seg       (o_7seg),
-    .o_strobe     (o_strobe),
-    .o_led2       (led2)
+    .pb_input     (mode_sel),
+    .pb_debounced (mode_sel_debounced)
+  );
+
+  raggedstone_spinn_aer_if_user_int ui
+  (
+    .rst       (rst),
+    .clk       (clk_mod),
+    .error     (err_flt | err_frm | err_gch),
+    .vc_sel    (vc_sel),
+    .mode      (mode),
+    .mode_sel  (mode_sel_debounced),
+    .o_7seg    (o_7seg),
+    .o_strobe  (o_strobe),
+    .o_led_act (led2),
+    .o_led_err (led5)
   );
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -283,30 +305,16 @@ module raggedstone_spinn_aer_if_top
   //---------------------------------------------------------------
   // debounce reset pushbutton
   //---------------------------------------------------------------
-  reg [19:0] debounce_state;
-  reg  [2:0] bounce;
-
-  always @(posedge clk_deb)
-  begin
-    bounce[0] <= ~i_nreset;  
-    bounce[1] <= bounce[0];
-    bounce[2] <= bounce[1];
-  end
-
-  always @(posedge clk_deb)
-    if (bounce[2] != bounce[1]) 
-      debounce_state <= DBNCER_CONST;
-    else
-      if (debounce_state != 0)
-        debounce_state <= debounce_state - 1;
-      else
-        debounce_state <= debounce_state;  // no change!
-
-  always @(posedge clk_deb)
-    if ((bounce[2] == bounce[1]) && (debounce_state == 0))
-        rst_unlocked <= bounce[2];
-      else
-        rst_unlocked <= rst_unlocked;  // no change!
+  raggedstone_spinn_aer_if_debouncer
+  #(
+    .DBNCER_CONST (DBNCER_CONST)
+  ) rd
+  (
+    .rst          (rst),
+    .clk          (clk_deb),
+    .pb_input     (~i_nreset),
+    .pb_debounced (rst_unlocked)
+  );
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------
@@ -318,10 +326,9 @@ module raggedstone_spinn_aer_if_top
   //---------------------------------------------------------------
   // clock generation module
   //---------------------------------------------------------------
-  assign clk_deb  = clk_32;
-  assign clk_vio  = clk_32;
   assign clk_sync = clk_32;
   assign clk_mod  = clk_32;
+  assign clk_deb  = clk_32;
 
   clkgen cg 
   (

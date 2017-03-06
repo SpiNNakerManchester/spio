@@ -1,24 +1,26 @@
 // -------------------------------------------------------------------------
-// $Id: spinn_aer2_if_tb.v 2615 2013-10-02 10:39:58Z plana $
+//  testbench for bidirectional SpiNNaker link to AER device interface
+//
+// -------------------------------------------------------------------------
+// AUTHOR
+//  lap - luis.plana@manchester.ac.uk
+//  Based on work by J Pepper (Date 08/08/2012)
+//
+// -------------------------------------------------------------------------
+// Taken from:
+// https://solem.cs.man.ac.uk/svn/spinn_aer2_if/spinn_aer2_if.v
+// Revision 2615 (Last-modified date: 2013-10-02 11:39:58 +0100)
+//
 // -------------------------------------------------------------------------
 // COPYRIGHT
-// Copyright (c) The University of Manchester, 2012. All rights reserved.
-// SpiNNaker Project
-// Advanced Processor Technologies Group
-// School of Computer Science
+//  Copyright (c) The University of Manchester, 2012-2016.
+//  SpiNNaker Project
+//  Advanced Processor Technologies Group
+//  School of Computer Science
 // -------------------------------------------------------------------------
-// Project            : bidirectional SpiNNaker link to AER device interface
-// Module             : testbench module
-// Author             : lap
-// Status             : Review pending
-// $HeadURL: https://solem.cs.man.ac.uk/svn/spinn_aer2_if/spinn_aer2_if_tb.v $
-// Last modified on   : $Date: 2013-10-02 11:39:58 +0100 (Wed, 02 Oct 2013) $
-// Last modified by   : $Author: plana $
-// Version            : $Revision: 2615 $
+// TODO
 // -------------------------------------------------------------------------
 
-//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-//---------------------- spinn_aer2_if_tb -----------------------
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 `timescale 1ns / 1ps
 module raggedstone_spinn_aer_if_top_tb ();
@@ -27,7 +29,8 @@ module raggedstone_spinn_aer_if_top_tb ();
 //---------------------------------------------------------------
 localparam CLK_HPER  = (31.25 / 2);
 
-localparam AER_HSDLY = 1000;
+localparam IAER_HSDLY = 100;
+localparam OAER_HSDLY = 1500;
 localparam SPL_HSDLY = 8;
 
 // debouncer constants
@@ -272,11 +275,11 @@ begin
 
   forever
   begin
-    # AER_HSDLY 
+    # IAER_HSDLY 
       iaer_req = 1'b0;
 
     wait (~iaer_ack);
-    # AER_HSDLY
+    # IAER_HSDLY
       iaer_req = 1'b1;
 
     wait (iaer_ack);
@@ -302,11 +305,11 @@ begin
   forever
   begin
     wait (!oaer_req);  // active LOW
-    # AER_HSDLY
+    # OAER_HSDLY
       oaer_ack = 1'b0;
 
     wait (oaer_req);
-    # AER_HSDLY
+    # OAER_HSDLY
       oaer_ack = 1'b1;
   end
 end

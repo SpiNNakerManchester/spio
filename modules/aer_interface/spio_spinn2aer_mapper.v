@@ -13,7 +13,7 @@
 //
 // -------------------------------------------------------------------------
 // COPYRIGHT
-//  Copyright (c) The University of Manchester, 2012-2016.
+//  Copyright (c) The University of Manchester, 2012-2017.
 //  SpiNNaker Project
 //  Advanced Processor Technologies Group
 //  School of Computer Science
@@ -53,14 +53,6 @@ module spio_spinn2aer_mapper
   // internal signals
   //---------------------------------------------------------------
   reg [OSTATE_BITS - 1:0] ostate;
-  wire                    mc_pkt;
-
-
-  //---------------------------------------------------------------
-  // check if multicast packet
-  // NOTE: must throw away non-multicast packets!
-  //---------------------------------------------------------------
-  assign mc_pkt = ~opkt_data[7] & ~opkt_data[6];
 
 
   //---------------------------------------------------------------
@@ -72,7 +64,7 @@ module spio_spinn2aer_mapper
     else
       case (ostate)
         IDLE_OST:
-          if (opkt_vld && mc_pkt)
+          if (opkt_vld)
             opkt_rdy <= 1'b0;
           else
             opkt_rdy <= 1'b1;      // no change!
@@ -97,7 +89,7 @@ module spio_spinn2aer_mapper
     else
       case (ostate)
         IDLE_OST:
-          if (opkt_vld && mc_pkt)
+          if (opkt_vld)
             //# subtract 1 from core ID 26/09/2013 -lap
             oaer_data <= opkt_data[23:8] - 16'h0800;
           else
@@ -114,7 +106,7 @@ module spio_spinn2aer_mapper
     else
       case (ostate)
         IDLE_OST:
-          if (opkt_vld && mc_pkt)
+          if (opkt_vld)
             oaer_req <= 1'b0;
           else
             oaer_req <= 1'b1;      // no change!
@@ -139,7 +131,7 @@ module spio_spinn2aer_mapper
     else
       case (ostate)
         IDLE_OST:
-          if (opkt_vld && mc_pkt)
+          if (opkt_vld)
             ostate <= HS11_OST;
           else
             ostate <= IDLE_OST;  // no change!

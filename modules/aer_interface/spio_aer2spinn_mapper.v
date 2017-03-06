@@ -13,7 +13,7 @@
 //
 // -------------------------------------------------------------------------
 // COPYRIGHT
-//  Copyright (c) The University of Manchester, 2012-2016.
+//  Copyright (c) The University of Manchester, 2012-2017.
 //  SpiNNaker Project
 //  Advanced Processor Technologies Group
 //  School of Computer Science
@@ -25,16 +25,13 @@
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 `timescale 1ns / 1ps
 module spio_aer2spinn_mapper
-#(
-  parameter MODE_BITS = 4
-)
 (
   input  wire                   rst,
   input  wire                   clk,
 
   // control and status interface
+  input  wire   [VC_BITS - 1:0] vc_sel,
   input  wire [MODE_BITS - 1:0] mode,
-  output reg                    dump_mode,
 
   // input AER device interface
   input  wire            [15:0] iaer_data,
@@ -50,28 +47,13 @@ module spio_aer2spinn_mapper
   //---------------------------------------------------------------
   // constants
   //---------------------------------------------------------------
-  localparam RET_128_DEF = 0;
-  localparam RET_64_DEF  = RET_128_DEF + 1;
-  localparam RET_32_DEF  = RET_64_DEF  + 1;
-  localparam RET_16_DEF  = RET_32_DEF  + 1;
-  localparam COCHLEA_DEF = RET_16_DEF  + 1;
-  localparam DIRECT_DEF  = COCHLEA_DEF + 1;
-  localparam RET_128_ALT = DIRECT_DEF  + 1;
-  localparam RET_64_ALT  = RET_128_ALT + 1;
-  localparam RET_32_ALT  = RET_64_ALT  + 1;
-  localparam RET_16_ALT  = RET_32_ALT  + 1;
-  localparam COCHLEA_ALT = RET_16_ALT  + 1;
-  localparam DIRECT_ALT  = COCHLEA_ALT + 1;
-  localparam LAST_VALUE  = DIRECT_ALT;
 
-  // alternative chip coordinates
-  localparam CHIP_ADDR_DEF = 16'h0200;
-  localparam CHIP_ADDR_ALT = 16'hfefe;
+  // design constants, including operating modes
+  `include "raggedstone_spinn_aer_if_top.h"
 
-  localparam STATE_BITS = 2;
+  localparam STATE_BITS = 1;
   localparam IDLE_ST    = 0;
   localparam WTRQ_ST    = IDLE_ST + 1;
-  localparam DUMP_ST    = WTRQ_ST + 1;
 
 
   //---------------------------------------------------------------
@@ -79,14 +61,13 @@ module spio_aer2spinn_mapper
   //---------------------------------------------------------------
   reg [STATE_BITS - 1:0] state;
 
-  reg             [15:0] chip_addr;
+  reg             [15:0] virtual_coord;
 
-  reg             [14:0] coords;
+  reg             [15:0] aer_coords;
   wire             [6:0] new_x, new_y;
   wire                   sign_bit;
 
   reg                    busy;  // output not ready for next packet
-  reg              [7:0] dump_ctr;
 
 
   //---------------------------------------------------------------
@@ -100,20 +81,10 @@ module spio_aer2spinn_mapper
         IDLE_ST:
           if (!iaer_req && !busy)
             iaer_ack <= 1'b0;
-          else
-            iaer_ack <= 1'b1;  // no change!
 
 	WTRQ_ST:
           if (iaer_req)
             iaer_ack <= 1'b1;
-          else
-            iaer_ack <= 1'b0;  // no change!
-	
-	DUMP_ST:
-            iaer_ack <= iaer_req;  // simply complete handshake!
-	
-	default:  
-            iaer_ack <= iaer_ack;  // no change!
       endcase
   //---------------------------------------------------------------
 
@@ -123,25 +94,31 @@ module spio_aer2spinn_mapper
   //---------------------------------------------------------------
   always @(*)
     case (mode)
-      RET_64_DEF,  // retina 64x64 mode
-      RET_64_ALT:  coords = {sign_bit, 2'b00, new_y[6:1], new_x[6:1]};
+      // retina 64x64 mode
+      RET_64:  aer_coords = {iaer_data[15], sign_bit, 2'b00,
+                              new_y[6:1], new_x[6:1]
+                            };
 
-      RET_32_DEF,  // retina 32x32 mode
-      RET_32_ALT:  coords = {sign_bit, 4'b0000, new_y[6:2], new_x[6:2]};
+      // retina 32x32 mode
+      RET_32:  aer_coords = {iaer_data[15], sign_bit, 4'b0000,
+                              new_y[6:2], new_x[6:2]
+                            };
 
-      RET_16_DEF,  // retina 16x16 mode
-      RET_16_ALT:  coords = {sign_bit, 6'b000000, new_y[6:3], new_x[6:3]};
+      // retina 16x16 mode
+      RET_16:  aer_coords = {iaer_data[15], sign_bit, 6'b000000,
+                              new_y[6:3], new_x[6:3]
+                            };
 
-      COCHLEA_DEF, // cochlea mode
-      COCHLEA_ALT: coords = {3'b000, iaer_data[1], 3'b000,
+      // cochlea mode
+      COCHLEA: aer_coords = {iaer_data[15], 3'b000, iaer_data[1], 3'b000,
                               iaer_data[7:2],iaer_data[9:8]
                             };
 
-      DIRECT_DEF,  // straight-through mode
-      DIRECT_ALT:  coords = iaer_data[14:0];
+      // straight-through mode
+      DIRECT:  aer_coords = iaer_data[15:0];
 
-      default:     // make the retina 128x128 mode the default
-                   coords = {sign_bit, new_y, new_x};
+      // make the retina 128x128 mode the default
+      default: aer_coords = {iaer_data[15], sign_bit, new_y, new_x};
     endcase
   //---------------------------------------------------------------
 
@@ -155,19 +132,12 @@ module spio_aer2spinn_mapper
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------
-  // virtual chip address selection
+  // virtual coord selection
   //---------------------------------------------------------------
   always @(*)
-    case (mode)
-      RET_128_ALT,
-      RET_64_ALT,
-      RET_32_ALT,
-      RET_16_ALT,
-      COCHLEA_ALT,
-      DIRECT_ALT:  chip_addr = CHIP_ADDR_ALT;
-
-                   // DEF is the default address!
-      default:     chip_addr = CHIP_ADDR_DEF;
+    case (vc_sel)
+      VC_ALT:  virtual_coord = VIRTUAL_COORD_ALT;
+      default: virtual_coord = VIRTUAL_COORD_DEF;
     endcase
   //---------------------------------------------------------------
 
@@ -177,9 +147,8 @@ module spio_aer2spinn_mapper
   //---------------------------------------------------------------
   wire [38:0]  pkt_bits;
   wire         parity;
-  reg          nxt_vld;
    
-  assign pkt_bits = {chip_addr, iaer_data[15], coords, 7'd0};
+  assign pkt_bits = {virtual_coord, aer_coords, 7'd0};
   assign parity   = ~(^pkt_bits);
 
   always @(posedge clk or posedge rst)
@@ -190,68 +159,33 @@ module spio_aer2spinn_mapper
         IDLE_ST:
           if (!iaer_req && !busy)
             ipkt_data <= {32'd0, pkt_bits, parity};  // no payload!
-          else
-            ipkt_data <= ipkt_data;  // no change!
-
-	default:  
-            ipkt_data <= ipkt_data;  // no change!
       endcase
 
   always @(posedge clk or posedge rst)
     if (rst)
       ipkt_vld <= 1'b0;
     else
-      if (nxt_vld || busy)
-        ipkt_vld <= 1'b1;
-      else
-        ipkt_vld <= 1'b0;
+      case (state)
+    	IDLE_ST:
+          if (!iaer_req || busy)
+            ipkt_vld <= 1'b1;
+          else
+            ipkt_vld <= 1'b0;
+
+    	WTRQ_ST:
+          if (busy)
+            ipkt_vld <= 1'b1;
+          else
+            ipkt_vld <= 1'b0;
+      endcase 
   //---------------------------------------------------------------
 
-  //---------------------------------------------------------------
-  // new packet valid -- can send
-  //---------------------------------------------------------------
-  always @(*)
-    case (state)
-    	IDLE_ST: if (!iaer_req && !busy)
-                   nxt_vld <= 1'b1;
-                 else
-                   nxt_vld <= 1'b0;
-
-    	default:   nxt_vld <= 1'b0;
-    endcase 
-  //---------------------------------------------------------------
 
   //---------------------------------------------------------------
   // busy (output packet interface not ready to accept new one)
   //---------------------------------------------------------------
   always @(*)
     busy = ipkt_vld && !ipkt_rdy;
-  //---------------------------------------------------------------
-
-
-  //---------------------------------------------------------------
-  // dump events from AER device if SpiNNaker not responding!
-  // dump after 128 cycles without SpiNNaker response
-  //---------------------------------------------------------------
-  always @(posedge clk or posedge rst)
-    if (rst)
-      dump_ctr <= 8'd128;
-    else
-      if (ipkt_rdy)
-        dump_ctr <= 8'd128;  // spinn_driver ready resets counter
-      else if (dump_ctr != 5'd0)
-        dump_ctr <= dump_ctr - 1;
-      else
-        dump_ctr <= dump_ctr;  // no change!
- 
-  always @(posedge clk or posedge rst)
-    if (rst)
-      dump_mode <= 1'b0;
-    else
-      if (state == DUMP_ST)
-        dump_mode <= 1'b1;
-      else
-        dump_mode <= 1'b0;
   //---------------------------------------------------------------
 
 
@@ -264,27 +198,12 @@ module spio_aer2spinn_mapper
     else
       case (state)
         IDLE_ST:
-          casex ({(dump_ctr == 0), iaer_req, busy})
-            3'b1xx:  state <= DUMP_ST;
-            3'b000:  state <= WTRQ_ST;
-            default: state <= IDLE_ST;  // no change!
-	  endcase
+          if (!iaer_req && !busy)
+            state <= WTRQ_ST;
 
 	WTRQ_ST:
           if (iaer_req)
             state <= IDLE_ST;
-          else
-            state <= WTRQ_ST;  // no change!
-
-	DUMP_ST:
-          case ({ipkt_rdy, iaer_req})
-            2'b10:   state <= WTRQ_ST;
-            2'b11:   state <= IDLE_ST;
-            default: state <= DUMP_ST;  // no change!
-	  endcase
-	
-	default:  
-            state <= state;  // no change!
       endcase
 endmodule
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
