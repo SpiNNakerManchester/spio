@@ -131,7 +131,8 @@ module raggedstone_spinn_aer_if_top
   wire              [7:0] o_7seg;
   wire              [3:0] o_strobe;
   wire                    led2;
-  reg                     led5;
+  wire                    led4;
+  wire                    led5;
 
   wire                    err_flt;
   wire                    err_frm;
@@ -289,11 +290,13 @@ module raggedstone_spinn_aer_if_top
     .clk       (clk_mod),
     .error     (err_flt | err_frm | err_gch),
     .vc_sel    (vc_sel),
+    .dump_mode (dump_mode),
     .mode      (mode),
     .mode_sel  (mode_sel_debounced),
     .o_7seg    (o_7seg),
     .o_strobe  (o_strobe),
     .o_led_act (led2),
+    .o_led_dmp (led4),
     .o_led_err (led5)
   );
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -353,7 +356,7 @@ module raggedstone_spinn_aer_if_top
   IBUF  nreset_buf    (.I (ext_nreset),   .O (i_nreset));
   OBUF  act_led_buf   (.I (led2),         .O (ext_led2));
   OBUF  reset_led_buf (.I (rst),          .O (ext_led3));
-  OBUF  dump_mode_buf (.I (dump_mode),    .O (ext_led4));
+  OBUF  dump_mode_buf (.I (led4),         .O (ext_led4));
   OBUF  debug_buf     (.I (led5),         .O (ext_led5));
   IBUF  mode_sel_buf  (.I (ext_mode_sel), .O (mode_sel));
   //---------------------------------------------------------------

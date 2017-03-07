@@ -28,6 +28,7 @@ module raggedstone_spinn_aer_if_user_int
   input  wire                   clk,
 
   // control and status interface
+  input  wire                   dump_mode,
   input  wire                   error,
   output reg    [VC_BITS - 1:0] vc_sel,
   output reg  [MODE_BITS - 1:0] mode,
@@ -37,6 +38,7 @@ module raggedstone_spinn_aer_if_user_int
   output reg              [7:0] o_7seg,
   output reg              [3:0] o_strobe,
   output wire                   o_led_act,
+  output wire                   o_led_dmp,
   output reg                    o_led_err
 );
   //---------------------------------------------------------------
@@ -164,7 +166,13 @@ module raggedstone_spinn_aer_if_user_int
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------
-  // report errors using "error led"
+  // report dump mode using "dump led"
+  //---------------------------------------------------------------
+  assign o_led_dmp = dump_mode;
+  //---------------------------------------------------------------
+
+  //---------------------------------------------------------------
+  // report errors using "error led" (sticky)
   //---------------------------------------------------------------
   always @(posedge clk or posedge rst)
     if (rst)
