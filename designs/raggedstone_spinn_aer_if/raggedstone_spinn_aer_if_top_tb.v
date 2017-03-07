@@ -8,12 +8,12 @@
 //
 // -------------------------------------------------------------------------
 // Taken from:
-// https://solem.cs.man.ac.uk/svn/spinn_aer2_if/spinn_aer2_if.v
+// https://solem.cs.man.ac.uk/svn/spinn_aer2_if/spinn_aer2_if_tb.v
 // Revision 2615 (Last-modified date: 2013-10-02 11:39:58 +0100)
 //
 // -------------------------------------------------------------------------
 // COPYRIGHT
-//  Copyright (c) The University of Manchester, 2012-2016.
+//  Copyright (c) The University of Manchester, 2012-2017.
 //  SpiNNaker Project
 //  Advanced Processor Technologies Group
 //  School of Computer Science
@@ -472,5 +472,5 @@ begin
       clk = ~clk;
    end
 end
-//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 endmodule
+//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

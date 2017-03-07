@@ -21,6 +21,7 @@
 // TODO
 // -------------------------------------------------------------------------
 
+`include "../../modules/spinnaker_link/spio_spinnaker_link.h"
 
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 `timescale 1ns / 1ps
@@ -39,7 +40,7 @@ module spio_aer2spinn_mapper
   output reg                    iaer_ack,
 
   // SpiNNaker packet interface
-  output reg             [71:0] ipkt_data,
+  output reg  [`PKT_BITS - 1:0] ipkt_data,
   output reg                    ipkt_vld,
   input  wire                   ipkt_rdy
 );

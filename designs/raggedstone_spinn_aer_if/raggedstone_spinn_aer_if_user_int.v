@@ -1,25 +1,26 @@
 // -------------------------------------------------------------------------
-// $Id: user_int.v 2615 2013-10-02 10:39:58Z plana $
+//  Raggedstone board user interface module
+//
+// -------------------------------------------------------------------------
+// AUTHOR
+//  lap - luis.plana@manchester.ac.uk
+//  Based on work by J Pepper (Date 08/08/2012)
+//
+// -------------------------------------------------------------------------
+// Taken from:
+// https://solem.cs.man.ac.uk/svn/spinn_aer2_if/user_int.v
+// Revision 2615 (Last-modified date: 2013-10-02 11:39:58 +0100)
+//
 // -------------------------------------------------------------------------
 // COPYRIGHT
-// Copyright (c) The University of Manchester, 2012. All rights reserved.
-// SpiNNaker Project
-// Advanced Processor Technologies Group
-// School of Computer Science
+//  Copyright (c) The University of Manchester, 2012-2017.
+//  SpiNNaker Project
+//  Advanced Processor Technologies Group
+//  School of Computer Science
 // -------------------------------------------------------------------------
-// Project            : bidirectional SpiNNaker link to AER device interface
-// Module             : user interface module
-// Author             : lap/Jeff Pepper/Simon Davidson
-// Status             : Review pending
-// $HeadURL: https://solem.cs.man.ac.uk/svn/spinn_aer2_if/user_int.v $
-// Last modified on   : $Date: 2013-10-02 11:39:58 +0100 (Wed, 02 Oct 2013) $
-// Last modified by   : $Author: plana $
-// Version            : $Revision: 2615 $
+// TODO
 // -------------------------------------------------------------------------
 
-
-//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-//------------------------ user_interface -----------------------
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 `timescale 1ns / 1ps
 module raggedstone_spinn_aer_if_user_int
@@ -302,5 +303,5 @@ module raggedstone_spinn_aer_if_user_int
   always @(posedge prescale_out)
     display_clk <= ~display_clk;
   // ---------------------------------------------------------
-  //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 endmodule
+//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

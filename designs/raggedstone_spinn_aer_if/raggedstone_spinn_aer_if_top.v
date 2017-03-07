@@ -13,13 +13,15 @@
 //
 // -------------------------------------------------------------------------
 // COPYRIGHT
-//  Copyright (c) The University of Manchester, 2012-2016.
+//  Copyright (c) The University of Manchester, 2012-2017.
 //  SpiNNaker Project
 //  Advanced Processor Technologies Group
 //  School of Computer Science
 // -------------------------------------------------------------------------
 // TODO
 // -------------------------------------------------------------------------
+
+`include "../../modules/spinnaker_link/spio_spinnaker_link.h"
 
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 `timescale 1ns / 1ps
@@ -112,13 +114,13 @@ module raggedstone_spinn_aer_if_top
 
   // internal packet data and hadshake signals
   // ---------------------------------------------------------
-  wire [71:0] opkt_data;
-  wire        opkt_vld;
-  wire        opkt_rdy;
+  wire [`PKT_BITS - 1:0] opkt_data;
+  wire                   opkt_vld;
+  wire                   opkt_rdy;
 
-  wire [71:0] ipkt_data;
-  wire        ipkt_vld;
-  wire        ipkt_rdy;
+  wire [`PKT_BITS - 1:0] ipkt_data;
+  wire                   ipkt_vld;
+  wire                   ipkt_rdy;
 
   // signals for user interface
   // ---------------------------------------------------------
@@ -408,5 +410,5 @@ module raggedstone_spinn_aer_if_top
   OBUF  strobe_buf2   (.I (o_strobe[2]), .O (ext_strobe[2]));
   OBUF  strobe_buf3   (.I (o_strobe[3]), .O (ext_strobe[3]));
   // ---------------------------------------------------------
-  //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 endmodule
+//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

@@ -21,6 +21,7 @@
 // TODO
 // -------------------------------------------------------------------------
 
+`include "../../modules/spinnaker_link/spio_spinnaker_link.h"
 
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 `timescale 1ns / 1ps
@@ -30,9 +31,9 @@ module spio_spinn2aer_mapper
   input wire         clk,
 
   // SpiNNaker packet interface
-  input  wire [71:0] opkt_data,
-  input  wire        opkt_vld,
-  output reg         opkt_rdy,
+  input  wire [`PKT_BITS - 1:0] opkt_data,
+  input  wire                   opkt_vld,
+  output reg                    opkt_rdy,
 
   // output AER device interface
   output reg  [15:0] oaer_data,

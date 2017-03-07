@@ -35,4 +35,10 @@ localparam COCHLEA = RET_16  + 1;
 localparam DIRECT  = COCHLEA + 1;
 localparam LAST_MODE = DIRECT;
 
+// ---------------------
+// control and routing
+// ---------------------
+localparam CTRL_KEY = 32'h0000fffe
+localparam CTRL_MSK = 32'h0000fffe
+
 `endif
