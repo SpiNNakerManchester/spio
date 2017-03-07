@@ -21,6 +21,7 @@
 // TODO
 // -------------------------------------------------------------------------
 
+`include "raggedstone_spinn_aer_if_top.h"
 `include "../../modules/spinnaker_link/spio_spinnaker_link.h"
 
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -62,20 +63,10 @@ module raggedstone_spinn_aer_if_top
   input  wire        oaer_ack
 );
   //---------------------------------------------------------------
-  // constants
-  //---------------------------------------------------------------
-
-  // design constants, including operating modes
-  `include "raggedstone_spinn_aer_if_top.h"
-
-
-  //---------------------------------------------------------------
-  // internal signals
-  //---------------------------------------------------------------
-  // control signals
+  // reset and clock signals
   // ---------------------------------------------------------
   wire        i_nreset;
-  reg         rst_unlocked;
+  wire        rst_unlocked;
   wire        rst;
   wire        cg_locked;
 
@@ -108,28 +99,42 @@ module raggedstone_spinn_aer_if_top
   wire        i_oaer_ack;
   wire        s_oaer_ack;  // synchronized signal 
 
-  wire [15:0] i_maer_data;
-  wire        i_maer_req;
-  wire        i_maer_ack;
-
   // internal packet data and hadshake signals
   // ---------------------------------------------------------
+  wire [`PKT_BITS - 1:0] spkt_data;
+  wire                   spkt_vld;
+  wire                   spkt_rdy;
+
   wire [`PKT_BITS - 1:0] opkt_data;
   wire                   opkt_vld;
   wire                   opkt_rdy;
+
+  wire [`PKT_BITS - 1:0] cpkt_data;
+  wire                   cpkt_vld;
+  wire                   cpkt_rdy;
+
+  wire [`PKT_BITS - 1:0] mpkt_data;
+  wire                   mpkt_vld;
+  wire                   mpkt_rdy;
 
   wire [`PKT_BITS - 1:0] ipkt_data;
   wire                   ipkt_vld;
   wire                   ipkt_rdy;
 
+  // control signals
+  // ---------------------------------------------------------
+  wire [`MODE_BITS - 1:0] ct_mode;
+  wire                    ct_event_go;
+  wire [`VCRD_BITS - 1:0] vcoord;
+
   // signals for user interface
   // ---------------------------------------------------------
-  wire    [VC_BITS - 1:0] vc_sel;
+  wire   [`VC_BITS - 1:0] ui_vcoord;
+  wire [`MODE_BITS - 1:0] ui_mode;
+  wire                    dump_mode;
 
   wire                    mode_sel;
   wire                    mode_sel_debounced;
-  wire  [MODE_BITS - 1:0] mode;
-  wire                    dump_mode;
   wire              [7:0] o_7seg;
   wire              [3:0] o_strobe;
   wire                    led2;
@@ -189,9 +194,29 @@ module raggedstone_spinn_aer_if_top
     .GCH_ERR_OUT     (err_gch),
     .SL_DATA_2OF7_IN (i_ispinn_data),
     .SL_ACK_OUT      (i_ispinn_ack),
-    .PKT_DATA_OUT    (opkt_data),
-    .PKT_VLD_OUT     (opkt_vld),
-    .PKT_RDY_IN      (opkt_rdy)
+    .PKT_DATA_OUT    (spkt_data),
+    .PKT_VLD_OUT     (spkt_vld),
+    .PKT_RDY_IN      (spkt_rdy)
+  );
+  //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+
+  //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+  //------------------------ packet router ------------------------
+  //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+  raggedstone_spinn_aer_if_router pr
+  (
+    .rst       (rst),
+    .clk       (clk_mod),
+    .spkt_data (spkt_data),
+    .spkt_vld  (spkt_vld),
+    .spkt_rdy  (spkt_rdy),
+    .opkt_data (opkt_data),
+    .opkt_vld  (opkt_vld),
+    .opkt_rdy  (opkt_rdy),
+    .cpkt_data (cpkt_data),
+    .cpkt_vld  (cpkt_vld),
+    .cpkt_rdy  (cpkt_rdy)
   );
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -214,20 +239,20 @@ module raggedstone_spinn_aer_if_top
 
 
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-  //------------------------ AER event dump -----------------------
+  //-------------------------- controller -------------------------
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-  raggedstone_spinn_aer_if_dump ed
+  raggedstone_spinn_aer_if_control ct
   (
     .rst       (rst),
     .clk       (clk_mod),
-    .go        (1'b1),
-    .dump_mode (dump_mode),
-    .iaer_data (i_iaer_data),
-    .iaer_req  (s_iaer_req),
-    .iaer_ack  (i_iaer_ack),
-    .maer_data (i_maer_data),
-    .maer_req  (i_maer_req),
-    .maer_ack  (i_maer_ack)
+    .cpkt_data (cpkt_data),
+    .cpkt_vld  (cpkt_vld),
+    .cpkt_rdy  (cpkt_rdy),
+    .ui_mode   (ui_mode),
+    .ui_vcoord (ui_vcoord),
+    .ct_mode   (ct_mode),
+    .vcoord    (vcoord),
+    .go        (ct_event_go)
   );
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -239,11 +264,30 @@ module raggedstone_spinn_aer_if_top
   (
     .rst       (rst),
     .clk       (clk_mod),
-    .vc_sel    (vc_sel),
-    .mode      (mode),
-    .iaer_data (i_maer_data),
-    .iaer_req  (i_maer_req),
-    .iaer_ack  (i_maer_ack),
+    .mode      (ct_mode),
+    .vcoord    (vcoord),
+    .iaer_data (i_iaer_data),
+    .iaer_req  (s_iaer_req),
+    .iaer_ack  (i_iaer_ack),
+    .ipkt_data (mpkt_data),
+    .ipkt_vld  (mpkt_vld),
+    .ipkt_rdy  (mpkt_rdy)
+  );
+  //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+
+  //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+  //------------------ AER2SpiNNaker packet dump ------------------
+  //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+  raggedstone_spinn_aer_if_dump pd
+  (
+    .rst       (rst),
+    .clk       (clk_mod),
+    .go        (ct_event_go),
+    .dump_mode (dump_mode),
+    .mpkt_data (mpkt_data),
+    .mpkt_vld  (mpkt_vld),
+    .mpkt_rdy  (mpkt_rdy),
     .ipkt_data (ipkt_data),
     .ipkt_vld  (ipkt_vld),
     .ipkt_rdy  (ipkt_rdy)
@@ -277,7 +321,8 @@ module raggedstone_spinn_aer_if_top
   // ---------------------------------------------------------
   raggedstone_spinn_aer_if_debouncer
   #(
-    .DBNCER_CONST (DBNCER_CONST)
+    .DBNCER_CONST (DBNCER_CONST),
+    .RESET_VALUE  (1'b1)
   ) md
   (
     .rst          (rst),
@@ -290,11 +335,11 @@ module raggedstone_spinn_aer_if_top
   (
     .rst       (rst),
     .clk       (clk_mod),
-    .error     (err_flt | err_frm | err_gch),
-    .vc_sel    (vc_sel),
-    .dump_mode (dump_mode),
-    .mode      (mode),
     .mode_sel  (mode_sel_debounced),
+    .dump_mode (dump_mode),
+    .error     (err_flt | err_frm | err_gch),
+    .ui_mode   (ui_mode),
+    .ui_vcoord (ui_vcoord),
     .o_7seg    (o_7seg),
     .o_strobe  (o_strobe),
     .o_led_act (led2),
@@ -315,7 +360,7 @@ module raggedstone_spinn_aer_if_top
     .DBNCER_CONST (DBNCER_CONST)
   ) rd
   (
-    .rst          (rst),
+    .rst          (1'b0),  // no reset for the reset signal!
     .clk          (clk_deb),
     .pb_input     (~i_nreset),
     .pb_debounced (rst_unlocked)
@@ -325,7 +370,7 @@ module raggedstone_spinn_aer_if_top
   //---------------------------------------------------------------
   // generate reset signal -- keep it active until clkgen locked!
   //---------------------------------------------------------------
-  assign rst = rst_unlocked || !cg_locked;
+  assign rst = rst_unlocked | !cg_locked;
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------

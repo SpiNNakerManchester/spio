@@ -21,6 +21,7 @@
 // TODO
 // -------------------------------------------------------------------------
 
+`include "../../modules/spinnaker_link/spio_spinnaker_link.h"
 
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 `timescale 1ns / 1ps
@@ -31,29 +32,28 @@ module raggedstone_spinn_aer_if_dump
 
   // control and status interface
   input  wire                   go,
-  output reg                    dump_mode,
+  output wire                   dump_mode,
 
   // AER bus interface
-  input  wire            [15:0] iaer_data,
-  input  wire                   iaer_req,
-  output reg                    iaer_ack,
+  input  wire [`PKT_BITS - 1:0] mpkt_data,
+  input  wire                   mpkt_vld,
+  output wire                   mpkt_rdy,
 
-  // AER mapper interface
-  output reg             [15:0] maer_data,
-  output reg                    maer_req,
-  input  wire                   maer_ack
+  // SpiNNaker packet interface
+  output wire [`PKT_BITS - 1:0] ipkt_data,
+  output wire                   ipkt_vld,
+  input  wire                   ipkt_rdy
 );
 
   //---------------------------------------------------------------
   // constants
   //---------------------------------------------------------------
-  // dump incoming events after 128 cycles without mapper response
+  // dump incoming event packets if SpiNNaker busy for 128 cycles
   localparam DUMP_CNT   = 128;
 
   localparam STATE_BITS = 1;
   localparam IDLE_ST    = 0;
   localparam DUMP_ST    = IDLE_ST + 1;
-  localparam WAIT_ST    = DUMP_ST + 1;
 
 
   //---------------------------------------------------------------
@@ -61,89 +61,68 @@ module raggedstone_spinn_aer_if_dump
   //---------------------------------------------------------------
   reg [STATE_BITS - 1:0] state;
 
-  reg                    busy;  // output not ready for next packet
-  reg              [7:0] dump_ctr;
+  wire                   busy;  // output not ready for next packet
+  reg              [7:0] busy_ctr;
 
 
   //---------------------------------------------------------------
-  // generate bus ack signal
+  // use switch to drop event packets
   //---------------------------------------------------------------
-  always @(*)
-    if (rst)
-      iaer_ack = 1'b1;  // active LOW!
-    else
-      case (state)
-        IDLE_ST:
-          if (go)
-            iaer_ack = maer_ack;  // pass mapper ack
-          else
-            iaer_ack = iaer_req;  // complete handshake
-
-	default:
-            iaer_ack = iaer_req;  // complete handshake
-      endcase
-  //---------------------------------------------------------------
-
-
-  //---------------------------------------------------------------
-  // generate mapper data and req signals
-  //---------------------------------------------------------------
-  always @(*)
-    maer_data = iaer_data;
-
-  always @(*)
-    if (rst)
-      maer_req = 1'b1;  // active LOW!
-    else
-      case (state)
-        IDLE_ST:
-          if (go)
-            maer_req = iaer_req;
-          else
-            maer_req = 1'b1;  // no requests sent
-
-	DUMP_ST:
-            maer_req = 1'b0;  // keep un-acked request
-
-	default:
-            maer_req = 1'b1;  // complete request handshake
-      endcase
+  spio_switch
+  #(
+    .PKT_BITS(`PKT_BITS),
+    .NUM_PORTS(1)
+  ) sw
+  (
+    .RESET_IN             (rst),
+    .CLK_IN               (clk),
+    .IN_DATA_IN           (mpkt_data),
+    .IN_VLD_IN            (mpkt_vld),
+    .IN_RDY_OUT           (mpkt_rdy),
+    .IN_OUTPUT_SELECT_IN  (go),
+    .OUT_DATA_OUT         (ipkt_data),
+    .OUT_VLD_OUT          (ipkt_vld),
+    .OUT_RDY_IN           (ipkt_rdy),
+    .BLOCKED_OUTPUTS_OUT  (),
+    .SELECTED_OUTPUTS_OUT (),
+    .DROP_IN              (dump_mode),
+    .DROPPED_DATA_OUT     (),
+    .DROPPED_OUTPUTS_OUT  (),
+    .DROPPED_VLD_OUT      ()
+  );
   //---------------------------------------------------------------
 
 
   //---------------------------------------------------------------
-  // mapper busy, i.e., has not accepted requested event
-  //---------------------------------------------------------------
-  always @(*)
-    busy = !maer_req && maer_ack;
-  //---------------------------------------------------------------
-
-
-  //---------------------------------------------------------------
-  // dump events from AER bus if mapper not responding!
+  // dump packets if SpiNNaker busy for DUMP_CNT consecutive cycles
   //---------------------------------------------------------------
   always @(posedge clk or posedge rst)
     if (rst)
-      dump_ctr <= DUMP_CNT;
+      busy_ctr <= DUMP_CNT;
     else
       if (!busy)
-        dump_ctr <= DUMP_CNT;  // mapper ready resets counter
-      else if (dump_ctr != 0)
-        dump_ctr <= dump_ctr - 1;
+        busy_ctr <= DUMP_CNT;  // SpiNNaker not busy resets counter
+      else if (busy_ctr != 0)
+        busy_ctr <= busy_ctr - 1;
+  //---------------------------------------------------------------
  
-  always @(posedge clk or posedge rst)
-    if (rst)
-      dump_mode <= 1'b0;
-    else
-      if ((state == DUMP_ST) || (state == WAIT_ST))
-        dump_mode <= 1'b1;
-      else
-        dump_mode <= 1'b0;
+
+  //---------------------------------------------------------------
+  // report when dumping packets
+  //---------------------------------------------------------------
+  assign dump_mode = (state == DUMP_ST);
   //---------------------------------------------------------------
 
 
   //---------------------------------------------------------------
-  // controller state machine
+  // check if SpiNNaker is responding
+  //---------------------------------------------------------------
+  assign busy = ipkt_vld && !ipkt_rdy;
+  //---------------------------------------------------------------
+
+
+  //---------------------------------------------------------------
+  // dump state machine
   //---------------------------------------------------------------
   always @(posedge clk or posedge rst)
     if (rst)
@@ -151,18 +130,11 @@ module raggedstone_spinn_aer_if_dump
     else
       case (state)
         IDLE_ST:
-          if (dump_ctr == 0)
+          if (busy_ctr == 0)
             state <= DUMP_ST;
 
 	DUMP_ST:
           if (!busy)
-            state <= WAIT_ST;
-
-	WAIT_ST:
-          if (iaer_req && maer_ack)
-            state <= IDLE_ST;
-
-        default:
 	    state <= IDLE_ST;
       endcase
 endmodule

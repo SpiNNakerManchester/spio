@@ -21,37 +21,35 @@
 // TODO
 // -------------------------------------------------------------------------
 
+
+`include "raggedstone_spinn_aer_if_top.h"
 `include "../../modules/spinnaker_link/spio_spinnaker_link.h"
 
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 `timescale 1ns / 1ps
 module spio_aer2spinn_mapper
 (
-  input  wire                   rst,
-  input  wire                   clk,
+  input  wire                    rst,
+  input  wire                    clk,
 
-  // control and status interface
-  input  wire   [VC_BITS - 1:0] vc_sel,
-  input  wire [MODE_BITS - 1:0] mode,
+  // control interface
+  input  wire [`MODE_BITS - 1:0] mode,
+  input  wire [`VCRD_BITS - 1:0] vcoord,
 
   // input AER device interface
-  input  wire            [15:0] iaer_data,
-  input  wire                   iaer_req,
-  output reg                    iaer_ack,
+  input  wire             [15:0] iaer_data,
+  input  wire                    iaer_req,
+  output reg                     iaer_ack,
 
   // SpiNNaker packet interface
-  output reg  [`PKT_BITS - 1:0] ipkt_data,
-  output reg                    ipkt_vld,
-  input  wire                   ipkt_rdy
+  output reg   [`PKT_BITS - 1:0] ipkt_data,
+  output reg                     ipkt_vld,
+  input  wire                    ipkt_rdy
 );
 
   //---------------------------------------------------------------
   // constants
   //---------------------------------------------------------------
-
-  // design constants, including operating modes
-  `include "raggedstone_spinn_aer_if_top.h"
-
   localparam STATE_BITS = 1;
   localparam IDLE_ST    = 0;
   localparam WTRQ_ST    = IDLE_ST + 1;
@@ -61,8 +59,6 @@ module spio_aer2spinn_mapper
   // internal signals
   //---------------------------------------------------------------
   reg [STATE_BITS - 1:0] state;
-
-  reg             [15:0] virtual_coord;
 
   reg             [15:0] aer_coords;
   wire             [6:0] new_x, new_y;
@@ -96,30 +92,30 @@ module spio_aer2spinn_mapper
   always @(*)
     case (mode)
       // retina 64x64 mode
-      RET_64:  aer_coords = {iaer_data[15], sign_bit, 2'b00,
-                              new_y[6:1], new_x[6:1]
-                            };
+      `RET_64:  aer_coords = {iaer_data[15], sign_bit, 2'b00,
+                               new_y[6:1], new_x[6:1]
+                             };
 
       // retina 32x32 mode
-      RET_32:  aer_coords = {iaer_data[15], sign_bit, 4'b0000,
-                              new_y[6:2], new_x[6:2]
-                            };
+      `RET_32:  aer_coords = {iaer_data[15], sign_bit, 4'b0000,
+                               new_y[6:2], new_x[6:2]
+                             };
 
       // retina 16x16 mode
-      RET_16:  aer_coords = {iaer_data[15], sign_bit, 6'b000000,
-                              new_y[6:3], new_x[6:3]
-                            };
+      `RET_16:  aer_coords = {iaer_data[15], sign_bit, 6'b000000,
+                               new_y[6:3], new_x[6:3]
+                             };
 
       // cochlea mode
-      COCHLEA: aer_coords = {iaer_data[15], 3'b000, iaer_data[1], 3'b000,
-                              iaer_data[7:2],iaer_data[9:8]
-                            };
+      `COCHLEA: aer_coords = {iaer_data[15], 3'b000, iaer_data[1], 3'b000,
+                               iaer_data[7:2],iaer_data[9:8]
+                             };
 
       // straight-through mode
-      DIRECT:  aer_coords = iaer_data[15:0];
+      `DIRECT:  aer_coords = iaer_data[15:0];
 
       // make the retina 128x128 mode the default
-      default: aer_coords = {iaer_data[15], sign_bit, new_y, new_x};
+      default:  aer_coords = {iaer_data[15], sign_bit, new_y, new_x};
     endcase
   //---------------------------------------------------------------
 
@@ -132,16 +128,6 @@ module spio_aer2spinn_mapper
   assign sign_bit = iaer_data[0];
   //---------------------------------------------------------------
 
-  //---------------------------------------------------------------
-  // virtual coord selection
-  //---------------------------------------------------------------
-  always @(*)
-    case (vc_sel)
-      VC_ALT:  virtual_coord = VIRTUAL_COORD_ALT;
-      default: virtual_coord = VIRTUAL_COORD_DEF;
-    endcase
-  //---------------------------------------------------------------
-
 
   //---------------------------------------------------------------
   // packet interface
@@ -149,7 +135,7 @@ module spio_aer2spinn_mapper
   wire [38:0]  pkt_bits;
   wire         parity;
    
-  assign pkt_bits = {virtual_coord, aer_coords, 7'd0};
+  assign pkt_bits = {vcoord, aer_coords, 7'd0};
   assign parity   = ~(^pkt_bits);
 
   always @(posedge clk or posedge rst)

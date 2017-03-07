@@ -60,6 +60,8 @@ wire [15:0] oaer_data;
 wire        oaer_req;
 reg         oaer_ack;
 
+wire        dump_mode;
+
 
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 //--------------------------- functions -------------------------
@@ -245,7 +247,7 @@ raggedstone_spinn_aer_if_top
   .ext_strobe               (),
   .ext_led2                 (),
   .ext_led3                 (),
-  .ext_led4                 (),
+  .ext_led4                 (dump_mode),
 
   .data_2of7_from_spinnaker (ispl_data),
   .ack_to_spinnaker         (ispl_ack),
@@ -322,14 +324,20 @@ wire [39:0] packet;
 reg  [15:0] pkt_data;
 wire        parity;
 
-reg        old_ack;
+reg         old_ack;
+
+integer  data;
+integer  count;
 
 assign parity = ~(^pkt_data);
 assign packet = {8'hff, 8'hff, pkt_data, 7'b0000000, parity};
 
 initial
 begin
-  pkt_data = 0;
+  data  = 0;
+  count = 0;
+
+  pkt_data = data;
 
   ispl_data = 0;
 
@@ -404,7 +412,13 @@ begin
     old_ack = ispl_ack;
     wait (ispl_ack != old_ack);
 
-    pkt_data = pkt_data + 1;
+    data  = data  + 1;
+    count = count + 1;
+
+    if (count == 6)
+      pkt_data = 16'hffff;  // turn in_mapper on!
+    else
+      pkt_data = data;
   end
 end
 //--------------------------------------------------
@@ -416,11 +430,15 @@ reg  [6:0] old_data;
 wire [3:0] rec_data;
 wire       rec_eop;
 
+integer so_count;
+
 assign rec_data = decode_nrz_2of7 (ospl_data, old_data);
 assign rec_eop  = eop_nrz_2of7 (ospl_data, old_data);
 
 initial
 begin
+  so_count = 0;
+
   old_data = 0;
   ospl_ack = 0;
 
@@ -437,6 +455,10 @@ begin
     # SPL_HSDLY
       ospl_ack = ~ospl_ack;
     old_data = ospl_data;
+
+    so_count = so_count + 1;
+    if (so_count == (21 * 11))
+      # (100 * 11 * SPL_HSDLY);
   end
 end
 //--------------------------------------------------

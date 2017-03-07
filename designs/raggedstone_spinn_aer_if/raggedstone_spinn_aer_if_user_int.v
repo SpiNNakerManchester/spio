@@ -21,34 +21,32 @@
 // TODO
 // -------------------------------------------------------------------------
 
+`include "raggedstone_spinn_aer_if_top.h"
+
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 `timescale 1ns / 1ps
 module raggedstone_spinn_aer_if_user_int
 (
-  input  wire                   rst,
-  input  wire                   clk,
+  input  wire                    rst,
+  input  wire                    clk,
 
   // control and status interface
-  input  wire                   dump_mode,
-  input  wire                   error,
-  output reg    [VC_BITS - 1:0] vc_sel,
-  output reg  [MODE_BITS - 1:0] mode,
+  input  wire                    mode_sel,
+  input  wire                    dump_mode,
+  input  wire                    error,
+  output reg  [`MODE_BITS - 1:0] ui_mode,
+  output reg    [`VC_BITS - 1:0] ui_vcoord,
 
   // display interface (7-segment and leds)
-  input  wire                   mode_sel,
-  output reg              [7:0] o_7seg,
-  output reg              [3:0] o_strobe,
-  output wire                   o_led_act,
-  output wire                   o_led_dmp,
-  output reg                    o_led_err
+  output reg               [7:0] o_7seg,
+  output reg               [3:0] o_strobe,
+  output wire                    o_led_act,
+  output wire                    o_led_dmp,
+  output reg                     o_led_err
 );
   //---------------------------------------------------------------
   // constants
   //---------------------------------------------------------------
-
-  // design constants, including operating modes
-  `include "raggedstone_spinn_aer_if_top.h"
-
   localparam PRESCALE_BITS = 14;
 
 
@@ -121,26 +119,26 @@ module raggedstone_spinn_aer_if_user_int
   // ---------------------------------------------------------
   always @(posedge clk or posedge rst)
     if (rst)
-      mode <= 0;
+      ui_mode <= 0;
     else
       if ((sel_state == 0) && (mode_sel == 1'b0))
       begin
-        if (mode == LAST_MODE)
-          mode <= 0;
+        if (ui_mode == `LAST_MODE)
+          ui_mode <= 0;
         else
-          mode <= mode + 1;
+          ui_mode <= ui_mode + 1;
       end
 
   always @(posedge clk or posedge rst)
     if (rst)
-      vc_sel <= 0;
+      ui_vcoord <= 0;
     else
-      if ((sel_state == 0) && (mode_sel == 1'b0) && (mode == LAST_MODE))
+      if ((sel_state == 0) && (mode_sel == 1'b0) && (ui_mode == `LAST_MODE))
       begin
-        if (vc_sel == LAST_VC)
-	  vc_sel <= 0;
+        if (ui_vcoord == `LAST_VC)
+	  ui_vcoord <= 0;
         else
-	  vc_sel <= vc_sel + 1;
+	  ui_vcoord <= ui_vcoord + 1;
       end
   // ---------------------------------------------------------
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -192,8 +190,8 @@ module raggedstone_spinn_aer_if_user_int
   // use decimal point to show virtual coord selection
   //---------------------------------------------------------------
   always @(posedge clk)
-    case (vc_sel)
-      VC_ALT:  point <= 4'b1110;
+    case (ui_vcoord)
+      `VC_ALT:  point <= 4'b1110;
 
       // no decimal point is the default
       default: point <= 4'b1111;
@@ -204,8 +202,8 @@ module raggedstone_spinn_aer_if_user_int
   // display current mode in 7-segment displays
   // ---------------------------------------------------------
   always @(posedge clk)
-    case (mode)
-      RET_128:
+    case (ui_mode)
+      `RET_128:
         begin
           digit[0] <= 4'd10;
           digit[1] <= 4'd1;
@@ -213,7 +211,7 @@ module raggedstone_spinn_aer_if_user_int
           digit[3] <= 4'd8;
         end
 
-      RET_64:
+      `RET_64:
         begin
           digit[0] <= 4'd10;
           digit[1] <= 4'd10;
@@ -221,7 +219,7 @@ module raggedstone_spinn_aer_if_user_int
           digit[3] <= 4'd4;
         end
 
-      RET_32:
+      `RET_32:
         begin
           digit[0] <= 4'd10;
           digit[1] <= 4'd10;
@@ -229,7 +227,7 @@ module raggedstone_spinn_aer_if_user_int
           digit[3] <= 4'd2;
         end
 
-      RET_16:
+      `RET_16:
         begin
           digit[0] <= 4'd10;
           digit[1] <= 4'd10;
@@ -237,7 +235,7 @@ module raggedstone_spinn_aer_if_user_int
           digit[3] <= 4'd6;
         end
 
-      COCHLEA:
+      `COCHLEA:
         begin
           digit[0] <= 4'd11;
           digit[1] <= 4'd12;
@@ -245,7 +243,7 @@ module raggedstone_spinn_aer_if_user_int
           digit[3] <= 4'd13;
         end
 
-      DIRECT:
+      `DIRECT:
         begin
           digit[0] <= 4'd0;
           digit[1] <= 4'd0;

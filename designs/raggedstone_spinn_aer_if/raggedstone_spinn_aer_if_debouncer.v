@@ -27,7 +27,8 @@
 module raggedstone_spinn_aer_if_debouncer
 #(
   // debouncer constant (can be adjusted for simulation!)
-  parameter DBNCER_CONST = 20'hfffff
+  parameter DBNCER_CONST = 20'hfffff,
+  parameter RESET_VALUE  = 1'b1
 )
 (
   input  wire                   rst,
@@ -49,7 +50,7 @@ module raggedstone_spinn_aer_if_debouncer
   // ---------------------------------------------------------
   always @(posedge clk or posedge rst)
     if (rst)
-      pb_debounced <= 1'b1;
+      pb_debounced <= RESET_VALUE;
     else
       if ((pb_bounce[2] == pb_bounce[1]) && (pb_debounce_cnt == 0))
         pb_debounced <= pb_bounce[2];
