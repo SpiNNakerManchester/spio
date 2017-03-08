@@ -30,7 +30,7 @@ module raggedstone_spinn_aer_if_top_tb ();
 localparam CLK_HPER  = (31.25 / 2);
 
 localparam IAER_HSDLY = 100;
-localparam OAER_HSDLY = 1500;
+localparam OAER_HSDLY = 150;
 localparam SPL_HSDLY = 8;
 
 // debouncer constants

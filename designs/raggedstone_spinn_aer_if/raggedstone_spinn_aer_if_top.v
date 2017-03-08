@@ -123,14 +123,14 @@ module raggedstone_spinn_aer_if_top
 
   // control signals
   // ---------------------------------------------------------
-  wire [`MODE_BITS - 1:0] ct_mode;
   wire                    ct_event_go;
-  wire [`VCRD_BITS - 1:0] vcoord;
+  wire [`MODE_BITS - 1:0] vmode;
+  wire [`VKEY_BITS - 1:0] vkey;
 
   // signals for user interface
   // ---------------------------------------------------------
-  wire   [`VC_BITS - 1:0] ui_vcoord;
-  wire [`MODE_BITS - 1:0] ui_mode;
+  wire  [`VKS_BITS - 1:0] vksel;
+  wire [`MODE_BITS - 1:0] msel;
   wire                    dump_mode;
 
   wire                    mode_sel;
@@ -248,10 +248,10 @@ module raggedstone_spinn_aer_if_top
     .cpkt_data (cpkt_data),
     .cpkt_vld  (cpkt_vld),
     .cpkt_rdy  (cpkt_rdy),
-    .ui_mode   (ui_mode),
-    .ui_vcoord (ui_vcoord),
-    .ct_mode   (ct_mode),
-    .vcoord    (vcoord),
+    .msel      (msel),
+    .vksel     (vksel),
+    .vmode     (vmode),
+    .vkey      (vkey),
     .go        (ct_event_go)
   );
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -264,8 +264,8 @@ module raggedstone_spinn_aer_if_top
   (
     .rst       (rst),
     .clk       (clk_mod),
-    .mode      (ct_mode),
-    .vcoord    (vcoord),
+    .vmode     (vmode),
+    .vkey      (vkey),
     .iaer_data (i_iaer_data),
     .iaer_req  (s_iaer_req),
     .iaer_ack  (i_iaer_ack),
@@ -338,8 +338,8 @@ module raggedstone_spinn_aer_if_top
     .mode_sel  (mode_sel_debounced),
     .dump_mode (dump_mode),
     .error     (err_flt | err_frm | err_gch),
-    .ui_mode   (ui_mode),
-    .ui_vcoord (ui_vcoord),
+    .msel      (msel),
+    .vksel     (vksel),
     .o_7seg    (o_7seg),
     .o_strobe  (o_strobe),
     .o_led_act (led2),

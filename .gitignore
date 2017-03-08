@@ -3,12 +3,17 @@
 *.swp
 *~
 
-# Xilinx Junk
+# Xilinx and LaTeX Junk
 *.asy
+*.aux
+*.auxlock
+*.bak
 *.bgn
+*.bbl
 *.bit
 *.blc
 *.bld
+*.blg
 *.cdc
 *.cgc
 *.cgp
@@ -35,6 +40,7 @@
 *.pad
 *.par
 *.pcf
+*.pdf
 *.prj
 *.ptwx
 *.stx

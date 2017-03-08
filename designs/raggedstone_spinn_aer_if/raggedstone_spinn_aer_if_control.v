@@ -31,10 +31,10 @@ module raggedstone_spinn_aer_if_control
   output reg                    cpkt_rdy,
 
   // control interface
-  input  wire [`MODE_BITS - 1:0] ui_mode,
-  input  wire   [`VC_BITS - 1:0] ui_vcoord,
-  output reg  [`MODE_BITS - 1:0] ct_mode,
-  output reg  [`VCRD_BITS - 1:0] vcoord,
+  input  wire [`MODE_BITS - 1:0] msel,
+  input  wire  [`VKS_BITS - 1:0] vksel,
+  output reg  [`MODE_BITS - 1:0] vmode,
+  output reg  [`VKEY_BITS - 1:0] vkey,
   output reg                    go
 );
   //---------------------------------------------------------------
@@ -50,17 +50,17 @@ module raggedstone_spinn_aer_if_control
   // mode selection
   //---------------------------------------------------------------
   always @(*)
-    ct_mode = ui_mode;
+    vmode = msel;
   //---------------------------------------------------------------
 
 
   //---------------------------------------------------------------
-  // virtual coord selection
+  // virtual key selection
   //---------------------------------------------------------------
   always @(*)
-    case (ui_vcoord)
-      `VC_ALT: vcoord = `VIRTUAL_COORD_ALT;
-      default: vcoord = `VIRTUAL_COORD_DEF;
+    case (vksel)
+      `VKS_ALT: vkey = `VIRTUAL_KEY_ALT;
+      default:  vkey = `VIRTUAL_KEY_DEF;
     endcase
   //---------------------------------------------------------------
 

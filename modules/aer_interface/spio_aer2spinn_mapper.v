@@ -33,8 +33,8 @@ module spio_aer2spinn_mapper
   input  wire                    clk,
 
   // control interface
-  input  wire [`MODE_BITS - 1:0] mode,
-  input  wire [`VCRD_BITS - 1:0] vcoord,
+  input  wire [`MODE_BITS - 1:0] vmode,
+  input  wire [`VKEY_BITS - 1:0] vkey,
 
   // input AER device interface
   input  wire             [15:0] iaer_data,
@@ -90,7 +90,7 @@ module spio_aer2spinn_mapper
   // mode selection 
   //---------------------------------------------------------------
   always @(*)
-    case (mode)
+    case (vmode)
       // retina 64x64 mode
       `RET_64:  aer_coords = {iaer_data[15], sign_bit, 2'b00,
                                new_y[6:1], new_x[6:1]
@@ -135,18 +135,15 @@ module spio_aer2spinn_mapper
   wire [38:0]  pkt_bits;
   wire         parity;
    
-  assign pkt_bits = {vcoord, aer_coords, 7'd0};
+  assign pkt_bits = {vkey, aer_coords, 7'd0};
   assign parity   = ~(^pkt_bits);
 
-  always @(posedge clk or posedge rst)
-    if (rst)
-      ipkt_data <= 72'd0;  // not really necessary!
-    else
-      case (state)
-        IDLE_ST:
-          if (!iaer_req && !busy)
-            ipkt_data <= {32'd0, pkt_bits, parity};  // no payload!
-      endcase
+  always @(posedge clk)
+    case (state)
+      IDLE_ST:
+        if (!iaer_req && !busy)
+          ipkt_data <= {32'd0, pkt_bits, parity};  // no payload!
+    endcase
 
   always @(posedge clk or posedge rst)
     if (rst)

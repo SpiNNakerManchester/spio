@@ -1,31 +1,31 @@
 /**
- * Common constants
+ * global constants
  */
 
 `ifndef RAGGEDSTONE_SPINN_AER_IF_TOP_H
 `define RAGGEDSTONE_SPINN_AER_IF_TOP_H
 
 // ---------------------
-// virtual coord
+// virtual keys
 // ---------------------
-`define VC_BITS    1
+`define VKS_BITS    1
 
-// virtual coord options
-`define VC_DEF     0
-`define VC_ALT     (`VC_DEF + 1)
-`define LAST_VC    `VC_ALT
+// virtual key selection
+`define VKS_DEF     0
+`define VKS_ALT     (`VKS_DEF + 1)
+`define LAST_VKS    `VKS_ALT
 
-`define VCRD_BITS 16
+`define VKEY_BITS 16
 
-// alternative virtual coordinates
-`define VIRTUAL_COORD_DEF  16'h0200
-`define VIRTUAL_COORD_ALT  16'hfefe
+// virtual keys choices
+`define VIRTUAL_KEY_DEF  16'h0200
+`define VIRTUAL_KEY_ALT  16'hfefe
 // ---------------------
 
 // ---------------------
 // mode
 // ---------------------
-`define MODE_BITS  4
+`define MODE_BITS  3
 
 // mode options
 `define RET_128    0

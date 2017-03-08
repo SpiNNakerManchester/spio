@@ -27,8 +27,8 @@
 `timescale 1ns / 1ps
 module spio_spinn2aer_mapper
 (
-  input wire         rst,
-  input wire         clk,
+  input wire                    rst,
+  input wire                    clk,
 
   // SpiNNaker packet interface
   input  wire [`PKT_BITS - 1:0] opkt_data,
@@ -36,9 +36,9 @@ module spio_spinn2aer_mapper
   output reg                    opkt_rdy,
 
   // output AER device interface
-  output reg  [15:0] oaer_data,
-  output reg         oaer_req,
-  input  wire        oaer_ack
+  output reg             [15:0] oaer_data,
+  output reg                    oaer_req,
+  input  wire                   oaer_ack
 );
 
   //---------------------------------------------------------------

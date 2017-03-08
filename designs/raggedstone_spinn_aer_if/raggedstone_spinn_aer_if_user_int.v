@@ -34,8 +34,8 @@ module raggedstone_spinn_aer_if_user_int
   input  wire                    mode_sel,
   input  wire                    dump_mode,
   input  wire                    error,
-  output reg  [`MODE_BITS - 1:0] ui_mode,
-  output reg    [`VC_BITS - 1:0] ui_vcoord,
+  output reg  [`MODE_BITS - 1:0] msel,
+  output reg   [`VKS_BITS - 1:0] vksel,
 
   // display interface (7-segment and leds)
   output reg               [7:0] o_7seg,
@@ -115,30 +115,30 @@ module raggedstone_spinn_aer_if_user_int
   // ---------------------------------------------------------
 
   // ---------------------------------------------------------
-  // sequence through modes and virtual coords
+  // sequence through modes and virtual keys
   // ---------------------------------------------------------
   always @(posedge clk or posedge rst)
     if (rst)
-      ui_mode <= 0;
+      msel <= 0;
     else
       if ((sel_state == 0) && (mode_sel == 1'b0))
       begin
-        if (ui_mode == `LAST_MODE)
-          ui_mode <= 0;
+        if (msel == `LAST_MODE)
+          msel <= 0;
         else
-          ui_mode <= ui_mode + 1;
+          msel <= msel + 1;
       end
 
   always @(posedge clk or posedge rst)
     if (rst)
-      ui_vcoord <= 0;
+      vksel <= 0;
     else
-      if ((sel_state == 0) && (mode_sel == 1'b0) && (ui_mode == `LAST_MODE))
+      if ((sel_state == 0) && (mode_sel == 1'b0) && (msel == `LAST_MODE))
       begin
-        if (ui_vcoord == `LAST_VC)
-	  ui_vcoord <= 0;
+        if (vksel == `LAST_VKS)
+	  vksel <= 0;
         else
-	  ui_vcoord <= ui_vcoord + 1;
+	  vksel <= vksel + 1;
       end
   // ---------------------------------------------------------
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -187,11 +187,11 @@ module raggedstone_spinn_aer_if_user_int
   //------------------------ display driver -----------------------
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   //---------------------------------------------------------------
-  // use decimal point to show virtual coord selection
+  // use decimal point to show virtual key selection
   //---------------------------------------------------------------
   always @(posedge clk)
-    case (ui_vcoord)
-      `VC_ALT:  point <= 4'b1110;
+    case (vksel)
+      `VKS_ALT: point <= 4'b1110;
 
       // no decimal point is the default
       default: point <= 4'b1111;
@@ -202,7 +202,7 @@ module raggedstone_spinn_aer_if_user_int
   // display current mode in 7-segment displays
   // ---------------------------------------------------------
   always @(posedge clk)
-    case (ui_mode)
+    case (msel)
       `RET_128:
         begin
           digit[0] <= 4'd10;
