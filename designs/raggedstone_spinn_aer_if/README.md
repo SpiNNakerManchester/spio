@@ -15,7 +15,9 @@ This design was produced by Luis Plana, Jeffrey Pepper and Simon Davidson.
 Dependencies
 ------------
 
-This design does not make use of modules from the spI/O module collection.
+This design makes use of the following modules from the spI/O module collection:
+* `spinnaker_link/*`
+* `switch/*`
 
 
 Target Platform
