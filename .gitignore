@@ -27,6 +27,7 @@
 *.gise
 *.html
 *.ini
+*.ipf
 *.log
 *.lso
 *.map
@@ -61,6 +62,7 @@
 *.xmsgs
 *.xpi
 *.xrpt
+*.xsl
 *.xst
 *.xwbt
 **/isim/
