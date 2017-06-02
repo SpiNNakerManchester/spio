@@ -15,6 +15,7 @@
 *.bld
 *.blg
 *.cdc
+*.cfi
 *.cgc
 *.cgp
 *.cmd
@@ -31,6 +32,7 @@
 *.log
 *.lso
 *.map
+*.mcs
 *.mrp
 *.ncd
 *.ncf
@@ -43,6 +45,7 @@
 *.pcf
 *.pdf
 *.prj
+*.prm
 *.ptwx
 *.stx
 *.sym
