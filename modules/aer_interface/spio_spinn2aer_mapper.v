@@ -91,8 +91,7 @@ module spio_spinn2aer_mapper
       case (ostate)
         IDLE_OST:
           if (opkt_vld)
-            //# subtract 1 from core ID 26/09/2013 -lap
-            oaer_data <= opkt_data[23:8] - 16'h0800;
+            oaer_data <= opkt_data[23:8];
           else
             oaer_data <= oaer_data;      // no change!
 	

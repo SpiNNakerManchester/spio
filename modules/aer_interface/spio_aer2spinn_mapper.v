@@ -61,8 +61,8 @@ module spio_aer2spinn_mapper
   reg [STATE_BITS - 1:0] state;
 
   reg             [15:0] aer_coords;
-  wire             [6:0] new_x, new_y;
-  wire                   sign_bit;
+  wire             [6:0] retina_x, retina_y;
+  wire                   plrty_bit;
 
   reg                    busy;  // output not ready for next packet
 
@@ -92,18 +92,18 @@ module spio_aer2spinn_mapper
   always @(*)
     case (vmode)
       // retina 64x64 mode
-      `RET_64:  aer_coords = {iaer_data[15], sign_bit, 2'b00,
-                               new_y[6:1], new_x[6:1]
+      `RET_64:  aer_coords = {iaer_data[15], plrty_bit, 2'b00,
+                               retina_y[6:1], retina_x[6:1]
                              };
 
       // retina 32x32 mode
-      `RET_32:  aer_coords = {iaer_data[15], sign_bit, 4'b0000,
-                               new_y[6:2], new_x[6:2]
+      `RET_32:  aer_coords = {iaer_data[15], plrty_bit, 4'b0000,
+                               retina_y[6:2], retina_x[6:2]
                              };
 
       // retina 16x16 mode
-      `RET_16:  aer_coords = {iaer_data[15], sign_bit, 6'b000000,
-                               new_y[6:3], new_x[6:3]
+      `RET_16:  aer_coords = {iaer_data[15], plrty_bit, 6'b000000,
+                               retina_y[6:3], retina_x[6:3]
                              };
 
       // cochlea mode
@@ -115,17 +115,17 @@ module spio_aer2spinn_mapper
       `DIRECT:  aer_coords = iaer_data[15:0];
 
       // make the retina 128x128 mode the default
-      default:  aer_coords = {iaer_data[15], sign_bit, new_y, new_x};
+      default:  aer_coords = {iaer_data[15], plrty_bit, retina_y, retina_x};
     endcase
   //---------------------------------------------------------------
 
+
   //---------------------------------------------------------------
-  // new on 04/05/2012. 
-  // retina mapper rotates image by 90 degrees clockwise
+  // retina mapper
   //---------------------------------------------------------------
-  assign new_x = 7'b1111111 - iaer_data[14:8]; // new_X = 127 - old_Y
-  assign new_y = 7'b1111111 - iaer_data[7:1];  // new_Y = 127 - old_X
-  assign sign_bit = iaer_data[0];
+  assign retina_x  = iaer_data[14:8];
+  assign retina_y  = iaer_data[7:1];
+  assign plrty_bit = iaer_data[0];  // polarity
   //---------------------------------------------------------------
 
 
