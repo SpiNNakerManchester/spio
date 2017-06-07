@@ -1,42 +1,46 @@
 // -------------------------------------------------------------------------
-// $Id: out_mapper.v 2615 2013-10-02 10:39:58Z plana $
+//  SpiNNaker packet to AER event mapper
+//
+// -------------------------------------------------------------------------
+// AUTHOR
+//  lap - luis.plana@manchester.ac.uk
+//  Based on work by J Pepper (Date 08/08/2012)
+//
+// -------------------------------------------------------------------------
+// Taken from:
+// https://solem.cs.man.ac.uk/svn/spinn_aer2_if/out_mapper.v
+// Revision 2615 (Last-modified date: 2013-10-02 11:39:58 +0100)
+//
 // -------------------------------------------------------------------------
 // COPYRIGHT
-// Copyright (c) The University of Manchester, 2012. All rights reserved.
-// SpiNNaker Project
-// Advanced Processor Technologies Group
-// School of Computer Science
+//  Copyright (c) The University of Manchester, 2012-2017.
+//  SpiNNaker Project
+//  Advanced Processor Technologies Group
+//  School of Computer Science
 // -------------------------------------------------------------------------
-// Project            : bidirectional SpiNNaker link to AER device interface
-// Module             : SpiNNaker packet to AER event mapper
-// Author             : lap/Jeff Pepper/Simon Davidson
-// Status             : Review pending
-// $HeadURL: https://solem.cs.man.ac.uk/svn/spinn_aer2_if/out_mapper.v $
-// Last modified on   : $Date: 2013-10-02 11:39:58 +0100 (Wed, 02 Oct 2013) $
-// Last modified by   : $Author: plana $
-// Version            : $Revision: 2615 $
+// TODO
 // -------------------------------------------------------------------------
 
+`include "../../modules/spinnaker_link/spio_spinnaker_link.h"
 
-//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-//-------------------------- out_mapper -------------------------
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 `timescale 1ns / 1ps
-module out_mapper
+module spio_spinn2aer_mapper
 (
-  input wire         rst,
-  input wire         clk,
+  input wire                    rst,
+  input wire                    clk,
 
   // SpiNNaker packet interface
-  input  wire [71:0] opkt_data,
-  input  wire        opkt_vld,
-  output reg         opkt_rdy,
+  input  wire [`PKT_BITS - 1:0] opkt_data,
+  input  wire                   opkt_vld,
+  output reg                    opkt_rdy,
 
   // output AER device interface
-  output reg  [15:0] oaer_data,
-  output reg         oaer_req,
-  input  wire        oaer_ack
+  output reg             [15:0] oaer_data,
+  output reg                    oaer_req,
+  input  wire                   oaer_ack
 );
+
   //---------------------------------------------------------------
   // constants
   //---------------------------------------------------------------
@@ -50,15 +54,7 @@ module out_mapper
   // internal signals
   //---------------------------------------------------------------
   reg [OSTATE_BITS - 1:0] ostate;
-  wire                    mc_pkt;
 
-
-  //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-  //------------------------- out_mapper --------------------------
-  // NOTE: must throw away non-multicast packets!
-  //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-  // check if multicast packet
-  assign mc_pkt = ~opkt_data[7] & ~opkt_data[6];
 
   //---------------------------------------------------------------
   // generate opkt_rdy signal
@@ -69,7 +65,7 @@ module out_mapper
     else
       case (ostate)
         IDLE_OST:
-          if (opkt_vld && mc_pkt)
+          if (opkt_vld)
             opkt_rdy <= 1'b0;
           else
             opkt_rdy <= 1'b1;      // no change!
@@ -94,9 +90,8 @@ module out_mapper
     else
       case (ostate)
         IDLE_OST:
-          if (opkt_vld && mc_pkt)
-            //# subtract 1 from core ID 26/09/2013 -lap
-            oaer_data <= opkt_data[23:8] - 16'h0800;
+          if (opkt_vld)
+            oaer_data <= opkt_data[23:8];
           else
             oaer_data <= oaer_data;      // no change!
 	
@@ -111,7 +106,7 @@ module out_mapper
     else
       case (ostate)
         IDLE_OST:
-          if (opkt_vld && mc_pkt)
+          if (opkt_vld)
             oaer_req <= 1'b0;
           else
             oaer_req <= 1'b1;      // no change!
@@ -136,7 +131,7 @@ module out_mapper
     else
       case (ostate)
         IDLE_OST:
-          if (opkt_vld && mc_pkt)
+          if (opkt_vld)
             ostate <= HS11_OST;
           else
             ostate <= IDLE_OST;  // no change!
@@ -156,6 +151,5 @@ module out_mapper
 	default:  
             ostate <= ostate;    // no change!
       endcase
-  //---------------------------------------------------------------
-  //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 endmodule
+//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

@@ -3,26 +3,36 @@
 *.swp
 *~
 
-# Xilinx Junk
+# Xilinx and LaTeX Junk
 *.asy
+*.aux
+*.auxlock
+*.bak
 *.bgn
+*.bbl
 *.bit
 *.blc
 *.bld
+*.blg
 *.cdc
+*.cfi
 *.cgc
 *.cgp
 *.cmd
 *.cmd_log
+*.cpj
+!vio.cpj
 *.csv
 *.drc
 *.exe
 *.gise
 *.html
 *.ini
+*.ipf
 *.log
 *.lso
 *.map
+*.mcs
 *.mrp
 *.ncd
 *.ncf
@@ -33,7 +43,9 @@
 *.pad
 *.par
 *.pcf
+*.pdf
 *.prj
+*.prm
 *.ptwx
 *.stx
 *.sym
@@ -45,6 +57,7 @@
 *.unroutes
 *.ut
 *.veo
+*.wcfg
 *.wdb
 *.xdc
 *.xise
@@ -52,6 +65,7 @@
 *.xmsgs
 *.xpi
 *.xrpt
+*.xsl
 *.xst
 *.xwbt
 **/isim/

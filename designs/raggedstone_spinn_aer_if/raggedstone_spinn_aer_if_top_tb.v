@@ -1,33 +1,36 @@
 // -------------------------------------------------------------------------
-// $Id: spinn_aer2_if_tb.v 2615 2013-10-02 10:39:58Z plana $
+//  testbench for bidirectional SpiNNaker link to AER device interface
+//
+// -------------------------------------------------------------------------
+// AUTHOR
+//  lap - luis.plana@manchester.ac.uk
+//  Based on work by J Pepper (Date 08/08/2012)
+//
+// -------------------------------------------------------------------------
+// Taken from:
+// https://solem.cs.man.ac.uk/svn/spinn_aer2_if/spinn_aer2_if_tb.v
+// Revision 2615 (Last-modified date: 2013-10-02 11:39:58 +0100)
+//
 // -------------------------------------------------------------------------
 // COPYRIGHT
-// Copyright (c) The University of Manchester, 2012. All rights reserved.
-// SpiNNaker Project
-// Advanced Processor Technologies Group
-// School of Computer Science
+//  Copyright (c) The University of Manchester, 2012-2017.
+//  SpiNNaker Project
+//  Advanced Processor Technologies Group
+//  School of Computer Science
 // -------------------------------------------------------------------------
-// Project            : bidirectional SpiNNaker link to AER device interface
-// Module             : testbench module
-// Author             : lap
-// Status             : Review pending
-// $HeadURL: https://solem.cs.man.ac.uk/svn/spinn_aer2_if/spinn_aer2_if_tb.v $
-// Last modified on   : $Date: 2013-10-02 11:39:58 +0100 (Wed, 02 Oct 2013) $
-// Last modified by   : $Author: plana $
-// Version            : $Revision: 2615 $
+// TODO
 // -------------------------------------------------------------------------
 
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-//---------------------- spinn_aer2_if_tb -----------------------
-//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 `timescale 1ns / 1ps
-module spinn_aer2_if_tb ();
+module raggedstone_spinn_aer_if_top_tb ();
 //---------------------------------------------------------------
 // constants
 //---------------------------------------------------------------
 localparam CLK_HPER  = (31.25 / 2);
 
-localparam AER_HSDLY = 1000;
+localparam IAER_HSDLY = 100;
+localparam OAER_HSDLY = 150;
 localparam SPL_HSDLY = 8;
 
 // debouncer constants
@@ -56,6 +59,8 @@ wire        iaer_ack;
 wire [15:0] oaer_data;
 wire        oaer_req;
 reg         oaer_ack;
+
+wire        dump_mode;
 
 
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -229,7 +234,7 @@ endfunction
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 //--------------------------- datapath --------------------------
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-spinn_aer2_if
+raggedstone_spinn_aer_if_top
 #(
   .DBNCER_CONST (DBNCER_CONST)
 ) dut
@@ -242,7 +247,7 @@ spinn_aer2_if
   .ext_strobe               (),
   .ext_led2                 (),
   .ext_led3                 (),
-  .ext_led4                 (),
+  .ext_led4                 (dump_mode),
 
   .data_2of7_from_spinnaker (ispl_data),
   .ack_to_spinnaker         (ispl_ack),
@@ -272,11 +277,11 @@ begin
 
   forever
   begin
-    # AER_HSDLY 
+    # IAER_HSDLY 
       iaer_req = 1'b0;
 
     wait (~iaer_ack);
-    # AER_HSDLY
+    # IAER_HSDLY
       iaer_req = 1'b1;
 
     wait (iaer_ack);
@@ -302,11 +307,11 @@ begin
   forever
   begin
     wait (!oaer_req);  // active LOW
-    # AER_HSDLY
+    # OAER_HSDLY
       oaer_ack = 1'b0;
 
     wait (oaer_req);
-    # AER_HSDLY
+    # OAER_HSDLY
       oaer_ack = 1'b1;
   end
 end
@@ -319,16 +324,20 @@ wire [39:0] packet;
 reg  [15:0] pkt_data;
 wire        parity;
 
-reg        old_ack;
+reg         old_ack;
+
+integer  data;
+integer  count;
 
 assign parity = ~(^pkt_data);
 assign packet = {8'hff, 8'hff, pkt_data, 7'b0000000, parity};
 
-integer i;
-
 initial
 begin
-  pkt_data = 0;
+  data  = 0;
+  count = 0;
+
+  pkt_data = data;
 
   ispl_data = 0;
 
@@ -403,7 +412,13 @@ begin
     old_ack = ispl_ack;
     wait (ispl_ack != old_ack);
 
-    pkt_data = pkt_data + 1;
+    data  = data  + 1;
+    count = count + 1;
+
+    if (count == 6)
+      pkt_data = 16'hffff;  // turn in_mapper on!
+    else
+      pkt_data = data;
   end
 end
 //--------------------------------------------------
@@ -415,11 +430,15 @@ reg  [6:0] old_data;
 wire [3:0] rec_data;
 wire       rec_eop;
 
+integer so_count;
+
 assign rec_data = decode_nrz_2of7 (ospl_data, old_data);
 assign rec_eop  = eop_nrz_2of7 (ospl_data, old_data);
 
 initial
 begin
+  so_count = 0;
+
   old_data = 0;
   ospl_ack = 0;
 
@@ -436,6 +455,10 @@ begin
     # SPL_HSDLY
       ospl_ack = ~ospl_ack;
     old_data = ospl_data;
+
+    so_count = so_count + 1;
+    if (so_count == (21 * 11))
+      # (100 * 11 * SPL_HSDLY);
   end
 end
 //--------------------------------------------------
@@ -471,5 +494,5 @@ begin
       clk = ~clk;
    end
 end
-//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 endmodule
+//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

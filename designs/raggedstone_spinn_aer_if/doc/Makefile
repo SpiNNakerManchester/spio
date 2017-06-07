@@ -8,4 +8,4 @@ spinn_aer.pdf: spinn_aer.tex appnote.tex cochlea_map.pdf\
 	fig2dev -Lpdf $< $@
 
 clean:
-	/bin/rm -f *.aux *.auxlock *.bbl *blg *log *pdf *~
+	/bin/rm -f *.aux *.auxlock *.bak *.bbl *blg *log *pdf *~
