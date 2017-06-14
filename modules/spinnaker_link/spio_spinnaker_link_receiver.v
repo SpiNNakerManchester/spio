@@ -424,7 +424,7 @@ module flit_input_if
 
 
   //-------------------------------------------------------------
-  // determine how many "predictive" acks should to be sent
+  // determine how many "predictive" acks should be sent
   //-------------------------------------------------------------
   always @(posedge CLK_IN)
     casex ({(state == IDLE_ST), bad_flit, dat_flit, pkt_size})

@@ -26,8 +26,8 @@
 // 8b/10b K28.5: Commma symbol used to ensure byte-allignment
 `define KCH_COMMA 8'hBC
 
-// 8b/10b K28.5 then K27.7: Used for "idle" frames sent across the link (bottom
-// 16 bits of the frame may be arbitrary data)
+// 8b/10b K28.2 then K27.7: Used for "idle" frames sent across the link
+// (bottom 16 bits of the frame may be arbitrary data -- sentinel)
 `define KCH_IDLE 16'h5CFB
 
 `define KCH_DATA          `KCH_COMMA
@@ -123,8 +123,7 @@
 `define CLKC_KBITS       4'b1111
 `define ZERO_KBITS       {`KCH_BITS {1'b0}}
 
-// "Idle" frames k-characters (one for the leading comma and another for the
-// idle frame indicator)
+// "Idle" frame k-characters (two k-characters)
 `define IDLE_KBITS       4'b1100
 
 // Number of bits in the idle frame sentinel value

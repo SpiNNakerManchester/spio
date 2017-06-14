@@ -152,7 +152,18 @@ Internal AC coupling should be disabled since most boards feature their own
 coupling capacitors. Termination voltage should be set to VTTRX as this helps to
 absorb reflections.
 
-None of the available optional ports are used by the module and may be left
+Registers RXEQ, TXDV and TXPE on the top-level register bank can be
+used to set/overrride these parameters. The Xilinx Spartan6
+documentation also contains the parameter values and
+encodings. Incorrect settings may affect the operation of the
+high-speed links. The chosen default values for the board-to-board
+links have been tested and work correctly in many different board
+configurations and should not be changed without good cause. The
+peripheral and ring link parameters are not set and, therefore, need
+to be set by the user. The default board-to-board values may be a good
+starting point.
+
+Several other optional ports are *not* used by the module and may be left
 disabled.
 
 

@@ -77,7 +77,7 @@ With the collaboration of:
 * Steve Temple
 * Steve Furber
 
-All affiliated to The University of Manchester.
+All affiliated with The University of Manchester.
 
 
 Copyright

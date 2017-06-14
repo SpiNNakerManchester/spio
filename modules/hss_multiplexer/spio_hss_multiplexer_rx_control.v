@@ -5,10 +5,8 @@
  *  * Perform a handshake with the remote system to ensure protocol
  *    compatibility and link stability.
  *  * Filter clock correction sequences from stream. Insertion of these
- *    sequences is handled by the frame tx due to a limitation of the frame tx
- *    and disassembler and related components where they ignore ready/valid
- *    signals during a data frame. Clock correction sequences are still inserted
- *    during handshaking.
+ *    sequences is handled by the tx_control module.
+ *  * Clock correction sequences are still inserted during handshaking.
 
  *  * Re-acquire 32-bit word-alignment upon loss of sync.
  */

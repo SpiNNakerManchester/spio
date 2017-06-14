@@ -470,7 +470,7 @@ module flit_output_if
 
 
   //-------------------------------------------------------------
-  // remember the size fo the previous packet
+  // remember the size of the previous packet
   //-------------------------------------------------------------
   always @(posedge CLK_IN or posedge RESET_IN)
     if (RESET_IN)
