@@ -20,11 +20,11 @@ Common Interface
 ----------------
 
 SpiNNaker speaks 'SpiNNaker Packets' which are described in the [SpiNNaker
-datasheet](https://solem.cs.man.ac.uk/documentation/datasheet/SpiNN2DataShtV202.pdf).
+datasheet](http://spinnakermanchester.github.io/docs/SpiNN2DataShtV202.pdf).
 As a result, all attempts to interface with SpiNNaker must be able to sensibly
 express and expose themselves in this form. Higher-level protocols built on top
 of SpiNNaker packets are also available such as the [SpiNNaker Datagram Protocol
-(SDP)](https://solem.cs.man.ac.uk/documentation/spinn-app-4.pdf) if required,
+(SDP)](http://spinnakermanchester.github.io/docs/spinn-app-4.pdf) if required,
 but ultimately everything ends up just being SpiNNaker packets. As a result, all
 modules in this library share the following common interface designed to
 communicate SpiNNaker packets.
