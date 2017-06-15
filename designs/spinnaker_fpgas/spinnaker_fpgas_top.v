@@ -333,7 +333,7 @@ wire [31:0] periph_mc_key_i;
 wire [31:0] periph_mc_mask_i;
 
 // control wires from the top-level register bank
-wire [31:0] scrmbl_idl_dat_i;
+wire [3:0] scrmbl_idl_dat_i;
 wire [7:0] led_override_i;
 
 

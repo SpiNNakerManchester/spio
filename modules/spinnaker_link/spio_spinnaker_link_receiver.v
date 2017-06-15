@@ -203,21 +203,6 @@ module flit_input_if
 
 
   //-------------------------------------------------------------
-  // 2-of-7 symbol detector (correct data, eop or error)
-  //-------------------------------------------------------------
-  function detect_2of7 ;
-    input [6:0] data;
-
-    case (data)
-      0, 1, 2, 4,
-      8, 16, 32,
-      64:         detect_2of7 = 0;  // incomplete (no/single-bit change)
-      default:    detect_2of7 = 1;  // correct data, eop or error
-    endcase
-  endfunction
-
-
-  //-------------------------------------------------------------
   // 2-of-7 data detector
   //-------------------------------------------------------------
   function data_2of7 ;

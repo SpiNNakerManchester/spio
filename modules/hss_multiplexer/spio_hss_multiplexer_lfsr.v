@@ -115,16 +115,16 @@ module spio_hss_multiplexer_lfsr
 
   always @ (posedge clk or posedge rst)
     if (rst)
-      lfsr = 16'hffff;  // conventional initialization
+      lfsr <= 16'hffff;  // conventional initialization
     else
       if (next)
-        lfsr = nxt_lfsr;
+        lfsr <= nxt_lfsr;
 
   always @ (posedge clk or posedge rst)
     if (rst)
-      data_out = 16'h0000;  // conventional initialization
+      data_out <= 16'h0000;  // conventional initialization
     else
       if (next)
-        data_out = nxt_data;
+        data_out <= nxt_data;
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 endmodule

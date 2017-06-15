@@ -87,7 +87,6 @@ module spio_spinnaker_link_sender
   wire       synced_sl_ack;  // synchronized acknowledge input
 
   wire [6:0] flt_data;
-  wire       flt_eop;
   wire       flt_psz;
   wire       flt_vld;
   wire       flt_rdy;
@@ -101,7 +100,6 @@ module spio_spinnaker_link_sender
     .PKT_VLD_IN       (PKT_VLD_IN),
     .PKT_RDY_OUT      (PKT_RDY_OUT),
     .flt_data         (flt_data),
-    .flt_eop          (flt_eop),
     .flt_psz          (flt_psz),
     .flt_vld          (flt_vld),
     .flt_rdy          (flt_rdy)
@@ -117,7 +115,6 @@ module spio_spinnaker_link_sender
     .ACK_ERR_OUT      (ACK_ERR_OUT),
     .TMO_ERR_OUT      (TMO_ERR_OUT),
     .flt_data         (flt_data),
-    .flt_eop          (flt_eop),
     .flt_psz          (flt_psz),
     .flt_vld          (flt_vld),
     .flt_rdy          (flt_rdy),
@@ -148,7 +145,6 @@ module pkt_serializer
 
   // flit interface
   output reg              [6:0] flt_data,
-  output reg                    flt_eop,
   output reg                    flt_psz,
   output reg                    flt_vld,
   input                         flt_rdy
@@ -284,22 +280,6 @@ module pkt_serializer
 
 
   //-------------------------------------------------------------
-  // flit interface: generate flit end-of-packet flag
-  //-------------------------------------------------------------
-  always @(posedge CLK_IN or posedge RESET_IN)
-    if (RESET_IN)
-      flt_eop <= 1'b0;
-    else
-      case (state)
-        IDLE_ST: if (pkt_acpt && !flt_busy)
-                   flt_eop <= 1'b0;  // never eop
-	
-        default: if (!flt_busy)
-                   flt_eop <= eop;   // can be eop
-      endcase 
-
-
-  //-------------------------------------------------------------
   // flit interface: generate flit packet size flag
   //-------------------------------------------------------------
   always @(posedge CLK_IN or posedge RESET_IN)
@@ -398,7 +378,6 @@ module flit_output_if
 
   // packet serializer interface
   input      [6:0] flt_data,
-  input            flt_eop,
   input            flt_psz,
   input            flt_vld,
   output reg       flt_rdy,
