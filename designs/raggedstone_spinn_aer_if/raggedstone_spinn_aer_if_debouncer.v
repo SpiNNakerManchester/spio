@@ -48,6 +48,13 @@ module raggedstone_spinn_aer_if_debouncer
   // ---------------------------------------------------------
   // generate stable output signal after suitable delay
   // ---------------------------------------------------------
+  // for simulation purposes only!
+  initial
+    begin
+      pb_debounced = RESET_VALUE;
+      pb_debounce_cnt = DBNCER_CONST;
+    end
+
   always @(posedge clk or posedge rst)
     if (rst)
       pb_debounced <= RESET_VALUE;
