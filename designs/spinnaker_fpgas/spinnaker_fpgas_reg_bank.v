@@ -29,7 +29,7 @@ module spinnaker_fpgas_reg_bank #( // Address bits
                                    // Peripheral routing key/mask
                                  , output reg             [31:0] PERIPH_MC_KEY
                                  , output reg             [31:0] PERIPH_MC_MASK
-                                 , output reg             [31:0] SCRMBL_IDL_DAT
+                                 , output reg              [3:0] SCRMBL_IDL_DAT
                                    // Status LED overrides (for indicating
                                    // configuration status of the FPGA)
                                    //     { DIM_RING
@@ -124,7 +124,7 @@ always @ (posedge CLK_IN, posedge RESET_IN)
 		begin
 			PERIPH_MC_KEY  <= 32'hFFFFFFFF;
 			PERIPH_MC_MASK <= 32'h00000000;
-			SCRMBL_IDL_DAT <= 32'hFFFFFFFF;
+			SCRMBL_IDL_DAT <=  4'hF;
 			SPINNAKER_LINK_ENABLE <= 32'h00000000;
 			LED_OVERRIDE <= 8'h0F;
 			RXEQMIX <= {RING_RXEQMIX
