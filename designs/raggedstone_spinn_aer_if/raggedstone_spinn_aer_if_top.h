@@ -37,6 +37,11 @@
 `define LAST_MODE  `DIRECT
 
 // ---------------------
+// dump mode
+// ---------------------
+`define DUMP_CNT   256  // adjust depending on clock speed
+
+// ---------------------
 // control and routing
 // ---------------------
 `define INIT_GO    1'b0

@@ -279,7 +279,10 @@ module raggedstone_spinn_aer_if_top
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   //------------------ AER2SpiNNaker packet dump ------------------
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-  raggedstone_spinn_aer_if_dump pd
+  raggedstone_spinn_aer_if_dump
+  #(
+    .DUMP_CNT  (`DUMP_CNT)
+  ) pd
   (
     .rst       (rst),
     .clk       (clk_mod),
@@ -376,8 +379,8 @@ module raggedstone_spinn_aer_if_top
   //---------------------------------------------------------------
   // clock generation module
   //---------------------------------------------------------------
-  assign clk_sync = clk_32;
-  assign clk_mod  = clk_32;
+  assign clk_sync = clk_96;
+  assign clk_mod  = clk_96;
   assign clk_deb  = clk_32;
 
   clkgen cg 

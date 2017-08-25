@@ -26,6 +26,11 @@
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 `timescale 1ns / 1ps
 module raggedstone_spinn_aer_if_dump
+#(
+  // dump incoming events if SpiNNaker is busy
+  // for DUMP_CNT consecutive clock cycles
+  parameter DUMP_CNT = 128
+)
 (
   input  wire                   rst,
   input  wire                   clk,
@@ -48,9 +53,6 @@ module raggedstone_spinn_aer_if_dump
   //---------------------------------------------------------------
   // constants
   //---------------------------------------------------------------
-  // dump incoming event packets if SpiNNaker busy for 128 cycles
-  localparam DUMP_CNT   = 128;
-
   localparam STATE_BITS = 1;
   localparam IDLE_ST    = 0;
   localparam DUMP_ST    = IDLE_ST + 1;
@@ -62,7 +64,7 @@ module raggedstone_spinn_aer_if_dump
   reg [STATE_BITS - 1:0] state;
 
   wire                   busy;  // output not ready for next packet
-  reg              [7:0] busy_ctr;
+  reg             [15:0] busy_ctr;
 
 
   //---------------------------------------------------------------
