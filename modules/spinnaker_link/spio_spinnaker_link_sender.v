@@ -58,6 +58,9 @@
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 `timescale 1ns / 1ps
 module spio_spinnaker_link_sender
+#(
+  parameter INTER_FLT_DELAY = 1
+)
 (
   input                        CLK_IN,
   input                        RESET_IN,
@@ -105,7 +108,10 @@ module spio_spinnaker_link_sender
     .flt_rdy          (flt_rdy)
   );
 
-  flit_output_if fo
+  flit_output_if
+  #(
+    .INTER_FLT_DELAY (INTER_FLT_DELAY)
+  ) fo
   (
     .CLK_IN           (CLK_IN),
     .RESET_IN         (RESET_IN),
@@ -363,6 +369,9 @@ endmodule
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 `timescale 1ns / 1ps
 module flit_output_if
+#(
+  parameter INTER_FLT_DELAY = 1
+)
 (
   input            CLK_IN,
   input            RESET_IN,
@@ -395,8 +404,6 @@ module flit_output_if
   localparam ASYN_ST    = SYNC_ST + 1;
 
   localparam BSF_SHRT = 11;
-
-  localparam INTER_FLT_DELAY = 1;
 
 
   //-------------------------------------------------------------

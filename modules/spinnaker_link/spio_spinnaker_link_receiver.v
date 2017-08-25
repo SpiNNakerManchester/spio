@@ -58,6 +58,9 @@
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 `timescale 1ns / 1ps
 module spio_spinnaker_link_receiver
+#(
+  parameter INTER_ACK_DELAY = 1
+)
 (
   input                         CLK_IN,
   input                         RESET_IN,
@@ -99,7 +102,10 @@ module spio_spinnaker_link_receiver
     .OUT    (synced_sl_data_2of7)
   );
 		
-  flit_input_if fi
+  flit_input_if
+  #(
+    .INTER_ACK_DELAY (INTER_ACK_DELAY)
+  ) fi
   (
     .CLK_IN          (CLK_IN),
     .RESET_IN        (RESET_IN),
@@ -137,6 +143,9 @@ endmodule
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 `timescale 1ns / 1ps
 module flit_input_if
+#(
+  parameter INTER_ACK_DELAY = 1
+)
 (
   input                         CLK_IN,
   input                         RESET_IN,
@@ -165,8 +174,6 @@ module flit_input_if
   localparam IDLE_ST    = STRT_ST + 1;
   localparam RECV_ST    = IDLE_ST + 1;
   localparam EOPW_ST    = RECV_ST + 1;
-
-  localparam INTER_ACK_DELAY = 1;
 
   localparam SPKT_FLTS = 10;
   localparam LPKT_FLTS = 18;
