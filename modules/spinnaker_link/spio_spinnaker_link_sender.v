@@ -59,7 +59,11 @@
 `timescale 1ns / 1ps
 module spio_spinnaker_link_sender
 #(
-  parameter INTER_FLT_DELAY = 1
+  // clock cycles to separate consecutive STAC flits
+  parameter INTER_FLT_DELAY = 1,
+
+  // SpiNNaker link type (for back-pressure settings)
+  parameter SL_TYPE = 3
 )
 (
   input                        CLK_IN,
@@ -68,11 +72,6 @@ module spio_spinnaker_link_sender
   // link error reporting
   output wire                  ACK_ERR_OUT,
   output wire                  TMO_ERR_OUT,
-
-  // back-pressure point interface
-  input                  [3:0] BPP_IN,
-  input                  [4:0] BSF_LONG_IN,
-  input                  [2:0] BAF_LONG_IN,
 
   // synchronous packet interface
   input      [`PKT_BITS - 1:0] PKT_DATA_IN,
@@ -83,6 +82,30 @@ module spio_spinnaker_link_sender
   output                 [6:0] SL_DATA_2OF7_OUT,
   input                        SL_ACK_IN
 );
+
+  //---------------------------------------------------------------
+  // constants
+  //---------------------------------------------------------------
+  // the back-pressure point (bpp) is different for each SpiNNaker link
+  // 6 links, 4 bits per link
+  localparam [(6*4)-1:0] BPP = { 4'd5, 4'd6, 4'd6
+                               , 4'd9, 4'd6, 4'd7
+                               };
+
+  // the number of "synchronous" flits before the back-pressure point
+  // is different for each SpiNNaker link
+  // 6 links, 5 bits per link
+  localparam [(6*5)-1:0] BSF_LONG = { 5'd15, 5'd17, 5'd17, 5'd17
+                                    , 5'd17, 5'd17, 5'd17, 5'd17
+                                    };
+
+  // the number of "asynchronous" flits before the back-pressure point
+  // is different for each SpiNNaker link
+  // 6 links, 3 bits per link
+  localparam [(6*3)-1:0] BAF_LONG = { 3'd4, 3'd2, 3'd2, 3'd2
+                                    , 3'd2, 3'd2, 3'd2, 3'd2
+                                    };
+
 
   //-------------------------------------------------------------
   // internal signals
@@ -115,9 +138,9 @@ module spio_spinnaker_link_sender
   (
     .CLK_IN           (CLK_IN),
     .RESET_IN         (RESET_IN),
-    .BPP_IN           (BPP_IN),
-    .BSF_LONG_IN      (BSF_LONG_IN),
-    .BAF_LONG_IN      (BAF_LONG_IN),
+    .BPP_IN           (BPP[(4*SL_TYPE)+:4]),
+    .BSF_LONG_IN      (BSF_LONG[(5*SL_TYPE)+:5]),
+    .BAF_LONG_IN      (BAF_LONG[(3*SL_TYPE)+:3]),
     .ACK_ERR_OUT      (ACK_ERR_OUT),
     .TMO_ERR_OUT      (TMO_ERR_OUT),
     .flt_data         (flt_data),
