@@ -39,21 +39,20 @@ localparam [(3*16*2)-1:0] FPGA_SL_TYPES = { // FPGA2
 // every SpiNNaker link type (0-5). This array stores the SpiNNkaker link
 // type connected to each FPGA link.
 // 3 FPGAs, 16 links per FPGA, 3 bits per link
-localparam [(3*16*3)-1:0] SPIN_LINK_TYPE = { // FPGA2
-                                             3'd1, 3'd0, 3'd1, 3'd0
-                                           , 3'd1, 3'd0, 3'd1, 3'd0
-                                           , 3'd1, 3'd2, 3'd1, 3'd2
-                                           , 3'd1, 3'd2, 3'd1, 3'd2
-                                             // FPGA1
-                                           , 3'd3, 3'd2, 3'd3, 3'd2
-                                           , 3'd3, 3'd2, 3'd3, 3'd2
-                                           , 3'd3, 3'd4, 3'd3, 3'd4
-                                           , 3'd3, 3'd4, 3'd3, 3'd4
-                                             // FPGA0
-                                           , 3'd5, 3'd4, 3'd5, 3'd4
-                                           , 3'd5, 3'd4, 3'd5, 3'd4
-                                           , 3'd5, 3'd0, 3'd5, 3'd0
-                                           , 3'd5, 3'd0, 3'd5, 3'd0
-                                           };
-
+localparam [(3*16*3)-1:0] SPIN_LINK_NUM = { // FPGA2
+                                            3'd1, 3'd0, 3'd1, 3'd0
+                                          , 3'd1, 3'd0, 3'd1, 3'd0
+                                          , 3'd1, 3'd2, 3'd1, 3'd2
+                                          , 3'd1, 3'd2, 3'd1, 3'd2
+                                            // FPGA1
+                                          , 3'd3, 3'd2, 3'd3, 3'd2
+                                          , 3'd3, 3'd2, 3'd3, 3'd2
+                                          , 3'd3, 3'd4, 3'd3, 3'd4
+                                          , 3'd3, 3'd4, 3'd3, 3'd4
+                                            // FPGA0
+                                          , 3'd5, 3'd4, 3'd5, 3'd4
+                                          , 3'd5, 3'd4, 3'd5, 3'd4
+                                          , 3'd5, 3'd0, 3'd5, 3'd0
+                                          , 3'd5, 3'd0, 3'd5, 3'd0
+                                          };
 `endif

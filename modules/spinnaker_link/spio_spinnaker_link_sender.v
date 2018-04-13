@@ -62,8 +62,8 @@ module spio_spinnaker_link_sender
   // clock cycles to separate consecutive STAC flits
   parameter INTER_FLT_DELAY = 1,
 
-  // SpiNNaker link type (for back-pressure settings)
-  parameter SL_TYPE = 3
+  // SpiNNaker link number (for back-pressure settings)
+  parameter SL_NUM = 3
 )
 (
   input                        CLK_IN,
@@ -138,9 +138,9 @@ module spio_spinnaker_link_sender
   (
     .CLK_IN           (CLK_IN),
     .RESET_IN         (RESET_IN),
-    .BPP_IN           (BPP[(4*SL_TYPE)+:4]),
-    .BSF_LONG_IN      (BSF_LONG[(5*SL_TYPE)+:5]),
-    .BAF_LONG_IN      (BAF_LONG[(3*SL_TYPE)+:3]),
+    .BPP_IN           (BPP[(4*SL_NUM)+:4]),
+    .BSF_LONG_IN      (BSF_LONG[(5*SL_NUM)+:5]),
+    .BAF_LONG_IN      (BAF_LONG[(3*SL_NUM)+:3]),
     .ACK_ERR_OUT      (ACK_ERR_OUT),
     .TMO_ERR_OUT      (TMO_ERR_OUT),
     .flt_data         (flt_data),

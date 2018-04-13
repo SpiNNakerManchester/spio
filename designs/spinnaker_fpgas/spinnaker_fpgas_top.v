@@ -1311,7 +1311,7 @@ generate for (i = 0; i < 16; i = i + 1)
 
 
 		// FPGA -> SpiNNaker
-		spio_spinnaker_link_sender #( .SL_TYPE          (SPIN_LINK_TYPE[(48*FPGA_ID) + (3*i)+:3]))
+		spio_spinnaker_link_sender #( .SL_NUM           (SPIN_LINK_NUM[(48*FPGA_ID) + (3*i)+:3]))
 		spio_spinnaker_link_sender_i( .CLK_IN           (spinnaker_link_clk0_i)
 		                            , .RESET_IN         (spinnaker_link_reset_i[(i*2) + 1])
 		                              // link error interface

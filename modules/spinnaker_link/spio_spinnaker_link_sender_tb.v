@@ -31,7 +31,7 @@ module spio_spinnaker_link_sender_tb ();
 localparam UUT_CLK_HPER = (6.666 / 2);  // currently testing @ 150 MHz
 localparam TB_CLK_HPER  = (6.666 / 2);  // currently testing @ 150 MHz
 
-localparam SPIN_LINK_TYPE = 3;
+localparam SPIN_LINK_NUM = 3;
 
 // the back-pressure point (bpp) is different for each SpiNNaker link
 // 6 links, 4 bits per link
@@ -39,7 +39,7 @@ localparam [(6*4)-1:0] BPP = { 4'd5, 4'd6, 4'd6
                              , 4'd9, 4'd6, 4'd7
                              };
 
-localparam BPP_TIME  = BPP[(4*SPIN_LINK_TYPE)+:4];
+localparam BPP_TIME  = BPP[(4*SPIN_LINK_NUM)+:4];
 localparam BPP_DELAY = 20;
 
 localparam SPL_HSDLY = 12;  // external link delay estimate
@@ -183,7 +183,7 @@ endfunction
 //---------------------------------------------------------------
 spio_spinnaker_link_sender
 #(
-  .SL_TYPE          (SPIN_LINK_TYPE)
+  .SL_NUM           (SPIN_LINK_NUM)
 )  uut
 (
   .CLK_IN           (uut_clk),
