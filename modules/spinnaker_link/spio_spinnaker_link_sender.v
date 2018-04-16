@@ -88,23 +88,17 @@ module spio_spinnaker_link_sender
   //---------------------------------------------------------------
   // the back-pressure point (bpp) is different for each SpiNNaker link
   // 6 links, 4 bits per link
-  localparam [(6*4)-1:0] BPP = { 4'd5, 4'd6, 4'd6
-                               , 4'd9, 4'd6, 4'd7
-                               };
+  localparam [(6*4)-1:0] BPP = {4'd5, 4'd6, 4'd6, 4'd9, 4'd6, 4'd7};
 
   // the number of "synchronous" flits before the back-pressure point
   // is different for each SpiNNaker link
   // 6 links, 5 bits per link
-  localparam [(6*5)-1:0] BSF_LONG = { 5'd15, 5'd17, 5'd17, 5'd17
-                                    , 5'd17, 5'd17, 5'd17, 5'd17
-                                    };
+  localparam [(6*5)-1:0] BSF_LONG = {5'd15, 5'd17, 5'd17, 5'd17, 5'd17, 5'd17};
 
   // the number of "asynchronous" flits before the back-pressure point
   // is different for each SpiNNaker link
   // 6 links, 3 bits per link
-  localparam [(6*3)-1:0] BAF_LONG = { 3'd4, 3'd2, 3'd2, 3'd2
-                                    , 3'd2, 3'd2, 3'd2, 3'd2
-                                    };
+  localparam [(6*3)-1:0] BAF_LONG = {3'd4, 3'd2, 3'd2, 3'd2, 3'd2, 3'd2};
 
 
   //-------------------------------------------------------------
