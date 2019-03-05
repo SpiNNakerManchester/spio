@@ -61,6 +61,23 @@ not be deasserted once asserted until `vld` goes high (i.e. a value is
 transferred).
 
 
+spiNNlink
+---------
+
+spiNNlink is the high-speed, serial (hss) board-to-board SpiNNaker interconnect.
+It is implemented on three Spartan-6 FPGAs present on the SpiNN-5 board and is
+designed to provide transparent board-to-board connectivity. The details of the
+spiNNlink protocol are described in the [spiNNlink Frame Transport 
+Specification](http://spinnakermanchester.github.io/docs/spiNNlink_frame_transport.pdf).
+
+
+Verilog code for the spiNNlink modules is located in
+[modules/hss_multiplexer](https://github.com/SpiNNakerManchester/spio/tree/master/modules/hss_multiplexer).
+See 
+[designs/spinnaker_fpgas](https://github.com/SpiNNakerManchester/spio/tree/master/designs/spinnaker_fpgas)
+for an example of how to use spiNNlink.
+
+
 Authors
 -------
 
