@@ -83,7 +83,7 @@ Authors
 
 The designs in this repository are largely the work of:
 
-* Luis Plana
+* Luis A. Plana
 * Jonathan Heathcote
 * Jeff Pepper
 
