@@ -94,7 +94,7 @@ With the collaboration of:
 * Steve Temple
 * Steve Furber
 
-All affiliated with The University of Manchester.
+All affiliated, at the time of their contribution, with The University of Manchester.
 
 
 Copyright
