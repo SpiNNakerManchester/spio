@@ -31,7 +31,18 @@ module spio_spinnaker_link_sender_tb ();
 localparam UUT_CLK_HPER = (6.666 / 2);  // currently testing @ 150 MHz
 localparam TB_CLK_HPER  = (6.666 / 2);  // currently testing @ 150 MHz
 
- localparam SPL_HSDLY = 12;  // external link delay estimate
+localparam SPIN_LINK_NUM = 3;
+
+// the back-pressure point (bpp) is different for each SpiNNaker link
+// 6 links, 4 bits per link
+localparam [(6*4)-1:0] BPP = { 4'd5, 4'd6, 4'd6
+                             , 4'd9, 4'd6, 4'd7
+                             };
+
+localparam BPP_TIME  = BPP[(4*SPIN_LINK_NUM)+:4];
+localparam BPP_DELAY = 20;
+
+localparam SPL_HSDLY = 12;  // external link delay estimate
 //!! localparam SPL_HSDLY = 16;  // external link delay estimate
 //!!localparam SPL_HSDLY = 23;  // external link delay estimate (includes SpiNNaker)
 
@@ -39,12 +50,6 @@ localparam INIT_DELAY = (10 * TB_CLK_HPER);
 localparam RST_DELAY  = (51 * TB_CLK_HPER);  // align with clock posedge
 
 localparam COMB_DELAY = 2;
-
-localparam BPP_DELAY = 20;
-
-localparam BPP_UUT =  4'd6;
-localparam BSF_UUT = 5'd17;
-localparam BAF_UUT =  3'd2;
 
 
 //---------------------------------------------------------------
@@ -176,7 +181,10 @@ endfunction
 //---------------------------------------------------------------
 // unit under test
 //---------------------------------------------------------------
-spio_spinnaker_link_sender uut
+spio_spinnaker_link_sender
+#(
+  .SL_NUM           (SPIN_LINK_NUM)
+)  uut
 (
   .CLK_IN           (uut_clk),
   .RESET_IN         (uut_rst),
@@ -184,11 +192,6 @@ spio_spinnaker_link_sender uut
   // link error interface
   .ACK_ERR_OUT      (),
   .TMO_ERR_OUT      (),
-
-  // back-pressure point interface
-  .BPP_IN           (BPP_UUT),
-  .BSF_LONG_IN      (BSF_UUT),
-  .BAF_LONG_IN      (BAF_UUT),
 
   // incoming packet interface
   .PKT_DATA_IN      (uut_ipkt_data),
@@ -398,8 +401,9 @@ begin
     tb_old_data = uut_ospl_data;
 
     # SPL_HSDLY;
-    if (tb_flt_cnt == BPP_UUT) # BPP_DELAY;
-//!    if ((tb_flt_cnt != BPP_UUT) || (tb_pkt_cnt <= 10)) uut_ospl_ack = ~uut_ospl_ack;
+    // apply back pressure at the right time
+    if (tb_flt_cnt == BPP_TIME) # BPP_DELAY;
+//!    if ((tb_flt_cnt != BPP_TIME) || (tb_pkt_cnt <= 10)) uut_ospl_ack = ~uut_ospl_ack;
     uut_ospl_ack = ~uut_ospl_ack;
   end
 end

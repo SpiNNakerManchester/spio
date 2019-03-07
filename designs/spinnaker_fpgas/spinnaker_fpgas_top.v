@@ -1310,18 +1310,13 @@ generate for (i = 0; i < 16; i = i + 1)
 		wire                 slfc_pkt_txrdy_i;
 
 
-
 		// FPGA -> SpiNNaker
-		spio_spinnaker_link_sender
+		spio_spinnaker_link_sender #( .SL_NUM           (SPIN_LINK_NUM[(48*FPGA_ID) + (3*i)+:3]))
 		spio_spinnaker_link_sender_i( .CLK_IN           (spinnaker_link_clk0_i)
 		                            , .RESET_IN         (spinnaker_link_reset_i[(i*2) + 1])
 		                              // link error interface
 		                            , .ACK_ERR_OUT      (sl_tx_ack_err_i[i])
 		                            , .TMO_ERR_OUT      (sl_tx_tmo_err_i[i])
-		                              // back-pressure point interface
-		                            , .BPP_IN           (BPP[(64*FPGA_ID) + (4*i)+:4])
-		                            , .BSF_LONG_IN      (BSF_LONG[(80*FPGA_ID) + (5*i)+:5])
-		                            , .BAF_LONG_IN      (BAF_LONG[(48*FPGA_ID) + (3*i)+:3])
 		                              // Synchronous packet interface
 		                            , .PKT_DATA_IN      (slfc_pkt_txdata_i)
 		                            , .PKT_VLD_IN       (slfc_pkt_txvld_i)
