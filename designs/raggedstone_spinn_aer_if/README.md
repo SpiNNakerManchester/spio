@@ -9,7 +9,7 @@ A note in the `doc` directory describes the design and the user interface.
 Authors
 -------
 
-This design was produced by Luis Plana, Jeffrey Pepper and Simon Davidson.
+This design was produced by Luis A. Plana, Jeffrey Pepper and Simon Davidson.
 
 
 Dependencies
