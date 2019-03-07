@@ -22,7 +22,7 @@ Authors
 -------
 
 This top-level design was produced by Jonathan Heathcote and is derived from the
-original design by Luis Plana and, before him, Jeff Pepper.
+original design by Luis A. Plana and, before him, Jeff Pepper.
 
 
 Dependencies
