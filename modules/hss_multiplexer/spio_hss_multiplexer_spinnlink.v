@@ -179,7 +179,7 @@ module spio_hss_multiplexer_spinnlink
   // remote channel flow control (fd -> fa)
   wire [`NUM_CHANS - 1:0] cfc_rem;
    
-  // local channel flow control (pd -> fa)
+  // local channel flow control (pd -> ft)
   wire [`NUM_CHANS - 1:0] cfc_loc;
    
   // received packet outputs (fd -> pd) 
