@@ -79,7 +79,7 @@ module spio_hss_multiplexer_packet_dispatcher
   input  wire  [`CLR_BITS - 1:0] ooc_colour,
   input  wire 			 ooc_vld,
 
-  // channel flow control interface (to frame assembler)
+  // channel flow control interface (to frame transmitter)
   // send local cfc to remote side
   output reg  [`NUM_CHANS - 1:0] cfc_loc,
  
