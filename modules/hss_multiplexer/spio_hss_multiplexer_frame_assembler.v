@@ -498,7 +498,7 @@ module spio_hss_multiplexer_frame_assembler
   input  wire  [`SEQ_BITS - 1:0] ack_seq,
   input  wire 			 ack_vld,
 
-  // channel flow control interface (from packet dispatcher)
+	// channel flow control interface (from frame disassembler)
   // use remote cfc to mask local channels
   input  wire [`NUM_CHANS - 1:0] cfc_rem,
  
