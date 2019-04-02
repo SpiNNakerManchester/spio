@@ -67,13 +67,13 @@ spiNNlink
 spiNNlink is the high-speed, serial (hss) board-to-board SpiNNaker interconnect.
 It is implemented on three Spartan-6 FPGAs present on the SpiNN-5 board and is
 designed to provide transparent board-to-board connectivity. The details of the
-spiNNlink protocol are described in the [spiNNlink Frame Transport 
+spiNNlink protocol are described in the [spiNNlink Frame Transport
 Specification](http://spinnakermanchester.github.io/docs/spiNNlink_frame_transport.pdf).
 
 
 Verilog code for the spiNNlink modules is located in
 [modules/hss_multiplexer](https://github.com/SpiNNakerManchester/spio/tree/master/modules/hss_multiplexer).
-See 
+See
 [designs/spinnaker_fpgas](https://github.com/SpiNNakerManchester/spio/tree/master/designs/spinnaker_fpgas)
 for an example of how to use spiNNlink.
 
@@ -97,21 +97,7 @@ With the collaboration of:
 All affiliated, at the time of their contribution, with The University of Manchester.
 
 
-Copyright
----------
+License
+-------
 
-Copyright (C) 2012-2016 The University of Manchester.
-
-This library is free software; you can redistribute it and/or
-modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation; either version 2
-of the License, or (at your option) any later version.
-
-This library is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this library; if not, write to the Free Software
-Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+See the LICENSE file for license rights and limitations (BSD 3-Clause).
