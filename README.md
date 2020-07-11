@@ -42,7 +42,7 @@ LA Plana, J Garside, J Heathcote, J Pepper, S Temple, S Davidson, M Luján and S
 [Open Issues](https://github.com/SpiNNakerManchester/spio/issues)
 -----------
 
-The __spI/O__ library was developed as part of research projects and PhD programmes
+The __spI/O__ library was developed as part of several research projects and PhD programmes
 which are now finished. Currently there is no active development/maintenance work.
 
 This repository maintains a list of [issues](https://github.com/SpiNNakerManchester/spio/issues)
