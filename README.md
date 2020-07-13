@@ -5,7 +5,7 @@ A library of FPGA designs and reusable modules for I/O and internal
 connectivity in SpiNNaker systems.
 
 The `modules` directory contains a selection of reusable Verilog modules which
-all share a [common interface](https://github.com/SpiNNakerManchester/spio/edit/master/modules/README.md).
+all share a [common interface](https://github.com/SpiNNakerManchester/spio/blob/master/modules/README.md).
 See the `README.md` included with each module for general information or see the module itself for a concrete
 interface description.
 
