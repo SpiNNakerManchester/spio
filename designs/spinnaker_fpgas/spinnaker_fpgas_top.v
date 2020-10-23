@@ -21,12 +21,30 @@
 `include "../../modules/hss_multiplexer/spio_hss_multiplexer_reg_bank.h"
 
 
-module spinnaker_fpgas_top #( // Version number for top-level design
+module spinnaker_fpgas_top #( // -----------------------------------------------
+                              // Version number for top-level design
                               parameter VERSION = `SPIO_VER_NUM
                               // Enable simulation mode for GTP tile
                             , parameter SIMULATION = 0
                               // Speed up simulated reset of GTP tile
                             , parameter SIMULATION_GTPRESET_SPEEDUP = 0
+                              // -----------------------------------------------
+                              // include hss multiplexer modules for board-to-board links
+                            , parameter INCLUDE_B2B_SUPPORT = 1
+                              // include peripheral hss multiplexer, arbiter and, 
+                              // if needed, speed doubler to support 
+                              // peripheral input (peripheral port -> SpiNNaker)
+                            , parameter INCLUDE_PERIPH_INPUT_SUPPORT = 0
+                              // include peripheral hss multiplexer, switch and, 
+                              // if needed, speed halver to support 
+                              // peripheral output (SpiNNaker -> peripheral port)
+                            , parameter INCLUDE_PERIPH_OUTPUT_SUPPORT = 0
+                              // include hss multiplexer module for FPGA ring
+                            , parameter INCLUDE_RING_SUPPORT = 0
+                              // include chip-scope Virtual I/O interface (e.g.
+                              // to access HSS multiplexer debug register banks)
+                            , parameter INCLUDE_DEBUG_CHIPSCOPE_VIO = 0
+                              // -----------------------------------------------
                               // Which FPGA should this module be compiled for
                             , parameter FPGA_ID = 2
                               // Should North and South connections be connected
@@ -35,25 +53,11 @@ module spinnaker_fpgas_top #( // Version number for top-level design
                               // (peripheral connections will be placed on the
                               // opposing side).
                             , parameter NORTH_SOUTH_ON_FRONT = 1
-                              // include hss multiplexer module for FPGA ring
-                            , parameter INCLUDE_B2B_SUPPORT = 1
                               // peripheral high-speed serial link operates at half speed
                             , parameter PERIPH_HALF_SPEED = 1
-                              // include peripheral hss multiplexer, arbiter and, 
-                              // if needed, speed doubler to support 
-                              // peripheral input (peripheral port -> SpiNNaker)
-                            , parameter INCLUDE_PERIPH_INPUT_SUPPORT = 1
-                              // include peripheral hss multiplexer, switch and, 
-                              // if needed, speed halver to support 
-                              // peripheral output (SpiNNaker -> peripheral port)
-                            , parameter INCLUDE_PERIPH_OUTPUT_SUPPORT = 1
-                              // include hss multiplexer module for FPGA ring
-                            , parameter INCLUDE_RING_SUPPORT = 0
-                              // Enable chip-scope Virtual I/O interface (e.g.
-                              // to access HSS multiplexer debug register banks)
-                            , parameter DEBUG_CHIPSCOPE_VIO = 0
                               // The interval at which clock correction sequences should
                               // be inserted (in cycles).
+                              // -----------------------------------------------
                             , parameter    B2B_CLOCK_CORRECTION_INTERVAL = 1000
                             , parameter PERIPH_CLOCK_CORRECTION_INTERVAL = 1000
                             , parameter   RING_CLOCK_CORRECTION_INTERVAL = 1000
@@ -70,6 +74,7 @@ module spinnaker_fpgas_top #( // Version number for top-level design
                             , parameter    B2B_NUM_HANDSHAKES_BITS = 7
                             , parameter PERIPH_NUM_HANDSHAKES_BITS = 7
                             , parameter   RING_NUM_HANDSHAKES_BITS = 7
+                              // -----------------------------------------------
                             )
                             ( // Reset signal
                               input wire N_RESET_IN
@@ -492,30 +497,30 @@ spio_status_led_generator_i( .CLK_IN               (led_clk_i)
 // Generate the activity signal for each board-to-board link
 generate if (INCLUDE_B2B_SUPPORT)
 	for (i = 0; i < 2; i = i + 1)
-	begin : b2b_activity_signal
-		assign b2b_activity_i[i] = (b2b_pkt_rxvld_i[i][0] & b2b_pkt_rxrdy_i[i][0])
-		                         | (b2b_pkt_rxvld_i[i][1] & b2b_pkt_rxrdy_i[i][1])
-		                         | (b2b_pkt_rxvld_i[i][2] & b2b_pkt_rxrdy_i[i][2])
-		                         | (b2b_pkt_rxvld_i[i][3] & b2b_pkt_rxrdy_i[i][3])
-		                         | (b2b_pkt_rxvld_i[i][4] & b2b_pkt_rxrdy_i[i][4])
-		                         | (b2b_pkt_rxvld_i[i][5] & b2b_pkt_rxrdy_i[i][5])
-		                         | (b2b_pkt_rxvld_i[i][6] & b2b_pkt_rxrdy_i[i][6])
-		                         | (b2b_pkt_rxvld_i[i][7] & b2b_pkt_rxrdy_i[i][7])
-		                         | (b2b_pkt_txvld_i[i][0] & b2b_pkt_txrdy_i[i][0])
-		                         | (b2b_pkt_txvld_i[i][1] & b2b_pkt_txrdy_i[i][1])
-		                         | (b2b_pkt_txvld_i[i][2] & b2b_pkt_txrdy_i[i][2])
-		                         | (b2b_pkt_txvld_i[i][3] & b2b_pkt_txrdy_i[i][3])
-		                         | (b2b_pkt_txvld_i[i][4] & b2b_pkt_txrdy_i[i][4])
-		                         | (b2b_pkt_txvld_i[i][5] & b2b_pkt_txrdy_i[i][5])
-		                         | (b2b_pkt_txvld_i[i][6] & b2b_pkt_txrdy_i[i][6])
-		                         | (b2b_pkt_txvld_i[i][7] & b2b_pkt_txrdy_i[i][7])
-		                         ;
-	end
+		begin : b2b_activity_signal
+			assign b2b_activity_i[i] = (b2b_pkt_rxvld_i[i][0] & b2b_pkt_rxrdy_i[i][0])
+			                         | (b2b_pkt_rxvld_i[i][1] & b2b_pkt_rxrdy_i[i][1])
+			                         | (b2b_pkt_rxvld_i[i][2] & b2b_pkt_rxrdy_i[i][2])
+			                         | (b2b_pkt_rxvld_i[i][3] & b2b_pkt_rxrdy_i[i][3])
+			                         | (b2b_pkt_rxvld_i[i][4] & b2b_pkt_rxrdy_i[i][4])
+			                         | (b2b_pkt_rxvld_i[i][5] & b2b_pkt_rxrdy_i[i][5])
+			                         | (b2b_pkt_rxvld_i[i][6] & b2b_pkt_rxrdy_i[i][6])
+			                         | (b2b_pkt_rxvld_i[i][7] & b2b_pkt_rxrdy_i[i][7])
+			                         | (b2b_pkt_txvld_i[i][0] & b2b_pkt_txrdy_i[i][0])
+			                         | (b2b_pkt_txvld_i[i][1] & b2b_pkt_txrdy_i[i][1])
+			                         | (b2b_pkt_txvld_i[i][2] & b2b_pkt_txrdy_i[i][2])
+			                         | (b2b_pkt_txvld_i[i][3] & b2b_pkt_txrdy_i[i][3])
+			                         | (b2b_pkt_txvld_i[i][4] & b2b_pkt_txrdy_i[i][4])
+			                         | (b2b_pkt_txvld_i[i][5] & b2b_pkt_txrdy_i[i][5])
+			                         | (b2b_pkt_txvld_i[i][6] & b2b_pkt_txrdy_i[i][6])
+			                         | (b2b_pkt_txvld_i[i][7] & b2b_pkt_txrdy_i[i][7])
+			                         ;
+		end
 else
 	for (i = 0; i < 2; i = i + 1)
-	begin : b2b_activity_signal
-		assign b2b_activity_i[i] = 1'b0;
-	end
+		begin : b2b_activity_signal
+			assign b2b_activity_i[i] = 1'b0;
+		end
 endgenerate
 
 // Generate the activity signal for the peripheral link
@@ -543,10 +548,10 @@ endgenerate
 
 // Generate the activity signal for the ring link
 generate if (INCLUDE_RING_SUPPORT)
-		//TODO: complete ring support - no activity!
-		assign ring_activity_i = 1'b0;
-	else
-		assign ring_activity_i = 1'b0;
+	//TODO: complete ring support - no activity!
+	assign ring_activity_i = 1'b0;
+else
+	assign ring_activity_i = 1'b0;
 endgenerate
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1436,82 +1441,92 @@ endcase endgenerate
 // Connect boards together in the system.
 generate if (INCLUDE_B2B_SUPPORT)
 	for (i = 0; i < 2; i = i + 1)
-	begin : b2b_hss_multiplexers
-		spio_hss_multiplexer#( .CLOCK_CORRECTION_INTERVAL      (B2B_CLOCK_CORRECTION_INTERVAL)
-		                     , .CLOCK_CORRECTION_INTERVAL_BITS (B2B_CLOCK_CORRECTION_INTERVAL_BITS)
-		                     , .NUM_HANDSHAKES                 (B2B_NUM_HANDSHAKES)
-		                     , .NUM_HANDSHAKES_BITS            (B2B_NUM_HANDSHAKES_BITS)
-		                     )
-		b2b_hss_multiplexer_i( .CLK_IN                         (b2b_usrclk2_i)
-		                     , .RESET_IN                       (b2b_hss_reset_i[i])
-		                       // Status Signals
-		                     , .HANDSHAKE_COMPLETE_OUT         (b2b_handshake_complete_i[i])
-		                     , .VERSION_MISMATCH_OUT           (b2b_version_mismatch_i[i])
-		                       // High-Speed-Serial Interface
-		                     , .RXDATA_IN                      (b2b_rxdata_i[i])
-		                     , .RXCHARISCOMMA_IN               (b2b_rxchariscomma_i[i])
-		                     , .RXCHARISK_IN                   (b2b_rxcharisk_i[i])
-		                     , .RXLOSSOFSYNC_IN                (b2b_rxlossofsync_i[i])
-		                     , .TXDATA_OUT                     (b2b_txdata_i[i])
-		                     , .TXCHARISK_OUT                  (b2b_txcharisk_i[i])
-		                       // Packet interface
-		                     , .TX_PKT0_DATA_IN                (b2b_pkt_txdata_i[i][i ? 7 : 0])
-		                     , .TX_PKT0_VLD_IN                 (b2b_pkt_txvld_i[i][i ? 7 : 0])
-		                     , .TX_PKT0_RDY_OUT                (b2b_pkt_txrdy_i[i][i ? 7 : 0])
-		                     , .TX_PKT1_DATA_IN                (b2b_pkt_txdata_i[i][i ? 6 : 1])
-		                     , .TX_PKT1_VLD_IN                 (b2b_pkt_txvld_i[i][i ? 6 : 1])
-		                     , .TX_PKT1_RDY_OUT                (b2b_pkt_txrdy_i[i][i ? 6 : 1])
-		                     , .TX_PKT2_DATA_IN                (b2b_pkt_txdata_i[i][i ? 5 : 2])
-		                     , .TX_PKT2_VLD_IN                 (b2b_pkt_txvld_i[i][i ? 5 : 2])
-		                     , .TX_PKT2_RDY_OUT                (b2b_pkt_txrdy_i[i][i ? 5 : 2])
-		                     , .TX_PKT3_DATA_IN                (b2b_pkt_txdata_i[i][i ? 4 : 3])
-		                     , .TX_PKT3_VLD_IN                 (b2b_pkt_txvld_i[i][i ? 4 : 3])
-		                     , .TX_PKT3_RDY_OUT                (b2b_pkt_txrdy_i[i][i ? 4 : 3])
-		                     , .TX_PKT4_DATA_IN                (b2b_pkt_txdata_i[i][i ? 3 : 4])
-		                     , .TX_PKT4_VLD_IN                 (b2b_pkt_txvld_i[i][i ? 3 : 4])
-		                     , .TX_PKT4_RDY_OUT                (b2b_pkt_txrdy_i[i][i ? 3 : 4])
-		                     , .TX_PKT5_DATA_IN                (b2b_pkt_txdata_i[i][i ? 2 : 5])
-		                     , .TX_PKT5_VLD_IN                 (b2b_pkt_txvld_i[i][i ? 2 : 5])
-		                     , .TX_PKT5_RDY_OUT                (b2b_pkt_txrdy_i[i][i ? 2 : 5])
-		                     , .TX_PKT6_DATA_IN                (b2b_pkt_txdata_i[i][i ? 1 : 6])
-		                     , .TX_PKT6_VLD_IN                 (b2b_pkt_txvld_i[i][i ? 1 : 6])
-		                     , .TX_PKT6_RDY_OUT                (b2b_pkt_txrdy_i[i][i ? 1 : 6])
-		                     , .TX_PKT7_DATA_IN                (b2b_pkt_txdata_i[i][i ? 0 : 7])
-		                     , .TX_PKT7_VLD_IN                 (b2b_pkt_txvld_i[i][i ? 0 : 7])
-		                     , .TX_PKT7_RDY_OUT                (b2b_pkt_txrdy_i[i][i ? 0 : 7])
-		                     , .RX_PKT0_DATA_OUT               (b2b_pkt_rxdata_i[i][i ? 7 : 0])
-		                     , .RX_PKT0_VLD_OUT                (b2b_pkt_rxvld_i[i][i ? 7 : 0])
-		                     , .RX_PKT0_RDY_IN                 (b2b_pkt_rxrdy_i[i][i ? 7 : 0])
-		                     , .RX_PKT1_DATA_OUT               (b2b_pkt_rxdata_i[i][i ? 6 : 1])
-		                     , .RX_PKT1_VLD_OUT                (b2b_pkt_rxvld_i[i][i ? 6 : 1])
-		                     , .RX_PKT1_RDY_IN                 (b2b_pkt_rxrdy_i[i][i ? 6 : 1])
-		                     , .RX_PKT2_DATA_OUT               (b2b_pkt_rxdata_i[i][i ? 5 : 2])
-		                     , .RX_PKT2_VLD_OUT                (b2b_pkt_rxvld_i[i][i ? 5 : 2])
-		                     , .RX_PKT2_RDY_IN                 (b2b_pkt_rxrdy_i[i][i ? 5 : 2])
-		                     , .RX_PKT3_DATA_OUT               (b2b_pkt_rxdata_i[i][i ? 4 : 3])
-		                     , .RX_PKT3_VLD_OUT                (b2b_pkt_rxvld_i[i][i ? 4 : 3])
-		                     , .RX_PKT3_RDY_IN                 (b2b_pkt_rxrdy_i[i][i ? 4 : 3])
-		                     , .RX_PKT4_DATA_OUT               (b2b_pkt_rxdata_i[i][i ? 3 : 4])
-		                     , .RX_PKT4_VLD_OUT                (b2b_pkt_rxvld_i[i][i ? 3 : 4])
-		                     , .RX_PKT4_RDY_IN                 (b2b_pkt_rxrdy_i[i][i ? 3 : 4])
-		                     , .RX_PKT5_DATA_OUT               (b2b_pkt_rxdata_i[i][i ? 2 : 5])
-		                     , .RX_PKT5_VLD_OUT                (b2b_pkt_rxvld_i[i][i ? 2 : 5])
-		                     , .RX_PKT5_RDY_IN                 (b2b_pkt_rxrdy_i[i][i ? 2 : 5])
-		                     , .RX_PKT6_DATA_OUT               (b2b_pkt_rxdata_i[i][i ? 1 : 6])
-		                     , .RX_PKT6_VLD_OUT                (b2b_pkt_rxvld_i[i][i ? 1 : 6])
-		                     , .RX_PKT6_RDY_IN                 (b2b_pkt_rxrdy_i[i][i ? 1 : 6])
-		                     , .RX_PKT7_DATA_OUT               (b2b_pkt_rxdata_i[i][i ? 0 : 7])
-		                     , .RX_PKT7_VLD_OUT                (b2b_pkt_rxvld_i[i][i ? 0 : 7])
-		                     , .RX_PKT7_RDY_IN                 (b2b_pkt_rxrdy_i[i][i ? 0 : 7])
-		                       // top-level control inputs
-		                     , .SCRMBL_IDL_DAT                 (scrmbl_idl_dat_i[i])
-		                       // High-level protocol performance counters
-		                     , .REG_WRITE_IN                   (b2b_reg_write_i[i])
-		                     , .REG_ADDR_IN                    (b2b_reg_addr_i[i])
-		                     , .REG_READ_DATA_OUT              (b2b_reg_read_data_i[i])
-		                     , .REG_WRITE_DATA_IN              (b2b_reg_write_data_i[i])
-		                     );
-	end
+		begin : b2b_hss_multiplexers
+			spio_hss_multiplexer#( .CLOCK_CORRECTION_INTERVAL      (B2B_CLOCK_CORRECTION_INTERVAL)
+			                     , .CLOCK_CORRECTION_INTERVAL_BITS (B2B_CLOCK_CORRECTION_INTERVAL_BITS)
+			                     , .NUM_HANDSHAKES                 (B2B_NUM_HANDSHAKES)
+			                     , .NUM_HANDSHAKES_BITS            (B2B_NUM_HANDSHAKES_BITS)
+			                     )
+			b2b_hss_multiplexer_i( .CLK_IN                         (b2b_usrclk2_i)
+			                     , .RESET_IN                       (b2b_hss_reset_i[i])
+			                       // Status Signals
+			                     , .HANDSHAKE_COMPLETE_OUT         (b2b_handshake_complete_i[i])
+			                     , .VERSION_MISMATCH_OUT           (b2b_version_mismatch_i[i])
+			                       // High-Speed-Serial Interface
+			                     , .RXDATA_IN                      (b2b_rxdata_i[i])
+			                     , .RXCHARISCOMMA_IN               (b2b_rxchariscomma_i[i])
+			                     , .RXCHARISK_IN                   (b2b_rxcharisk_i[i])
+			                     , .RXLOSSOFSYNC_IN                (b2b_rxlossofsync_i[i])
+			                     , .TXDATA_OUT                     (b2b_txdata_i[i])
+			                     , .TXCHARISK_OUT                  (b2b_txcharisk_i[i])
+			                       // Packet interface
+			                     , .TX_PKT0_DATA_IN                (b2b_pkt_txdata_i[i][i ? 7 : 0])
+			                     , .TX_PKT0_VLD_IN                 (b2b_pkt_txvld_i[i][i ? 7 : 0])
+			                     , .TX_PKT0_RDY_OUT                (b2b_pkt_txrdy_i[i][i ? 7 : 0])
+			                     , .TX_PKT1_DATA_IN                (b2b_pkt_txdata_i[i][i ? 6 : 1])
+			                     , .TX_PKT1_VLD_IN                 (b2b_pkt_txvld_i[i][i ? 6 : 1])
+			                     , .TX_PKT1_RDY_OUT                (b2b_pkt_txrdy_i[i][i ? 6 : 1])
+			                     , .TX_PKT2_DATA_IN                (b2b_pkt_txdata_i[i][i ? 5 : 2])
+			                     , .TX_PKT2_VLD_IN                 (b2b_pkt_txvld_i[i][i ? 5 : 2])
+			                     , .TX_PKT2_RDY_OUT                (b2b_pkt_txrdy_i[i][i ? 5 : 2])
+			                     , .TX_PKT3_DATA_IN                (b2b_pkt_txdata_i[i][i ? 4 : 3])
+			                     , .TX_PKT3_VLD_IN                 (b2b_pkt_txvld_i[i][i ? 4 : 3])
+			                     , .TX_PKT3_RDY_OUT                (b2b_pkt_txrdy_i[i][i ? 4 : 3])
+			                     , .TX_PKT4_DATA_IN                (b2b_pkt_txdata_i[i][i ? 3 : 4])
+			                     , .TX_PKT4_VLD_IN                 (b2b_pkt_txvld_i[i][i ? 3 : 4])
+			                     , .TX_PKT4_RDY_OUT                (b2b_pkt_txrdy_i[i][i ? 3 : 4])
+			                     , .TX_PKT5_DATA_IN                (b2b_pkt_txdata_i[i][i ? 2 : 5])
+			                     , .TX_PKT5_VLD_IN                 (b2b_pkt_txvld_i[i][i ? 2 : 5])
+			                     , .TX_PKT5_RDY_OUT                (b2b_pkt_txrdy_i[i][i ? 2 : 5])
+			                     , .TX_PKT6_DATA_IN                (b2b_pkt_txdata_i[i][i ? 1 : 6])
+			                     , .TX_PKT6_VLD_IN                 (b2b_pkt_txvld_i[i][i ? 1 : 6])
+			                     , .TX_PKT6_RDY_OUT                (b2b_pkt_txrdy_i[i][i ? 1 : 6])
+			                     , .TX_PKT7_DATA_IN                (b2b_pkt_txdata_i[i][i ? 0 : 7])
+			                     , .TX_PKT7_VLD_IN                 (b2b_pkt_txvld_i[i][i ? 0 : 7])
+			                     , .TX_PKT7_RDY_OUT                (b2b_pkt_txrdy_i[i][i ? 0 : 7])
+			                     , .RX_PKT0_DATA_OUT               (b2b_pkt_rxdata_i[i][i ? 7 : 0])
+			                     , .RX_PKT0_VLD_OUT                (b2b_pkt_rxvld_i[i][i ? 7 : 0])
+			                     , .RX_PKT0_RDY_IN                 (b2b_pkt_rxrdy_i[i][i ? 7 : 0])
+			                     , .RX_PKT1_DATA_OUT               (b2b_pkt_rxdata_i[i][i ? 6 : 1])
+			                     , .RX_PKT1_VLD_OUT                (b2b_pkt_rxvld_i[i][i ? 6 : 1])
+			                     , .RX_PKT1_RDY_IN                 (b2b_pkt_rxrdy_i[i][i ? 6 : 1])
+			                     , .RX_PKT2_DATA_OUT               (b2b_pkt_rxdata_i[i][i ? 5 : 2])
+			                     , .RX_PKT2_VLD_OUT                (b2b_pkt_rxvld_i[i][i ? 5 : 2])
+			                     , .RX_PKT2_RDY_IN                 (b2b_pkt_rxrdy_i[i][i ? 5 : 2])
+			                     , .RX_PKT3_DATA_OUT               (b2b_pkt_rxdata_i[i][i ? 4 : 3])
+			                     , .RX_PKT3_VLD_OUT                (b2b_pkt_rxvld_i[i][i ? 4 : 3])
+			                     , .RX_PKT3_RDY_IN                 (b2b_pkt_rxrdy_i[i][i ? 4 : 3])
+			                     , .RX_PKT4_DATA_OUT               (b2b_pkt_rxdata_i[i][i ? 3 : 4])
+			                     , .RX_PKT4_VLD_OUT                (b2b_pkt_rxvld_i[i][i ? 3 : 4])
+			                     , .RX_PKT4_RDY_IN                 (b2b_pkt_rxrdy_i[i][i ? 3 : 4])
+			                     , .RX_PKT5_DATA_OUT               (b2b_pkt_rxdata_i[i][i ? 2 : 5])
+			                     , .RX_PKT5_VLD_OUT                (b2b_pkt_rxvld_i[i][i ? 2 : 5])
+			                     , .RX_PKT5_RDY_IN                 (b2b_pkt_rxrdy_i[i][i ? 2 : 5])
+			                     , .RX_PKT6_DATA_OUT               (b2b_pkt_rxdata_i[i][i ? 1 : 6])
+			                     , .RX_PKT6_VLD_OUT                (b2b_pkt_rxvld_i[i][i ? 1 : 6])
+			                     , .RX_PKT6_RDY_IN                 (b2b_pkt_rxrdy_i[i][i ? 1 : 6])
+			                     , .RX_PKT7_DATA_OUT               (b2b_pkt_rxdata_i[i][i ? 0 : 7])
+			                     , .RX_PKT7_VLD_OUT                (b2b_pkt_rxvld_i[i][i ? 0 : 7])
+			                     , .RX_PKT7_RDY_IN                 (b2b_pkt_rxrdy_i[i][i ? 0 : 7])
+			                       // top-level control inputs
+			                     , .SCRMBL_IDL_DAT                 (scrmbl_idl_dat_i[i])
+			                       // High-level protocol performance counters
+			                     , .REG_WRITE_IN                   (b2b_reg_write_i[i])
+			                     , .REG_ADDR_IN                    (b2b_reg_addr_i[i])
+			                     , .REG_READ_DATA_OUT              (b2b_reg_read_data_i[i])
+			                     , .REG_WRITE_DATA_IN              (b2b_reg_write_data_i[i])
+			                     );
+		end
+else
+	for (i = 0; i < 2; i = i + 1)
+		begin : b2b_hss_not_supported
+			// invalidate status signals
+			assign b2b_handshake_complete_i[i] = 1'b0;
+			assign b2b_version_mismatch_i[i]   = 1'b0;
+
+			// invalidate data in register bank
+			assign b2b_reg_read_data_i[i] = 32'hdead_dead;
+		end
 endgenerate
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1596,6 +1611,15 @@ generate if (INCLUDE_PERIPH_SUPPORT)
                                 , .REG_READ_DATA_OUT              (periph_reg_read_data_i)
 	                        , .REG_WRITE_DATA_IN              (periph_reg_write_data_i)
 	                        );
+else
+	begin : periph_hss_not_supported
+		// invalidate status signals
+		assign periph_handshake_complete_i = 1'b0;
+		assign periph_version_mismatch_i   = 1'b0;
+
+		// invalidate data in register bank
+		assign periph_reg_read_data_i = 32'hdead_dead;
+	end
 endgenerate
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1605,6 +1629,26 @@ endgenerate
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO: Develop ring-network protocol and complete ring support
+generate if (INCLUDE_RING_SUPPORT)
+	begin : ring_hss_support
+		// invalidate status signals
+		assign ring_handshake_complete_i = 1'b0;
+		assign ring_version_mismatch_i   = 1'b0;
+
+		// invalidate data in register bank
+		assign ring_reg_read_data_i = 32'hdead_dead;
+	end
+else
+	begin : ring_hss_not_supported
+		// invalidate status signals
+		assign ring_handshake_complete_i = 1'b0;
+		assign ring_version_mismatch_i   = 1'b0;
+
+		// invalidate data in register bank
+		assign ring_reg_read_data_i = 32'hdead_dead;
+	end
+endgenerate
+
 ////////////////////////////////////////////////////////////////////////////////
 
 
@@ -1694,264 +1738,194 @@ endgenerate
 
 ////////////////////////////////////////////////////////////////////////////////
 // Routing of SpiNNaker packets from SpiNNaker chips to high-speed links
+//TODO: design an adequate and complete packet routing strategy
+//TODO: design an adequate and complete packet dropping strategy
+//TODO: add support for ring HSSL
 ////////////////////////////////////////////////////////////////////////////////
 
-generate case ({INCLUDE_PERIPH_OUTPUT_SUPPORT, INCLUDE_B2B_SUPPORT})
-	{0, 0}:
-		// invalidate all SpiNNaker chip links
-		//NOTE: this case is not useful - included for completeness
-		for (i = 0; i < `NUM_CHANS; i = i + 1)
-			begin : spinnaker_rx_link_routing
-				assign sl_pkt_rxrdy_i[i]   = 1'b0;
-				assign sl_pkt_rxrdy_i[i+8] = 1'b0;
-			end
-
-	{0, 1}:
-		// connect the SpiNNaker chip links directly to the board-to-board links
-		for (i = 0; i < `NUM_CHANS; i = i + 1)
-			begin : spinnaker_rx_link_routing
-				assign b2b_pkt_txdata_i[0][i] = sl_pkt_rxdata_i[i];
-				assign b2b_pkt_txvld_i[0][i]  = sl_pkt_rxvld_i[i];
-				assign sl_pkt_rxrdy_i[i]      = b2b_pkt_txrdy_i[0][i];
-
-				assign b2b_pkt_txdata_i[1][i] = sl_pkt_rxdata_i[i+8];
-				assign b2b_pkt_txvld_i[1][i]  = sl_pkt_rxvld_i[i+8];
-				assign sl_pkt_rxrdy_i[i+8]    = b2b_pkt_txrdy_i[1][i];
-			end
-
-	{1, 0}:
-		// connect the SpiNNaker chip links directly to the peripheral links
-			for (i = 0; i < `NUM_CHANS; i = i + 1)
-			begin : spinnaker_tx_link_arbitration
-				// connect the peripheral links to half of the SpiNNaker chip links
-				assign sl_pkt_txdata_i[i]    = periph_pkt_rxdata_i[i];
-				assign sl_pkt_txvld_i[i]     = periph_pkt_rxvld_i[i];
-				assign periph_pkt_rxrdy_i[i] = sl_pkt_txrdy_i[i];
-
-				// invalidate the other half of the SpiNNaker chip links
-				assign sl_pkt_txvld_i[i+8] = 1'b0;
-			end
-
-	{1, 1}:
-		// arbitrate between board-to-board and peripheral links
-			for (i = 0; i < `NUM_CHANS; i = i + 1)
-			begin : spinnaker_tx_link_arbitration
-				wire [`PKT_BITS-1:0] arb_periph_pkt_rxdata_i;
-				wire                 arb_periph_pkt_rxvld_i;
-				wire                 arb_periph_pkt_rxrdy_i;
-
-				// if needed add a speed adapter between the half-speed
-				// peripheral links and the full speed arbiter
-				if (PERIPH_HALF_SPEED)
-				begin : peripheral_doubler
-					spio_link_speed_doubler #( .PKT_BITS (`PKT_BITS))
-						spio_link_speed_doubler_i( .RESET_IN (arbiter_reset_i)
-							, .SCLK_IN  (periph_usrclk2_i)
-							, .FCLK_IN  (b2b_usrclk2_i)
-							// Incoming signals (on CLK_IN)
-							, .DATA_IN  (periph_pkt_rxdata_i[i])
-							, .VLD_IN   (periph_pkt_rxvld_i[i])
-							, .RDY_OUT  (periph_pkt_rxrdy_i[i])
-							// Outgoing signals (on CLK2_IN)
-							, .DATA_OUT (arb_periph_pkt_rxdata_i)
-							, .VLD_OUT  (arb_periph_pkt_rxvld_i)
-							, .RDY_IN   (arb_periph_pkt_rxrdy_i)
-						);
-				end
-				else
-				begin : peripheral_doubler
-					// connect full-speed peripheral links directly to arbiter
-					assign arb_periph_pkt_rxdata_i = periph_pkt_rxdata_i[i];
-					assign arb_periph_pkt_rxvld_i  = periph_pkt_rxvld_i[i];
-					assign periph_pkt_rxrdy_i[i]   = arb_periph_pkt_rxrdy_i;
-				end
-
-				// Arbitrate the first half of the links
-				spio_rr_arbiter #( .PKT_BITS (`PKT_BITS))
-					spio_rr_arbiter_i( .CLK_IN   (b2b_usrclk2_i)
-						, .RESET_IN (arbiter_reset_i)
-						// Input ports
-						, .DATA0_IN (b2b_pkt_rxdata_i[0][i])
-						, .VLD0_IN  (b2b_pkt_rxvld_i[0][i])
-						, .RDY0_OUT (b2b_pkt_rxrdy_i[0][i])
-						, .DATA1_IN (arb_periph_pkt_rxdata_i)
-						, .VLD1_IN  (arb_periph_pkt_rxvld_i)
-						, .RDY1_OUT (arb_periph_pkt_rxrdy_i)
-						// Output port where the merged stream will be sent
-						, .DATA_OUT (sl_pkt_txdata_i[i])
-						, .VLD_OUT  (sl_pkt_txvld_i[i])
-						, .RDY_IN   (sl_pkt_txrdy_i[i])
-					);
-
-				// connect the other half of the board-to-board links
-				// directly to the SpiNNaker chip links
-				assign sl_pkt_txdata_i[i+8]  = b2b_pkt_rxdata_i[1][i];
-				assign sl_pkt_txvld_i[i+8]   = b2b_pkt_rxvld_i[1][i];
-				assign b2b_pkt_rxrdy_i[1][i] = sl_pkt_txrdy_i[i+8];
-			end
-	endcase endgenerate
-// Route all packets from chips to the first board-to-board link rather than
-// peripheral except those with a certain key when a peripheral is connected.
+// route packets from the first bank of SpiNNaker chip links
+//NOTE: Route all packets to board-to-board link rather than peripheral link
+// except those with a certain key when a peripheral is connected.
 generate if (INCLUDE_PERIPH_OUTPUT_SUPPORT)
 	for (i = 0; i < `NUM_CHANS; i = i + 1)
-		begin : spinnaker_rx_link_routing
-			// Add an interface between the 75 MHz board-to-board links and 37.5 MHz
-			// peripheral links 
+		begin : spinnaker_rx_link_switch
+			// switch output ports (which must be
+			// broken onto their various buses)
+			wire [(`PKT_BITS*2)-1:0] switch_out_data_i;
+			wire [1:0]               switch_out_vld_i;
+			wire [1:0]               switch_out_rdy_i;
+
 			wire [`PKT_BITS-1:0] fast_periph_pkt_txdata_i;
 			wire                 fast_periph_pkt_txvld_i;
 			wire                 fast_periph_pkt_txrdy_i;
-			spio_link_speed_halver #( .PKT_BITS(`PKT_BITS))
-			spio_link_speed_halver_i( .RESET_IN(switch_reset_i)
-			                        , .SCLK_IN(periph_usrclk2_i)
-			                        , .FCLK_IN(   b2b_usrclk2_i)
-			                          // Incoming signals (on CLK_IN)
-			                        , .DATA_IN(fast_periph_pkt_txdata_i)
-			                        , .VLD_IN( fast_periph_pkt_txvld_i)
-			                        , .RDY_OUT(fast_periph_pkt_txrdy_i)
-			                          // Outgoing signals (on CLK2_IN)
-			                        , .DATA_OUT(periph_pkt_txdata_i[i])
-			                        , .VLD_OUT( periph_pkt_txvld_i[i])
-			                        , .RDY_IN(  periph_pkt_txrdy_i[i])
-			                        );
+
+			// if needed add a speed adapter between the full-speed
+			// switch and the half-speed peripheral links 
+			if (PERIPH_HALF_SPEED)
+				begin : peripheral_halver
+					spio_link_speed_halver #( .PKT_BITS (`PKT_BITS))
+					spio_link_speed_halver_i( .RESET_IN (switch_reset_i)
+							        , .SCLK_IN  (periph_usrclk2_i)
+							        , .FCLK_IN  (b2b_usrclk2_i)
+							          // Incoming signals (on CLK_IN)
+							        , .DATA_IN  (fast_periph_pkt_txdata_i)
+							        , .VLD_IN   (fast_periph_pkt_txvld_i)
+							        , .RDY_OUT  (fast_periph_pkt_txrdy_i)
+							          // Outgoing signals (on CLK2_IN)
+							        , .DATA_OUT (periph_pkt_txdata_i[i])
+							        , .VLD_OUT  (periph_pkt_txvld_i[i])
+							        , .RDY_IN   (periph_pkt_txrdy_i[i])
+						                );
+				end
+			else
+				begin : peripheral_halver_not_used
+					// connect switch directly to full-speed peripheral links
+					assign periph_pkt_txdata_i[i]  = fast_periph_pkt_txdata_i;
+					assign periph_pkt_txvld_i[i]   = fast_periph_pkt_txvld_i;
+					assign fast_periph_pkt_txrdy_i = periph_pkt_txrdy_i[i];
+				end
 
 			// Only match non-emergency routed multicast packets
 			wire is_mc_packet_i = (sl_pkt_rxdata_i[i][0+:8]  & 8'b11110000) == 8'b00000000;
 			wire key_matches_i  = (sl_pkt_rxdata_i[i][8+:32] & periph_mc_mask_i) == periph_mc_key_i;
 
-			// The output ports from the switch (which must be broken onto their various
-			// buses)
-			wire [(`PKT_BITS*2)-1:0] switch_out_data_i;
-			wire [1:0]               switch_out_vld_i;
-			wire [1:0]               switch_out_rdy_i;
-
-			// Cause the switch to drop the current packet.
-			wire drop_i;
+			// temporary solution to prevent streams blocking due to disconnected devices:
+			// drop packets whenever blocked while also being known to be disconnected.
+			//TODO: design and implement permanent solution
+			wire drop_i = |(switch_blocked_outputs_i[i] & { !periph_handshake_complete_i
+						                      , !b2b_handshake_complete_i[0]
+					                              });
 
 			// Route packets arriving from the first bank of SpiNNaker chips.
-			//TODO: design an adequate and complete packet routing strategy
 			spio_switch #( .PKT_BITS(`PKT_BITS)
-			             , .NUM_PORTS(2)
-			             )
-			spio_switch_i( .CLK_IN(b2b_usrclk2_i)
-			             , .RESET_IN(switch_reset_i)
-			             // Input port (from SpiNNaker chips)
-			             , .IN_DATA_IN           (sl_pkt_rxdata_i[i])
-			             , .IN_OUTPUT_SELECT_IN  ( ( is_mc_packet_i
-			                                       & key_matches_i
-			                                       & periph_handshake_complete_i
-			                                       ) ? 2'b10 : 2'b01 
-			                                     )
+				     , .NUM_PORTS(2)
+				     )
+			spio_switch_i( .CLK_IN                 (b2b_usrclk2_i)
+			             , .RESET_IN               (switch_reset_i)
+			               // Input port (from SpiNNaker chips)
+			             , .IN_OUTPUT_SELECT_IN    ( ( is_mc_packet_i
+				                                 & key_matches_i
+				                                 & periph_handshake_complete_i
+				                                 ) ? 2'b10 : 2'b01 
+				                               )
+			               // Input port (from SpiNNaker chips)
+	                             , .IN_DATA_IN           (sl_pkt_rxdata_i[i])
 			             , .IN_VLD_IN            (sl_pkt_rxvld_i[i])
 			             , .IN_RDY_OUT           (sl_pkt_rxrdy_i[i])
-			             // Output ports (to b2b and periph links)
+			               // Output ports (to b2b and periph links)
 			             , .OUT_DATA_OUT         (switch_out_data_i)
 			             , .OUT_VLD_OUT          (switch_out_vld_i)
 			             , .OUT_RDY_IN           (switch_out_rdy_i)
-			             // Output blocking status
+			               // Output blocking status
 			             , .BLOCKED_OUTPUTS_OUT  (switch_blocked_outputs_i[i])
 			             , .SELECTED_OUTPUTS_OUT (switch_selected_outputs_i[i])
-			             // Force packet drop (disabled, for now)
+			               // Force packet drop
 			             , .DROP_IN              (drop_i)
-			             // Dropped packet port
+			               // Dropped packet port
 			             , .DROPPED_DATA_OUT     (switch_dropped_data_i[i])
 			             , .DROPPED_OUTPUTS_OUT  (switch_dropped_outputs_i[i])
 			             , .DROPPED_VLD_OUT      (switch_dropped_vld_i[i])
 			             );
 
+			// Connect first output port of the switch to b2b links
+			if (INCLUDE_B2B_SUPPORT)
+				begin
+					assign b2b_pkt_txdata_i[0][i] = switch_out_data_i[0*`PKT_BITS+:`PKT_BITS];
+					assign b2b_pkt_txvld_i[0][i]  = switch_out_vld_i[0];
+					assign switch_out_rdy_i[0]    = b2b_pkt_txrdy_i[0][i];
+				end
+			else
+				// invalidate b2b links
+				begin
+					assign switch_out_rdy_i[0] = 1'b0;
+				end
 
-			// Temporary solution to preventing blocked streams due to disconnected
-			// devices: drop packets whenever blocked while also being known to be
-			// disconnected.
-			//TODO: design an adequate and complete packet dropping strategy
-			assign drop_i = |(switch_blocked_outputs_i[i] & { !periph_handshake_complete_i
-			                                                , !b2b_handshake_complete_i[0]
-			                                                });
-
-
-			// Connect switch's first output port to b2b link
-			assign b2b_pkt_txdata_i[0][i] = switch_out_data_i[0*`PKT_BITS+:`PKT_BITS];
-			assign b2b_pkt_txvld_i[0][i]  = switch_out_vld_i[0];
-			assign switch_out_rdy_i[0]    = b2b_pkt_txrdy_i[0][i];
-
-			// Connect switch's second output port to peripheral link
+			// Connect second output port of the switch to peripheral links
 			assign fast_periph_pkt_txdata_i = switch_out_data_i[1*`PKT_BITS+:`PKT_BITS];
 			assign fast_periph_pkt_txvld_i  = switch_out_vld_i[1];
 			assign switch_out_rdy_i[1]      = fast_periph_pkt_txrdy_i;
-
-			// Connect the second bank of spinnaker chips straight back to the
-			// second board-to-board link.
-			assign b2b_pkt_txdata_i[1][i] = sl_pkt_rxdata_i[i+8];
-			assign b2b_pkt_txvld_i[1][i]  = sl_pkt_rxvld_i[i+8];
-			assign sl_pkt_rxrdy_i[i+8]    = b2b_pkt_txrdy_i[1][i];
 		end
 else
-	for (i = 0; i < `NUM_CHANS; i = i + 1)
-		begin : spinnaker_rx_link_bypass_routing
-			// Connect the spinnaker chips straight to the board-to-board link
-			assign b2b_pkt_txdata_i[0][i] = sl_pkt_rxdata_i[i];
-			assign b2b_pkt_txvld_i[0][i]  = sl_pkt_rxvld_i[i];
-			assign sl_pkt_rxrdy_i[i]      = b2b_pkt_txrdy_i[0][i];
-			assign b2b_pkt_txdata_i[1][i] = sl_pkt_rxdata_i[i+8];
-			assign b2b_pkt_txvld_i[1][i]  = sl_pkt_rxvld_i[i+8];
-			assign sl_pkt_rxrdy_i[i+8]    = b2b_pkt_txrdy_i[1][i];
+	// connect the SpiNNaker chip links directly to the board-to-board links
+	if (INCLUDE_B2B_SUPPORT)
+		for (i = 0; i < `NUM_CHANS; i = i + 1)
+			begin : spinnaker_rx_link_routing_not_used
+				assign b2b_pkt_txdata_i[0][i] = sl_pkt_rxdata_i[i];
+				assign b2b_pkt_txvld_i[0][i]  = sl_pkt_rxvld_i[i];
+				assign sl_pkt_rxrdy_i[i]      = b2b_pkt_txrdy_i[0][i];
+			end
+	else
+		// invalidate the second bank of SpiNNaker chip links
+		//NOTE: this case is not useful!
+		for (i = 0; i < `NUM_CHANS; i = i + 1)
+			begin : spinnaker_rx_link_routing_not_used
+				assign sl_pkt_rxrdy_i[i] = 1'b0;
+			end
+endgenerate
 
-			// and invalidate the periph links
-			assign periph_pkt_txvld_i[i]  = 1'b0;
-		end
+// no routing required on the second bank of SpiNNaker chip links
+// connect directly to board-to-board links
+generate if (INCLUDE_B2B_SUPPORT)
+		for (i = 0; i < `NUM_CHANS; i = i + 1)
+			begin : spinnaker_rx_link_second_bank
+				assign b2b_pkt_txdata_i[1][i] = sl_pkt_rxdata_i[i+8];
+				assign b2b_pkt_txvld_i[1][i]  = sl_pkt_rxvld_i[i+8];
+				assign sl_pkt_rxrdy_i[i+8]    = b2b_pkt_txrdy_i[1][i];
+			end
+	else
+		// invalidate the second bank of SpiNNaker chip links
+		for (i = 0; i < `NUM_CHANS; i = i + 1)
+			begin : spinnaker_rx_link_second_bank_not_used
+				assign sl_pkt_rxrdy_i[i+8] = 1'b0;
+			end
 endgenerate
 ////////////////////////////////////////////////////////////////////////////////
 
 
 ////////////////////////////////////////////////////////////////////////////////
 // Arbitration between packets from high-speed links to SpiNNaker chips
+//TODO: add support for ring HSSL
+//TODO: may need to route SpiNNaker packets arriving on the HSSLs differently
 ////////////////////////////////////////////////////////////////////////////////
 
+// arbitrate between packets going to the first bank of SpiNNaker chip links
 generate case ({INCLUDE_PERIPH_INPUT_SUPPORT, INCLUDE_B2B_SUPPORT})
 	{0, 0}:
 		// invalidate all SpiNNaker chip links
-		//NOTE: this case is not useful - included for completeness
+		//NOTE: this case is not useful!
 		for (i = 0; i < `NUM_CHANS; i = i + 1)
-			begin : spinnaker_tx_link_arbitration
+			begin : spinnaker_tx_link_arbitration_not_used
 				assign sl_pkt_txvld_i[i]   = 1'b0;
-				assign sl_pkt_txvld_i[i+8] = 1'b0;
 			end
 
 	{0, 1}:
 		// connect the board-to-board links directly to the SpiNNaker chip links
 		for (i = 0; i < `NUM_CHANS; i = i + 1)
-			begin : spinnaker_tx_link_arbitration
+			begin : spinnaker_tx_link_arbitration_not_used
 				assign sl_pkt_txdata_i[i]    = b2b_pkt_rxdata_i[0][i];
 				assign sl_pkt_txvld_i[i]     = b2b_pkt_rxvld_i[0][i];
 				assign b2b_pkt_rxrdy_i[0][i] = sl_pkt_txrdy_i[i];
-
-				assign sl_pkt_txdata_i[i+8]  = b2b_pkt_rxdata_i[1][i];
-				assign sl_pkt_txvld_i[i+8]   = b2b_pkt_rxvld_i[1][i];
-				assign b2b_pkt_rxrdy_i[1][i] = sl_pkt_txrdy_i[i+8];
 			end
 
 	{1, 0}:
 		// connect the peripheral links directly to the SpiNNaker chip links
 		for (i = 0; i < `NUM_CHANS; i = i + 1)
-			begin : spinnaker_tx_link_arbitration
-				// connect the peripheral links to half of the SpiNNaker chip links
+			begin : spinnaker_tx_link_arbitration_not_used
 				assign sl_pkt_txdata_i[i]    = periph_pkt_rxdata_i[i];
 				assign sl_pkt_txvld_i[i]     = periph_pkt_rxvld_i[i];
 				assign periph_pkt_rxrdy_i[i] = sl_pkt_txrdy_i[i];
-
-				// invalidate the other half of the SpiNNaker chip links
-				assign sl_pkt_txvld_i[i+8] = 1'b0;
 			end
 
 	{1, 1}:
 		// arbitrate between board-to-board and peripheral links
 		for (i = 0; i < `NUM_CHANS; i = i + 1)
 			begin : spinnaker_tx_link_arbitration
-				wire [`PKT_BITS-1:0] arb_periph_pkt_rxdata_i;
-				wire                 arb_periph_pkt_rxvld_i;
-				wire                 arb_periph_pkt_rxrdy_i;
+				wire [`PKT_BITS-1:0] fast_periph_pkt_rxdata_i;
+				wire                 fast_periph_pkt_rxvld_i;
+				wire                 fast_periph_pkt_rxrdy_i;
 
 				// if needed add a speed adapter between the half-speed
-				// peripheral links and the full speed arbiter
+				// peripheral links and the full-speed arbiter
 				if (PERIPH_HALF_SPEED)
 					begin : peripheral_doubler
 						spio_link_speed_doubler #( .PKT_BITS (`PKT_BITS))
@@ -1963,20 +1937,20 @@ generate case ({INCLUDE_PERIPH_INPUT_SUPPORT, INCLUDE_B2B_SUPPORT})
 						                         , .VLD_IN   (periph_pkt_rxvld_i[i])
 						                         , .RDY_OUT  (periph_pkt_rxrdy_i[i])
 						                           // Outgoing signals (on CLK2_IN)
-						                         , .DATA_OUT (arb_periph_pkt_rxdata_i)
-						                         , .VLD_OUT  (arb_periph_pkt_rxvld_i)
-						                         , .RDY_IN   (arb_periph_pkt_rxrdy_i)
+						                         , .DATA_OUT (fast_periph_pkt_rxdata_i)
+						                         , .VLD_OUT  (fast_periph_pkt_rxvld_i)
+						                         , .RDY_IN   (fast_periph_pkt_rxrdy_i)
 						                         );
 					end
 				else
-					begin : peripheral_doubler
+					begin : peripheral_doubler_not_used
 						// connect full-speed peripheral links directly to arbiter
-						assign arb_periph_pkt_rxdata_i = periph_pkt_rxdata_i[i];
-						assign arb_periph_pkt_rxvld_i  = periph_pkt_rxvld_i[i];
-						assign periph_pkt_rxrdy_i[i]   = arb_periph_pkt_rxrdy_i;
+						assign fast_periph_pkt_rxdata_i = periph_pkt_rxdata_i[i];
+						assign fast_periph_pkt_rxvld_i  = periph_pkt_rxvld_i[i];
+						assign periph_pkt_rxrdy_i[i]    = fast_periph_pkt_rxrdy_i;
 					end
 
-				// Arbitrate the first half of the links
+				// arbitrate into the first bank of SpiNNaker links
 				spio_rr_arbiter #( .PKT_BITS (`PKT_BITS))
 				spio_rr_arbiter_i( .CLK_IN   (b2b_usrclk2_i)
 				                 , .RESET_IN (arbiter_reset_i)
@@ -1984,28 +1958,39 @@ generate case ({INCLUDE_PERIPH_INPUT_SUPPORT, INCLUDE_B2B_SUPPORT})
 				                 , .DATA0_IN (b2b_pkt_rxdata_i[0][i])
 				                 , .VLD0_IN  (b2b_pkt_rxvld_i[0][i])
 				                 , .RDY0_OUT (b2b_pkt_rxrdy_i[0][i])
-				                 , .DATA1_IN (arb_periph_pkt_rxdata_i)
-				                 , .VLD1_IN  (arb_periph_pkt_rxvld_i)
-				                 , .RDY1_OUT (arb_periph_pkt_rxrdy_i)
+				                 , .DATA1_IN (fast_periph_pkt_rxdata_i)
+				                 , .VLD1_IN  (fast_periph_pkt_rxvld_i)
+				                 , .RDY1_OUT (fast_periph_pkt_rxrdy_i)
 				                   // Output port where the merged stream will be sent
 				                 , .DATA_OUT (sl_pkt_txdata_i[i])
 				                 , .VLD_OUT  (sl_pkt_txvld_i[i])
 				                 , .RDY_IN   (sl_pkt_txrdy_i[i])
 				                 );
+			end
+endcase endgenerate
 
-				// connect the other half of the board-to-board links
-				// directly to the SpiNNaker chip links
+// no arbitration required on the second bank of SpiNNaker chip links
+// connect board-to-board links directly to SpiNNaker chip links
+generate if (INCLUDE_B2B_SUPPORT)
+		for (i = 0; i < `NUM_CHANS; i = i + 1)
+			begin : spinnaker_tx_link_second_bank
 				assign sl_pkt_txdata_i[i+8]  = b2b_pkt_rxdata_i[1][i];
 				assign sl_pkt_txvld_i[i+8]   = b2b_pkt_rxvld_i[1][i];
 				assign b2b_pkt_rxrdy_i[1][i] = sl_pkt_txrdy_i[i+8];
 			end
-endcase endgenerate
+	else
+		// invalidate the second bank of SpiNNaker chip links
+		for (i = 0; i < `NUM_CHANS; i = i + 1)
+			begin : spinnaker_tx_link_second_bank_not_used
+				assign sl_pkt_txvld_i[i+8] = 1'b0;
+			end
+endgenerate
 ////////////////////////////////////////////////////////////////////////////////
 
 
 ////////////////////////////////////////////////////////////////////////////////
 // SPI Interface and register address-bank decoding
-//TODO: interaction with peripheral link running at half speed broken
+//TODO: interaction with half-speed peripheral HSSL needs speed adaptation
 ////////////////////////////////////////////////////////////////////////////////
 
 // Buffered SPI Signals
@@ -2137,7 +2122,7 @@ spinnaker_fpgas_reg_bank_i( .CLK_IN         (reg_bank_clk_i)
                           , .READ_DATA_OUT  (top_reg_read_data_i)
                             // Regsiters
                           , .VERSION_IN     (VERSION)
-                          , .FLAGS_IN       ({ DEBUG_CHIPSCOPE_VIO[0]
+                          , .FLAGS_IN       ({ INCLUDE_DEBUG_CHIPSCOPE_VIO[0]
                                              , INCLUDE_PERIPH_SUPPORT[0]
                                              , INCLUDE_RING_SUPPORT[0]
                                              , NORTH_SOUTH_ON_FRONT[0]
@@ -2192,7 +2177,7 @@ spio_pkt_ctr_rx( .CLK_IN    (pkt_ctr_clk_i)
 
 // Virtual I/O connections to allow observation of useful values
 
-generate if (DEBUG_CHIPSCOPE_VIO)
+generate if (INCLUDE_DEBUG_CHIPSCOPE_VIO)
 	begin : chipscope
 
 		wire [35:0] chipscope_control_i;

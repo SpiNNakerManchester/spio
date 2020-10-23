@@ -17,7 +17,7 @@ module spinnaker_fpgas_reg_bank #( // Address bits
                                  ,   output reg  [REGD_BITS-1:0] READ_DATA_OUT
                                    // Version
                                  , input  wire   [REGD_BITS-1:0] VERSION_IN
-                                   // Compilation flags { DEBUG_CHIPSCOPE_VIO
+                                   // Compilation flags { INCLUDE_DEBUG_CHIPSCOPE_VIO
                                    //                   , INCLUDE_PERIPH_SUPPORT
                                    //                   , INCLUDE_RING_SUPPORT
                                    //                   , NORTH_SOUTH_ON_FRONT
