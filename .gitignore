@@ -1,5 +1,6 @@
 # Editor junk
 .*
+!.gitignore
 *.f
 *.swp
 *~
@@ -60,7 +61,6 @@
 *.veo
 *.wcfg
 *.wdb
-*.xdc
 *.xise
 *.xml
 *.xmsgs
@@ -79,7 +79,10 @@
 **/ipcore_dir/*.v
 **/ipcore_dir/*.ucf
 
+# Xilinx now uses xdc constraints files which we ignored earlier
+# these files can continue to be ignored but new ones may not
+**/ipcore_dir/*.xdc
+
 # Don't care about generated example projects and other junk generated for IP
 # cores.
 **/ipcore_dir/*/
-
