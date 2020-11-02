@@ -94,11 +94,11 @@
 **/*.runs/
 **/*.sim/
 
-**/bd/*.bxml
-**/bd/*.xdc
-**/bd/hdl/
-**/bd/hw_handoff/
-**/bd/ip/
-**/bd/ipshared/
-**/bd/sim/
-**/bd/synth/
+**/gth_x1y11_3Gbs/*
+!**/gth_x1y11_3Gbs/*xci
+
+**/gth_x1y11_3Gbs_vio_0/*
+!**/gth_x1y11_3Gbs_vio_0/*xci
+
+**/proc_sys/*
+!**/proc_sys/*.bd
