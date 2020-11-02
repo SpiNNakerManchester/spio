@@ -61,7 +61,6 @@
 *.veo
 *.wcfg
 *.wdb
-*.xise
 *.xml
 *.xmsgs
 *.xpi
@@ -69,23 +68,28 @@
 *.xsl
 *.xst
 *.xwbt
+
+# ignore ISE project and internal files
+*.xise
 **/isim/
 **/iseconfig/
 **/_ngo/
 **/xst/
 **/xlnx_auto_*_xdb/
 
-# Don't care about ISE-generated Verilog, UCF or XDC for IP cores
+# Don't care about ISE-generated Verilog, UCF and XDC for IP cores
 **/ipcore_dir/*.v
 **/ipcore_dir/*.ucf
 **/ipcore_dir/*.xdc
 
-# Don't care about generated example projects and other junk generated for IP
-# cores.
+# Don't care about ISE-generated example projects and
+# other junk generated for IP cores
 **/ipcore_dir/*/
 
-# ignore Vivado files
+# ignore Vivado project and internal files
 *.xpr
 **/*.cache/
 **/*.hw/
 **/*.ip_user_files/
+**/*.runs/
+**/*.sim/
