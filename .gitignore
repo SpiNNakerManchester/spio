@@ -75,14 +75,17 @@
 **/xst/
 **/xlnx_auto_*_xdb/
 
-# Don't care about the generated verliog/UCF for IP cores
+# Don't care about ISE-generated Verilog, UCF or XDC for IP cores
 **/ipcore_dir/*.v
 **/ipcore_dir/*.ucf
-
-# Xilinx now uses xdc constraints files which we ignored earlier
-# these files can continue to be ignored but new ones may not
 **/ipcore_dir/*.xdc
 
 # Don't care about generated example projects and other junk generated for IP
 # cores.
 **/ipcore_dir/*/
+
+# ignore Vivado files
+*.xpr
+**/*.cache/
+**/*.hw/
+**/*.ip_user_files/
