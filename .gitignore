@@ -93,3 +93,12 @@
 **/*.ip_user_files/
 **/*.runs/
 **/*.sim/
+
+**/bd/*.bxml
+**/bd/*.xdc
+**/bd/hdl/
+**/bd/hw_handoff/
+**/bd/ip/
+**/bd/ipshared/
+**/bd/sim/
+**/bd/synth/
