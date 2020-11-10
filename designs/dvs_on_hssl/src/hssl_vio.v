@@ -26,7 +26,7 @@
 
 `timescale 1ps/1ps
 module hssl_vio (
-  input  wire        hsslif_clk,
+  input  wire        clk,
 
   input  wire  [0:0] probe_in0,
   input  wire  [0:0] probe_in1,
@@ -72,18 +72,18 @@ module hssl_vio (
 
 
   //---------------------------------------------------------------
-  // synchronise GTH block probed signals to hsslif_clk
+  // synchronise GTH block probed signals to clk
   //---------------------------------------------------------------
   (* DONT_TOUCH = "TRUE" *)
   gth_x1y11_3Gbs_example_bit_synchronizer bit_synchronizer_probe_in1_inst (
-    .clk_in (hsslif_clk),
+    .clk_in (clk),
     .i_in   (probe_in1[0]),
     .o_out  (probe_in1_sync[0])
     );
 
   (* DONT_TOUCH = "TRUE" *)
   gth_x1y11_3Gbs_example_bit_synchronizer bit_synchronizer_probe_in2_inst (
-    .clk_in (hsslif_clk),
+    .clk_in (clk),
     .i_in   (probe_in2[0]),
     .o_out  (probe_in2_sync[0])
     );
@@ -93,7 +93,7 @@ module hssl_vio (
     begin : probe_in3_synchro
       (* DONT_TOUCH = "TRUE" *)
       gth_x1y11_3Gbs_example_bit_synchronizer bit_synchronizer_vio_probe_in3_inst (
-        .clk_in (hsslif_clk),
+        .clk_in (clk),
         .i_in   (probe_in3[i]),
         .o_out  (probe_in3_sync[i])
         );
@@ -102,35 +102,35 @@ module hssl_vio (
 
   (* DONT_TOUCH = "TRUE" *)
   gth_x1y11_3Gbs_example_bit_synchronizer bit_synchronizer_probe_in4_inst (
-    .clk_in (hsslif_clk),
+    .clk_in (clk),
     .i_in   (probe_in4[0]),
     .o_out  (probe_in4_sync[0])
     );
 
   (* DONT_TOUCH = "TRUE" *)
   gth_x1y11_3Gbs_example_bit_synchronizer bit_synchronizer_probe_in5_inst (
-    .clk_in (hsslif_clk),
+    .clk_in (clk),
     .i_in   (probe_in5[0]),
     .o_out  (probe_in5_sync[0])
     );
 
   (* DONT_TOUCH = "TRUE" *)
   gth_x1y11_3Gbs_example_bit_synchronizer bit_synchronizer_probe_in6_inst (
-    .clk_in (hsslif_clk),
+    .clk_in (clk),
     .i_in   (probe_in6[0]),
     .o_out  (probe_in6_sync[0])
     );
 
   (* DONT_TOUCH = "TRUE" *)
   gth_x1y11_3Gbs_example_bit_synchronizer bit_synchronizer_vio_probe7_in_inst (
-    .clk_in (hsslif_clk),
+    .clk_in (clk),
     .i_in   (probe_in7[0]),
     .o_out  (probe_in7_sync[0])
     );
 
   (* DONT_TOUCH = "TRUE" *)
   gth_x1y11_3Gbs_example_bit_synchronizer bit_synchronizer_vio_probe8_in_inst (
-    .clk_in (hsslif_clk),
+    .clk_in (clk),
     .i_in   (probe_in8[0]),
     .o_out  (probe_in8_sync[0])
     );
@@ -140,7 +140,7 @@ module hssl_vio (
     begin : probe_in9_synchro
       (* DONT_TOUCH = "TRUE" *)
       gth_x1y11_3Gbs_example_bit_synchronizer bit_synchronizer_vio_probe_in9_inst (
-        .clk_in (hsslif_clk),
+        .clk_in (clk),
         .i_in   (probe_in9[i]),
         .o_out  (probe_in9_sync[i])
         );
@@ -150,14 +150,14 @@ module hssl_vio (
     begin : probes_in10_in11_synchro
       (* DONT_TOUCH = "TRUE" *)
       gth_x1y11_3Gbs_example_bit_synchronizer bit_synchronizer_vio_probe_in10_inst (
-        .clk_in (hsslif_clk),
+        .clk_in (clk),
         .i_in   (probe_in10[i]),
         .o_out  (probe_in10_sync[i])
         );
 
       (* DONT_TOUCH = "TRUE" *)
       gth_x1y11_3Gbs_example_bit_synchronizer bit_synchronizer_vio_probe_in11_inst (
-        .clk_in (hsslif_clk),
+        .clk_in (clk),
         .i_in   (probe_in11[i]),
         .o_out  (probe_in11_sync[i])
         );
@@ -167,7 +167,7 @@ module hssl_vio (
     begin : probe_in12_synchro
       (* DONT_TOUCH = "TRUE" *)
       gth_x1y11_3Gbs_example_bit_synchronizer bit_synchronizer_vio_probe_in12_inst (
-        .clk_in (hsslif_clk),
+        .clk_in (clk),
         .i_in   (probe_in12[i]),
         .o_out  (probe_in12_sync[i])
         );
@@ -180,7 +180,7 @@ module hssl_vio (
   // virtual I/O block
   //---------------------------------------------------------------
   gth_x1y11_3Gbs_vio_0 gth_x1y11_3Gbs_vio_0_inst (
-      .clk        (hsslif_clk)
+      .clk        (clk)
 
     , .probe_in0  (probe_in0)
     , .probe_in1  (probe_in1)

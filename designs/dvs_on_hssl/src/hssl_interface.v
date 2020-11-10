@@ -27,8 +27,8 @@
 
 `timescale 1ps/1ps
 module hssl_interface (
-  input  wire        hsslif_clk,
-  input  wire        hsslif_reset,
+  input  wire        clk,
+  input  wire        reset,
 
   input  wire [`PKT_BITS-1:0] tx_pkt0_data_in,
   input  wire                 tx_pkt0_vld_in,
@@ -84,30 +84,11 @@ module hssl_interface (
   output wire        version_mismatch_out,
   output wire [15:0] reg_idsi_out,
 
-  input  wire  [0:0] qpll0outclk_in,
-  input  wire  [0:0] qpll0outrefclk_in,
-  input  wire  [0:0] gtpowergood_in,
-
-  input  wire  [0:0] userclk_tx_usrclk_in,
-  input  wire  [0:0] userclk_tx_usrclk2_in,
-  input  wire  [0:0] userclk_tx_active_in,
-
-  input  wire  [0:0] reset_tx_done_in,
-  input  wire  [0:0] txpmaresetdone_in,
-
   output wire [31:0] userdata_tx_out,
   output wire  [0:0] tx8b10ben_out,
   output wire [15:0] txctrl0_out,
   output wire [15:0] txctrl1_out,
   output wire  [7:0] txctrl2_out,
-
-  input  wire  [0:0] userclk_rx_usrclk_in,
-  input  wire  [0:0] userclk_rx_usrclk2_in,
-  input  wire  [0:0] userclk_rx_active_in,
-
-  input  wire  [0:0] reset_rx_done_in,
-  input  wire  [0:0] reset_rx_cdr_stable_in,
-  input  wire  [0:0] rxpmaresetdone_in,
 
   input  wire [31:0] userdata_rx_in,
   output wire  [0:0] rx8b10ben_out,
@@ -129,9 +110,6 @@ module hssl_interface (
   //---------------------------------------------------------------
   // internal signals
   //---------------------------------------------------------------
-  wire gth_side_tx_reset = !reset_tx_done_in || !userclk_tx_active_in;
-  wire gth_side_tx_clk   = userclk_tx_usrclk2_in;
-
   // hssl tx and rx signals
   wire [31:0] txdata_int;
   wire  [3:0] txcharisk_int;
@@ -154,8 +132,8 @@ module hssl_interface (
   //---------------------------------------------------------------
   spio_hss_multiplexer_spinnlink
     spio_hss_multiplexer_spinnlink_i( 
-        .clk        (gth_side_tx_clk)
-      , .rst        (gth_side_tx_reset)
+        .clk        (clk)
+      , .rst        (reset)
 
       // diagnostic signals from frame assembler
       , .reg_sfrm   ()
@@ -284,8 +262,8 @@ module hssl_interface (
 
   spio_hss_multiplexer_tx_control
   spio_hss_multiplexer_tx_control_i (
-      .CLK_IN                 (gth_side_tx_clk)
-    , .RESET_IN               (gth_side_tx_reset)
+      .CLK_IN                 (clk)
+    , .RESET_IN               (reset)
 
     , .SCRMBL_IDL_DAT         (1'b0)
     , .REG_IDSO_IN            (16'hdead)
@@ -315,8 +293,8 @@ module hssl_interface (
   //---------------------------------------------------------------
   spio_hss_multiplexer_rx_control #()
   spio_hss_multiplexer_rx_control_i (
-      .CLK_IN                 (gth_side_tx_clk)
-    , .RESET_IN               (gth_side_tx_reset)
+      .CLK_IN                 (clk)
+    , .RESET_IN               (reset)
 
     , .REG_IDSI_OUT           (reg_idsi_out)
 

@@ -74,12 +74,12 @@ set_property PACKAGE_PIN C8 [get_ports mgtrefclk0_x1y3_p]
 create_clock -period 6.734 -name clk_mgtrefclk0_x1y3_p [get_ports mgtrefclk0_x1y3_p]
 
 # GTH helper blocks are clocked at half-speed: constrain generated clock
-create_generated_clock -name tl_hsslif_clk -source [get_pins slow_clk/I] -edges {1 2 5} [get_pins slow_clk/O]
+create_generated_clock -name pl_freerun_clk_int -source [get_pins slow_clk/I] -edges {1 2 5} [get_pins slow_clk/O]
 
 # make sure that the original clock and the propagated/generated clocks are in the same delay group
-set_property CLOCK_DELAY_GROUP hb_clocks [get_nets pl_clk0]
-set_property CLOCK_DELAY_GROUP hb_clocks [get_nets tl_hsslif_clk]
-set_property CLOCK_DELAY_GROUP hb_clocks [get_nets clk_100MHz]
+set_property CLOCK_DELAY_GROUP hb_clocks [get_nets pl_clk0_int]
+set_property CLOCK_DELAY_GROUP hb_clocks [get_nets pl_clk0_buf_int]
+set_property CLOCK_DELAY_GROUP hb_clocks [get_nets pl_freerun_clk_int]
 
 # False path constraints
 # ----------------------------------------------------------------------------------------------------------------------
@@ -101,4 +101,4 @@ set_false_path -to [get_cells -hierarchical -filter {NAME =~ *gtwiz_userclk_rx_i
 set_property C_CLK_INPUT_FREQ_HZ 50000000 [get_debug_cores dbg_hub]
 set_property C_ENABLE_CLK_DIVIDER false [get_debug_cores dbg_hub]
 set_property C_USER_SCAN_CHAIN 1 [get_debug_cores dbg_hub]
-connect_debug_port dbg_hub/clk [get_nets tl_hsslif_clk]
+connect_debug_port dbg_hub/clk [get_nets pl_freerun_clk_int]

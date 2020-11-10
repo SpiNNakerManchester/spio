@@ -26,7 +26,12 @@
 `include "spio_hss_multiplexer_common.h"
 
 `timescale 1ps/1ps
-module dvs_on_hssl_top (
+module dvs_on_hssl_top
+#(
+  // SpiNNaker link number (for back-pressure settings)
+  parameter INTER_PACKET_DELAY = 32'd75000000
+)
+(
   // Differential reference clock inputs
   input  wire mgtrefclk0_x1y3_p,
   input  wire mgtrefclk0_x1y3_n,
@@ -39,21 +44,15 @@ module dvs_on_hssl_top (
 );
 
   //---------------------------------------------------------------
-  // constants
-  //---------------------------------------------------------------
-  localparam INTER_PACKET_DELAY = 32'd75000000;
-  //<lap>  localparam INTER_PACKET_DELAY = 32'd750;  //for simulation
-  //---------------------------------------------------------------
-
-
-  //---------------------------------------------------------------
   // internal signals
   //---------------------------------------------------------------
   // top-level clock and reset
-  wire        tl_hsslif_clk;
-  wire  [0:0] tl_hsslif_reset;
+  wire        pl_freerun_clk_int;
+  wire  [0:0] pl_reset_all_int;
 
   // hssl interface block signals
+  wire        hsslif_clk_int;
+  wire        hsslif_reset_int;
   wire        handshake_complete_int;
   wire        version_mismatch_int;
   wire [15:0] reg_idsi_int;
@@ -114,6 +113,7 @@ module dvs_on_hssl_top (
   wire  [7:0] gth_rxctrl3_int;
 
   // VIO control signals
+  wire        vio_freerun_clk_int;
   wire        vio_reset_all_int;
   wire  [0:0] vio_reset_tx_pll_and_datapath_int;
   wire  [0:0] vio_reset_tx_datapath_int;
@@ -129,12 +129,12 @@ module dvs_on_hssl_top (
   // implements an AXI4-stream interface to the HSSL and
   // provides the free-running clock and the reset signal
   //---------------------------------------------------------------
-  wire peripheral_reset_0;
-  wire pl_clk0;
+  wire peripheral_reset_0_int;
+  wire pl_clk0_int;
 
   proc_sys proc_sys_block (
-      .peripheral_reset_0 (peripheral_reset_0)
-    , .pl_clk0_0          (pl_clk0)
+      .peripheral_reset_0 (peripheral_reset_0_int)
+    , .pl_clk0_0          (pl_clk0_int)
     );
   //---------------------------------------------------------------
 
@@ -144,28 +144,32 @@ module dvs_on_hssl_top (
   // derived from the PL clock provided by the processor sub-system
   //NOTE: avoids reconfiguration of the processor sub-system PL clock
   //---------------------------------------------------------------
-  wire clk_100MHz;
+  wire pl_clk0_buf_int;
 
-  reg  clk_enable = 1'b0;
+  reg  clk_enable_int = 1'b0;
 
-  //NOTE: this buffer may be redundant - used only for clk_enable
+  //NOTE: this buffer may be redundant - used only for clk_enable_int
   BUFG fast_clk (
-      .I (pl_clk0)
-    , .O (clk_100MHz)
+      .I (pl_clk0_int)
+    , .O (pl_clk0_buf_int)
     );
 
   // toggle CE every clock cycle to divide p2pl_clk frequency by 2
-  always @(posedge clk_100MHz)
-    clk_enable <= ~clk_enable;
+  always @(posedge pl_clk0_buf_int)
+    clk_enable_int <= ~clk_enable_int;
 
-  //NOTE: tl_hsslif_clk has 25% duty cycle / same pulse width as pl_clk0
+  //NOTE: pl_freerun_clk_int has 25% duty cycle / same pulse width as pl_clk0_int
   BUFGCE slow_clk (
-      .I  (pl_clk0)
-    , .CE (clk_enable)
-    , .O  (tl_hsslif_clk)
+      .I  (pl_clk0_int)
+    , .CE (clk_enable_int)
+    , .O  (pl_freerun_clk_int)
     );
 
-  assign gth_freerun_clk_int[0:0] = tl_hsslif_clk;
+  assign gth_freerun_clk_int[0:0] = pl_freerun_clk_int;
+
+  assign vio_freerun_clk_int = pl_freerun_clk_int;
+
+  assign hsslif_clk_int = gth_userclk_tx_usrclk2_int;
   //---------------------------------------------------------------
 
 
@@ -194,17 +198,17 @@ module dvs_on_hssl_top (
   //---------------------------------------------------------------
   // generate/buffer reset signals
   //---------------------------------------------------------------
-  // buffer peripheral_reset_0
-  wire pl_reset;
-  IBUF peripheral_reset_0_buffer (
-      .I (peripheral_reset_0)
-  	, .O (pl_reset)
+  // buffer peripheral_reset_0_int
+  wire peripheral_reset_0_buf_int;
+  IBUF peripheral_reset_0_int_buffer (
+      .I (peripheral_reset_0_int)
+  	, .O (peripheral_reset_0_buf_int)
   	);
 
   // global and function-specific resets
-  assign tl_hsslif_reset = pl_reset || vio_reset_all_int;
+  assign pl_reset_all_int = peripheral_reset_0_buf_int || vio_reset_all_int;
 
-  assign gth_reset_all_int[0:0] = tl_hsslif_reset;
+  assign gth_reset_all_int[0:0] = pl_reset_all_int;
 
   assign gth_reset_tx_pll_and_datapath_int[0:0] = vio_reset_tx_pll_and_datapath_int;
   assign gth_reset_tx_datapath_int[0:0]         = vio_reset_tx_datapath_int;
@@ -214,6 +218,8 @@ module dvs_on_hssl_top (
 
   assign gth_userclk_tx_reset_int[0:0] = ~(&gth_txpmaresetdone_int);
   assign gth_userclk_rx_reset_int[0:0] = ~(&gth_rxpmaresetdone_int);
+
+  assign hsslif_reset_int = !gth_reset_tx_done_int || !gth_userclk_tx_active_int;
   //---------------------------------------------------------------
 
 
@@ -237,40 +243,37 @@ module dvs_on_hssl_top (
   //---------------------------------------------------------------
   // drive the tx HSSL interface
   //---------------------------------------------------------------
-  wire gth_side_tx_reset = !gth_reset_tx_done_int || !gth_userclk_tx_active_int;
-  wire gth_side_tx_clk   = gth_userclk_tx_usrclk2_int;
+  wire          [31:0] tx_pkt0_key_int = 32'hdeed_cafe;
+  wire          [31:0] tx_pkt0_pld_int = 32'h0000_0000;
+  wire                 tx_pkt0_pty_int = ~(^tx_pkt0_key_int ^ ^tx_pkt0_pld_int);
+  wire           [7:0] tx_pkt0_hdr_int = {7'b000_0000, tx_pkt0_pty_int};
 
-  wire          [31:0] tx_pkt0_key_i = 32'hdeed_cafe;
-  wire          [31:0] tx_pkt0_pld_i = 32'h0000_0000;
-  wire                 tx_pkt0_pty_i = ~(^tx_pkt0_key_i ^ ^tx_pkt0_pld_i);
-  wire           [7:0] tx_pkt0_hdr_i = {7'b000_0000, tx_pkt0_pty_i};
+  wire [`PKT_BITS-1:0] tx_pkt0_data_int =
+    {tx_pkt0_pld_int, tx_pkt0_key_int, tx_pkt0_hdr_int};
 
-  wire [`PKT_BITS-1:0] tx_pkt0_data_i =
-    {tx_pkt0_pld_i, tx_pkt0_key_i, tx_pkt0_hdr_i};
+  reg                  tx_pkt0_vld_int;
+  wire                 tx_pkt0_rdy_int;
 
-  reg                  tx_pkt0_vld_i;
-  wire                 tx_pkt0_rdy_i;
+  reg           [31:0] tx_pkt0_vld_cnt_int;
 
-  reg           [31:0] tx_pkt0_vld_cnt_i;
-
-  always @ (posedge gth_side_tx_clk or posedge gth_side_tx_reset)
-    if (gth_side_tx_reset)
-      tx_pkt0_vld_cnt_i = INTER_PACKET_DELAY;
+  always @ (posedge hsslif_clk_int or posedge hsslif_reset_int)
+    if (hsslif_reset_int)
+      tx_pkt0_vld_cnt_int = INTER_PACKET_DELAY;
     else
-    if ((tx_pkt0_vld_i == 1'b1) && (tx_pkt0_rdy_i == 1'b1))
-        tx_pkt0_vld_cnt_i = INTER_PACKET_DELAY;
+    if ((tx_pkt0_vld_int == 1'b1) && (tx_pkt0_rdy_int == 1'b1))
+        tx_pkt0_vld_cnt_int = INTER_PACKET_DELAY;
       else
-        if ((tx_pkt0_vld_i == 1'b0) && (tx_pkt0_vld_cnt_i != 0))
-          tx_pkt0_vld_cnt_i = tx_pkt0_vld_cnt_i - 1;
+        if ((tx_pkt0_vld_int == 1'b0) && (tx_pkt0_vld_cnt_int != 0))
+          tx_pkt0_vld_cnt_int = tx_pkt0_vld_cnt_int - 1;
 
-  always @ (posedge gth_side_tx_clk or posedge gth_side_tx_reset)
-    if (gth_side_tx_reset)
-      tx_pkt0_vld_i = 1'b0;
+  always @ (posedge hsslif_clk_int or posedge hsslif_reset_int)
+    if (hsslif_reset_int)
+      tx_pkt0_vld_int = 1'b0;
     else
-      if (tx_pkt0_vld_cnt_i == 0)
-        tx_pkt0_vld_i = 1'b1;
+      if (tx_pkt0_vld_cnt_int == 0)
+        tx_pkt0_vld_int = 1'b1;
       else
-        tx_pkt0_vld_i = 1'b0;
+        tx_pkt0_vld_int = 1'b0;
   //---------------------------------------------------------------
 
 
@@ -278,12 +281,12 @@ module dvs_on_hssl_top (
   // HSSL interface
   //---------------------------------------------------------------
   hssl_interface hssl_interface_inst (
-      .hsslif_clk                     (tl_hsslif_clk)
-    , .hsslif_reset                   (tl_hsslif_reset)
+      .clk                            (hsslif_clk_int)
+    , .reset                          (hsslif_reset_int)
 
-    , .tx_pkt0_data_in                (tx_pkt0_data_i)
-    , .tx_pkt0_vld_in                 (tx_pkt0_vld_i)
-    , .tx_pkt0_rdy_out                (tx_pkt0_rdy_i)
+    , .tx_pkt0_data_in                (tx_pkt0_data_int)
+    , .tx_pkt0_vld_in                 (tx_pkt0_vld_int)
+    , .tx_pkt0_rdy_out                (tx_pkt0_rdy_int)
     , .tx_pkt1_data_in                ()
     , .tx_pkt1_vld_in                 (1'b0)
     , .tx_pkt1_rdy_out                ()
@@ -335,30 +338,11 @@ module dvs_on_hssl_top (
     , .version_mismatch_out           (version_mismatch_int)
     , .reg_idsi_out                   (reg_idsi_int)
 
-    , .qpll0outclk_in                 (gth_qpll0outclk_int)
-    , .qpll0outrefclk_in              (gth_qpll0outrefclk_int)
-    , .gtpowergood_in                 (gth_gtpowergood_int)
-
-    , .userclk_tx_usrclk_in           (gth_userclk_tx_usrclk_int)
-    , .userclk_tx_usrclk2_in          (gth_userclk_tx_usrclk2_int)
-    , .userclk_tx_active_in           (gth_userclk_tx_active_int)
-
-    , .reset_tx_done_in               (gth_reset_tx_done_int)
-    , .txpmaresetdone_in              (gth_txpmaresetdone_int)
-
     , .userdata_tx_out                (gth_userdata_tx_int)
     , .tx8b10ben_out                  (gth_tx8b10ben_int)
     , .txctrl0_out                    (gth_txctrl0_int)
     , .txctrl1_out                    (gth_txctrl1_int)
     , .txctrl2_out                    (gth_txctrl2_int)
-
-    , .userclk_rx_usrclk_in           (gth_userclk_rx_usrclk_int)
-    , .userclk_rx_usrclk2_in          (gth_userclk_rx_usrclk2_int)
-    , .userclk_rx_active_in           (gth_userclk_rx_active_int)
-
-    , .reset_rx_cdr_stable_in         (gth_reset_rx_cdr_stable_int)
-    , .reset_rx_done_in               (gth_reset_rx_done_int)
-    , .rxpmaresetdone_in              (gth_rxpmaresetdone_int)
 
     , .userdata_rx_in                 (gth_userdata_rx_int)
     , .rx8b10ben_out                  (gth_rx8b10ben_int)
@@ -452,7 +436,7 @@ module dvs_on_hssl_top (
   // virtual I/O for HSSL interface and GTH block
   //---------------------------------------------------------------
   hssl_vio hssl_vio_inst (
-      .hsslif_clk       (tl_hsslif_clk)
+      .clk              (vio_freerun_clk_int)
 
       // HSSL interface probes
     , .probe_in0        ()

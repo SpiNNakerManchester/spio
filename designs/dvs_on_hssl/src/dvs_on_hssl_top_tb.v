@@ -59,16 +59,19 @@ module dvs_on_hssl_top_tb ();
 
 
   //---------------------------------------------------------------
-  // processor sub-system + hssl interface + GTH block
+  // processor sub-system + HSSL interface + GTH block
   //---------------------------------------------------------------
-  dvs_on_hssl_top dvs_on_hssl (
-    .mgtrefclk0_x1y3_p (mgtrefclk0_x1y3),
-    .mgtrefclk0_x1y3_n (~mgtrefclk0_x1y3),
+  dvs_on_hssl_top #(
+    .INTER_PACKET_DELAY (32'd750)  // reduced value for simulation
+  )
+  dvs_on_hssl (
+    .mgtrefclk0_x1y3_p  (mgtrefclk0_x1y3),
+    .mgtrefclk0_x1y3_n  (~mgtrefclk0_x1y3),
 
-    .ch0_gthrxn_in     (ch0_gthxn),
-    .ch0_gthrxp_in     (ch0_gthxp),
-    .ch0_gthtxn_out    (ch0_gthxn),
-    .ch0_gthtxp_out    (ch0_gthxp)
+    .ch0_gthrxn_in      (ch0_gthxn),
+    .ch0_gthrxp_in      (ch0_gthxp),
+    .ch0_gthtxn_out     (ch0_gthxn),
+    .ch0_gthtxp_out     (ch0_gthxp)
     );
   //---------------------------------------------------------------
 
