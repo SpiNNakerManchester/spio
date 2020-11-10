@@ -161,24 +161,15 @@ module gth_x1y11_3Gbs_example_wrapper (
   wire [0:0] rxusrclk2_int;
   wire [0:0] rxoutclk_int;
 
-  // Generate a single module instance which is driven by a clock source associated with the master receiver channel,
-  // and which drives RXUSRCLK and RXUSRCLK2 for all channels
+  //<lap> -- removed rx clk helper block -- use common tx/rx clock --
+  assign gtwiz_userclk_rx_usrclk_out  = gtwiz_userclk_tx_usrclk_out;
+  assign gtwiz_userclk_rx_usrclk2_out = gtwiz_userclk_tx_usrclk2_out;
+  assign gtwiz_userclk_rx_active_out  = gtwiz_userclk_tx_active_out;
 
-  // The source clock is RXOUTCLK from the master receiver channel
-  assign gtwiz_userclk_rx_srcclk_out = rxoutclk_int[P_RX_MASTER_CH_PACKED_IDX];
+  assign rxusrclk_int  = txusrclk_int;
+  assign rxusrclk2_int = txusrclk2_int;
+  //<lap> -----------------------------------------------------------
 
-  // Instantiate a single instance of the receiver user clocking network helper block
-  gth_x1y11_3Gbs_example_gtwiz_userclk_rx gtwiz_userclk_rx_inst (
-    .gtwiz_userclk_rx_srcclk_in   (gtwiz_userclk_rx_srcclk_out),
-    .gtwiz_userclk_rx_reset_in    (gtwiz_userclk_rx_reset_in),
-    .gtwiz_userclk_rx_usrclk_out  (gtwiz_userclk_rx_usrclk_out),
-    .gtwiz_userclk_rx_usrclk2_out (gtwiz_userclk_rx_usrclk2_out),
-    .gtwiz_userclk_rx_active_out  (gtwiz_userclk_rx_active_out)
-  );
-
-  // Drive RXUSRCLK and RXUSRCLK2 for all channels with the respective helper block outputs
-  assign rxusrclk_int  = {1{gtwiz_userclk_rx_usrclk_out}};
-  assign rxusrclk2_int = {1{gtwiz_userclk_rx_usrclk2_out}};
   wire [0:0] gtpowergood_int;
 
   // Required assignment to expose the GTPOWERGOOD port per user request

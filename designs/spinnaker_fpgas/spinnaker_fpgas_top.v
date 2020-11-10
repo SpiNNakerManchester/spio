@@ -1525,7 +1525,8 @@ else
 			assign b2b_version_mismatch_i[i]   = 1'b0;
 
 			// invalidate data in register bank
-			assign b2b_reg_read_data_i[i] = 32'hdead_dead;
+			assign b2b_reg_read_data_i[i] =
+                                (b2b_reg_addr_i[i] == `VERS_REG) ? 32'hdead_dead : 32'd0;
 		end
 endgenerate
 ////////////////////////////////////////////////////////////////////////////////
@@ -1618,7 +1619,8 @@ else
 		assign periph_version_mismatch_i   = 1'b0;
 
 		// invalidate data in register bank
-		assign periph_reg_read_data_i = 32'hdead_dead;
+		assign periph_reg_read_data_i =
+                        (periph_reg_addr_i == `VERS_REG) ? 32'hdead_dead : 32'd0;
 	end
 endgenerate
 ////////////////////////////////////////////////////////////////////////////////
@@ -1636,7 +1638,8 @@ generate if (INCLUDE_RING_SUPPORT)
 		assign ring_version_mismatch_i   = 1'b0;
 
 		// invalidate data in register bank
-		assign ring_reg_read_data_i = 32'hdead_dead;
+		assign ring_reg_read_data_i =
+                        (ring_reg_addr_i == `VERS_REG) ? 32'hdead_dead : 32'd0;
 	end
 else
 	begin : ring_hss_not_supported
@@ -1645,7 +1648,8 @@ else
 		assign ring_version_mismatch_i   = 1'b0;
 
 		// invalidate data in register bank
-		assign ring_reg_read_data_i = 32'hdead_dead;
+		assign ring_reg_read_data_i =
+                        (ring_reg_addr_i == `VERS_REG) ? 32'hdead_dead : 32'd0;
 	end
 endgenerate
 

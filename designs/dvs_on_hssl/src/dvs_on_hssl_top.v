@@ -10,8 +10,8 @@
 // -------------------------------------------------------------------------
 // DETAILS
 //  Created on       : 21 Oct 2020
-//  Last modified on : Wed 21 Oct 16:13:42 BST 2020
-//  Last modified by : $Author: plana $
+//  Last modified on : Mon  9 Nov 08:54:58 GMT 2020
+//  Last modified by : lap
 // -------------------------------------------------------------------------
 // COPYRIGHT
 //  Copyright (c) The University of Manchester, 2020.
@@ -22,6 +22,8 @@
 // TODO
 //  * everything
 // -------------------------------------------------------------------------
+
+`include "spio_hss_multiplexer_common.h"
 
 `timescale 1ps/1ps
 module dvs_on_hssl_top (
@@ -35,6 +37,14 @@ module dvs_on_hssl_top (
   output wire ch0_gthtxn_out,
   output wire ch0_gthtxp_out
 );
+
+  //---------------------------------------------------------------
+  // constants
+  //---------------------------------------------------------------
+  localparam INTER_PACKET_DELAY = 32'd75000000;
+  //<lap>  localparam INTER_PACKET_DELAY = 32'd750;  //for simulation
+  //---------------------------------------------------------------
+
 
   //---------------------------------------------------------------
   // internal signals
@@ -115,8 +125,9 @@ module dvs_on_hssl_top (
 
 
   //---------------------------------------------------------------
-  // processor sub-system - simply provides the fabric with
-  // a free-running clock and a reset signal
+  // processor sub-system -
+  // implements an AXI4-stream interface to the HSSL and
+  // provides the free-running clock and the reset signal
   //---------------------------------------------------------------
   wire peripheral_reset_0;
   wire pl_clk0;
@@ -224,11 +235,101 @@ module dvs_on_hssl_top (
 
 
   //---------------------------------------------------------------
+  // drive the tx HSSL interface
+  //---------------------------------------------------------------
+  wire gth_side_tx_reset = !gth_reset_tx_done_int || !gth_userclk_tx_active_int;
+  wire gth_side_tx_clk   = gth_userclk_tx_usrclk2_int;
+
+  wire          [31:0] tx_pkt0_key_i = 32'hdeed_cafe;
+  wire          [31:0] tx_pkt0_pld_i = 32'h0000_0000;
+  wire                 tx_pkt0_pty_i = ~(^tx_pkt0_key_i ^ ^tx_pkt0_pld_i);
+  wire           [7:0] tx_pkt0_hdr_i = {7'b000_0000, tx_pkt0_pty_i};
+
+  wire [`PKT_BITS-1:0] tx_pkt0_data_i =
+    {tx_pkt0_pld_i, tx_pkt0_key_i, tx_pkt0_hdr_i};
+
+  reg                  tx_pkt0_vld_i;
+  wire                 tx_pkt0_rdy_i;
+
+  reg           [31:0] tx_pkt0_vld_cnt_i;
+
+  always @ (posedge gth_side_tx_clk or posedge gth_side_tx_reset)
+    if (gth_side_tx_reset)
+      tx_pkt0_vld_cnt_i = INTER_PACKET_DELAY;
+    else
+    if ((tx_pkt0_vld_i == 1'b1) && (tx_pkt0_rdy_i == 1'b1))
+        tx_pkt0_vld_cnt_i = INTER_PACKET_DELAY;
+      else
+        if ((tx_pkt0_vld_i == 1'b0) && (tx_pkt0_vld_cnt_i != 0))
+          tx_pkt0_vld_cnt_i = tx_pkt0_vld_cnt_i - 1;
+
+  always @ (posedge gth_side_tx_clk or posedge gth_side_tx_reset)
+    if (gth_side_tx_reset)
+      tx_pkt0_vld_i = 1'b0;
+    else
+      if (tx_pkt0_vld_cnt_i == 0)
+        tx_pkt0_vld_i = 1'b1;
+      else
+        tx_pkt0_vld_i = 1'b0;
+  //---------------------------------------------------------------
+
+
+  //---------------------------------------------------------------
   // HSSL interface
   //---------------------------------------------------------------
   hssl_interface hssl_interface_inst (
       .hsslif_clk                     (tl_hsslif_clk)
     , .hsslif_reset                   (tl_hsslif_reset)
+
+    , .tx_pkt0_data_in                (tx_pkt0_data_i)
+    , .tx_pkt0_vld_in                 (tx_pkt0_vld_i)
+    , .tx_pkt0_rdy_out                (tx_pkt0_rdy_i)
+    , .tx_pkt1_data_in                ()
+    , .tx_pkt1_vld_in                 (1'b0)
+    , .tx_pkt1_rdy_out                ()
+    , .tx_pkt2_data_in                ()
+    , .tx_pkt2_vld_in                 (1'b0)
+    , .tx_pkt2_rdy_out                ()
+    , .tx_pkt3_data_in                ()
+    , .tx_pkt3_vld_in                 (1'b0)
+    , .tx_pkt3_rdy_out                ()
+    , .tx_pkt4_data_in                ()
+    , .tx_pkt4_vld_in                 (1'b0)
+    , .tx_pkt4_rdy_out                ()
+    , .tx_pkt5_data_in                ()
+    , .tx_pkt5_vld_in                 (1'b0)
+    , .tx_pkt5_rdy_out                ()
+    , .tx_pkt6_data_in                ()
+    , .tx_pkt6_vld_in                 (1'b0)
+    , .tx_pkt6_rdy_out                ()
+    , .tx_pkt7_data_in                ()
+    , .tx_pkt7_vld_in                 (1'b0)
+    , .tx_pkt7_rdy_out                ()
+
+    , .rx_pkt0_data_out               ()
+    , .rx_pkt0_vld_out                ()
+    , .rx_pkt0_rdy_in                 (1'b0)
+    , .rx_pkt1_data_out               ()
+    , .rx_pkt1_vld_out                ()
+    , .rx_pkt1_rdy_in                 (1'b0)
+    , .rx_pkt2_data_out               ()
+    , .rx_pkt2_vld_out                ()
+    , .rx_pkt2_rdy_in                 (1'b0)
+    , .rx_pkt3_data_out               ()
+    , .rx_pkt3_vld_out                ()
+    , .rx_pkt3_rdy_in                 (1'b0)
+    , .rx_pkt4_data_out               ()
+    , .rx_pkt4_vld_out                ()
+    , .rx_pkt4_rdy_in                 (1'b0)
+    , .rx_pkt5_data_out               ()
+    , .rx_pkt5_vld_out                ()
+    , .rx_pkt5_rdy_in                 (1'b0)
+    , .rx_pkt6_data_out               ()
+    , .rx_pkt6_vld_out                ()
+    , .rx_pkt6_rdy_in                 (1'b0)
+    , .rx_pkt7_data_out               ()
+    , .rx_pkt7_vld_out                ()
+    , .rx_pkt7_rdy_in                 (1'b0)
 
     , .handshake_complete_out         (handshake_complete_int)
     , .version_mismatch_out           (version_mismatch_int)
