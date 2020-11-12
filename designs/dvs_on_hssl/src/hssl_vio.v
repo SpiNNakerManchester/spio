@@ -122,14 +122,14 @@ module hssl_vio (
     );
 
   (* DONT_TOUCH = "TRUE" *)
-  gth_x1y11_3Gbs_example_bit_synchronizer bit_synchronizer_vio_probe7_in_inst (
+  gth_x1y11_3Gbs_example_bit_synchronizer bit_synchronizer_vio_probe_in7_inst (
     .clk_in (clk),
     .i_in   (probe_in7[0]),
     .o_out  (probe_in7_sync[0])
     );
 
   (* DONT_TOUCH = "TRUE" *)
-  gth_x1y11_3Gbs_example_bit_synchronizer bit_synchronizer_vio_probe8_in_inst (
+  gth_x1y11_3Gbs_example_bit_synchronizer bit_synchronizer_vio_probe_in8_inst (
     .clk_in (clk),
     .i_in   (probe_in8[0]),
     .o_out  (probe_in8_sync[0])

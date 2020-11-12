@@ -140,9 +140,10 @@ module dvs_on_hssl_top
 
 
   //---------------------------------------------------------------
-  // generate clock for hssl interface and GTH block
-  // derived from the PL clock provided by the processor sub-system
-  //NOTE: avoids reconfiguration of the processor sub-system PL clock
+  // HSSL interface and GTH block clocks
+  // free-running clock for the GTH block derived from the PL clock
+  // provided by the processor sub-system.
+  //NOTE: (/2) avoids reconfiguration of the processor sub-system PL clock
   //---------------------------------------------------------------
   wire pl_clk0_buf_int;
 
@@ -243,37 +244,48 @@ module dvs_on_hssl_top
   //---------------------------------------------------------------
   // drive the tx HSSL interface
   //---------------------------------------------------------------
-  wire          [31:0] tx_pkt0_key_int = 32'hdeed_cafe;
+  reg           [31:0] tx_pkt0_key_int;
   wire          [31:0] tx_pkt0_pld_int = 32'h0000_0000;
   wire                 tx_pkt0_pty_int = ~(^tx_pkt0_key_int ^ ^tx_pkt0_pld_int);
   wire           [7:0] tx_pkt0_hdr_int = {7'b000_0000, tx_pkt0_pty_int};
 
-  wire [`PKT_BITS-1:0] tx_pkt0_data_int =
-    {tx_pkt0_pld_int, tx_pkt0_key_int, tx_pkt0_hdr_int};
+  wire [`PKT_BITS-1:0] tx_pkt0_data_int;
 
   reg                  tx_pkt0_vld_int;
   wire                 tx_pkt0_rdy_int;
 
-  reg           [31:0] tx_pkt0_vld_cnt_int;
+  wire                 pkt_snd_int;
+  reg           [31:0] pkt_snd_cnt_int;
+
+
+  always @ (posedge hsslif_clk_int or posedge hsslif_reset_int)
+  	if (hsslif_reset_int)
+  		pkt_snd_cnt_int = INTER_PACKET_DELAY;
+  	else
+    	if (tx_pkt0_vld_int == 1'b1)
+  		  pkt_snd_cnt_int = INTER_PACKET_DELAY;
+    	else
+		    pkt_snd_cnt_int = pkt_snd_cnt_int - 1;
+
+  assign pkt_snd_int = (tx_pkt0_vld_int == 1'b1) && (tx_pkt0_rdy_int == 1'b1);
 
   always @ (posedge hsslif_clk_int or posedge hsslif_reset_int)
     if (hsslif_reset_int)
-      tx_pkt0_vld_cnt_int = INTER_PACKET_DELAY;
+    	tx_pkt0_key_int = 32'd0;
     else
-    if ((tx_pkt0_vld_int == 1'b1) && (tx_pkt0_rdy_int == 1'b1))
-        tx_pkt0_vld_cnt_int = INTER_PACKET_DELAY;
-      else
-        if ((tx_pkt0_vld_int == 1'b0) && (tx_pkt0_vld_cnt_int != 0))
-          tx_pkt0_vld_cnt_int = tx_pkt0_vld_cnt_int - 1;
+      if (pkt_snd_int)
+      	tx_pkt0_key_int = tx_pkt0_key_int + 1;
+
+  assign tx_pkt0_data_int = {tx_pkt0_pld_int, tx_pkt0_key_int, tx_pkt0_hdr_int};
 
   always @ (posedge hsslif_clk_int or posedge hsslif_reset_int)
     if (hsslif_reset_int)
       tx_pkt0_vld_int = 1'b0;
     else
-      if (tx_pkt0_vld_cnt_int == 0)
-        tx_pkt0_vld_int = 1'b1;
-      else
+      if (pkt_snd_int)
         tx_pkt0_vld_int = 1'b0;
+      else if (pkt_snd_cnt_int == 0)
+        tx_pkt0_vld_int = 1'b1;
   //---------------------------------------------------------------
 
 
