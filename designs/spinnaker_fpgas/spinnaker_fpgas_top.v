@@ -1705,36 +1705,34 @@ generate for (i = 0; i < 16; i = i + 1)
 		                              , .PKT_RDY_IN       (slfc_pkt_rxrdy_i)
 		                              );
 
-		// packet synchronisers (fast clock <-> normal clock)
-		spio_hss_multiplexer_pkt_fifo_sync
-		spio_hss_multiplexer_pkt_fifo_sync_i ( .WCLK_IN          (spinnaker_link_clk0_i)
-		                                     , .RCLK_IN          (spinnaker_link_clk1_i)
-		                                     , .RESET_IN         (spinnaker_link_reset_i[(i*2) + 0])
-						     // fast clock (write) packet interface
- 						     , .SFI_DATA_IN      (slfc_pkt_rxdata_i)
-						     , .SFI_VLD_IN       (slfc_pkt_rxvld_i)
-						     , .SFI_RDY_OUT      (slfc_pkt_rxrdy_i)
-						     // normal clock (read) packet interface
- 						     , .SFO_DATA_OUT     (sl_pkt_rxdata_i[i])
-						     , .SFO_VLD_OUT      (sl_pkt_rxvld_i[i])
-						     , .SFO_RDY_IN       (sl_pkt_rxrdy_i[i])
-						     );
+		// speed adapters (fast clock <-> normal clock)
+		spio_link_speed_halver #( .PKT_BITS (`PKT_BITS))
+		spio_link_speed_halver_i( .RESET_IN (spinnaker_link_reset_i[(i*2) + 0])
+					, .SCLK_IN  (spinnaker_link_clk1_i)
+					, .FCLK_IN  (spinnaker_link_clk0_i)
+					  // Incoming signals (on FCLK_IN)
+					, .DATA_IN  (slfc_pkt_rxdata_i)
+					, .VLD_IN   (slfc_pkt_rxvld_i)
+					, .RDY_OUT  (slfc_pkt_rxrdy_i)
+					  // Outgoing signals (on SCLK_IN)
+					, .DATA_OUT (sl_pkt_rxdata_i[i])
+					, .VLD_OUT  (sl_pkt_rxvld_i[i])
+					, .RDY_IN   (sl_pkt_rxrdy_i[i])
+					);
 
-		spio_hss_multiplexer_pkt_fifo_sync
-		spio_hss_multiplexer_pkt_fifo_sync2_i ( .WCLK_IN          (spinnaker_link_clk1_i)
-		                                      , .RCLK_IN          (spinnaker_link_clk0_i)
-		                                      , .RESET_IN         (spinnaker_link_reset_i[(i*2) + 1])
-
-						      // normal clock (write) packet interface
- 				     		      , .SFI_DATA_IN      (sl_pkt_txdata_i[i])
-						      , .SFI_VLD_IN       (sl_pkt_txvld_i[i])
-						      , .SFI_RDY_OUT      (sl_pkt_txrdy_i[i])
-						      // fast clock (read) packet interface
- 						      , .SFO_DATA_OUT     (slfc_pkt_txdata_i)
-						      , .SFO_VLD_OUT      (slfc_pkt_txvld_i)
-						      , .SFO_RDY_IN       (slfc_pkt_txrdy_i)
-						      );
-
+		spio_link_speed_doubler #( .PKT_BITS (`PKT_BITS))
+		spio_link_speed_doubler_i( .RESET_IN (spinnaker_link_reset_i[(i*2) + 1])
+					 , .SCLK_IN  (spinnaker_link_clk1_i)
+					 , .FCLK_IN  (spinnaker_link_clk0_i)
+					   // Incoming signals (on SCLK_IN)
+					 , .DATA_IN  (sl_pkt_txdata_i[i])
+					 , .VLD_IN   (sl_pkt_txvld_i[i])
+					 , .RDY_OUT  (sl_pkt_txrdy_i[i])
+					  // Outgoing signals (on FCLK_IN)
+					 , .DATA_OUT (slfc_pkt_txdata_i)
+					 , .VLD_OUT  (slfc_pkt_txvld_i)
+					 , .RDY_IN   (slfc_pkt_txrdy_i)
+					 );
 	end
 endgenerate
 ////////////////////////////////////////////////////////////////////////////////

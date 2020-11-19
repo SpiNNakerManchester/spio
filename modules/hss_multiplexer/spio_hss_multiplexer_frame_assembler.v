@@ -55,6 +55,7 @@ module frm_issue
   input  wire  [`PKT_BITS - 1:0] bpkt_data6,
   input  wire  [`PKT_BITS - 1:0] bpkt_data7,
   input  wire [`NUM_CHANS - 1:0] bpkt_pres,
+  input  wire [`NUM_CHANS - 1:0] bpkt_pld,
 
   input  wire  [`CLR_BITS - 1:0] colour,
   input  wire  [`SEQ_BITS - 1:0] seq,
@@ -165,28 +166,14 @@ module frm_issue
                      frm_data <= {`KCH_DATA,
                                    colour,
                                    seq,
-                                   bpkt_data7[1],
-                                   bpkt_data6[1],
-                                   bpkt_data5[1],
-                                   bpkt_data4[1],
-                                   bpkt_data3[1],
-                                   bpkt_data2[1],
-                                   bpkt_data1[1],
-                                   bpkt_data0[1],
+                                   bpkt_pld,
                                    bpkt_pres
                                  };
     
           PARK_ST:   frm_data <= {`KCH_DATA,
                                    park_colour,
                                    park_seq,
-                                   bpkt_data7[1],
-                                   bpkt_data6[1],
-                                   bpkt_data5[1],
-                                   bpkt_data4[1],
-                                   bpkt_data3[1],
-                                   bpkt_data2[1],
-                                   bpkt_data1[1],
-                                   bpkt_data0[1],
+                                   bpkt_pld,
                                    bpkt_pres
                                  };
     
@@ -534,6 +521,7 @@ module spio_hss_multiplexer_frame_assembler
 
   wire  [`PKT_BITS - 1:0] bpkt_data [0 : `NUM_CHANS - 1];
   wire [`NUM_CHANS - 1:0] bpkt_pres;
+  wire [`NUM_CHANS - 1:0] bpkt_pld;
   reg                     ipkt_go;
   wire                    ipkt_done;
 
@@ -576,6 +564,7 @@ module spio_hss_multiplexer_frame_assembler
     .bpkt_data6    (bpkt_data[6]),
     .bpkt_data7    (bpkt_data[7]),
     .bpkt_pres     (bpkt_pres),
+    .bpkt_pld      (bpkt_pld),
 
     .ipkt_go       (ipkt_go),
     .ipkt_done     (ipkt_done),
@@ -612,6 +601,7 @@ module spio_hss_multiplexer_frame_assembler
     .bpkt_seq  (seq),
     .bpkt_data (bpkt_data[0]),
     .bpkt_pres (bpkt_pres[0]),
+    .bpkt_pld  (bpkt_pld[0]),
     .bpkt_gt   (bpkt_gt[0]),
     .bpkt_rq   (bpkt_rq)
   );
@@ -637,6 +627,7 @@ module spio_hss_multiplexer_frame_assembler
     .bpkt_seq  (seq),
     .bpkt_data (bpkt_data[1]),
     .bpkt_pres (bpkt_pres[1]),
+    .bpkt_pld  (bpkt_pld[1]),
     .bpkt_gt   (bpkt_gt[1]),
     .bpkt_rq   (bpkt_rq)
   );
@@ -662,6 +653,7 @@ module spio_hss_multiplexer_frame_assembler
     .bpkt_seq  (seq),
     .bpkt_data (bpkt_data[2]),
     .bpkt_pres (bpkt_pres[2]),
+    .bpkt_pld  (bpkt_pld[2]),
     .bpkt_gt   (bpkt_gt[2]),
     .bpkt_rq   (bpkt_rq)
   );
@@ -687,6 +679,7 @@ module spio_hss_multiplexer_frame_assembler
     .bpkt_seq  (seq),
     .bpkt_data (bpkt_data[3]),
     .bpkt_pres (bpkt_pres[3]),
+    .bpkt_pld  (bpkt_pld[3]),
     .bpkt_gt   (bpkt_gt[3]),
     .bpkt_rq   (bpkt_rq)
   );
@@ -712,6 +705,7 @@ module spio_hss_multiplexer_frame_assembler
     .bpkt_seq  (seq),
     .bpkt_data (bpkt_data[4]),
     .bpkt_pres (bpkt_pres[4]),
+    .bpkt_pld  (bpkt_pld[4]),
     .bpkt_gt   (bpkt_gt[4]),
     .bpkt_rq   (bpkt_rq)
   );
@@ -737,6 +731,7 @@ module spio_hss_multiplexer_frame_assembler
     .bpkt_seq  (seq),
     .bpkt_data (bpkt_data[5]),
     .bpkt_pres (bpkt_pres[5]),
+    .bpkt_pld  (bpkt_pld[5]),
     .bpkt_gt   (bpkt_gt[5]),
     .bpkt_rq   (bpkt_rq)
   );
@@ -762,6 +757,7 @@ module spio_hss_multiplexer_frame_assembler
     .bpkt_seq  (seq),
     .bpkt_data (bpkt_data[6]),
     .bpkt_pres (bpkt_pres[6]),
+    .bpkt_pld  (bpkt_pld[6]),
     .bpkt_gt   (bpkt_gt[6]),
     .bpkt_rq   (bpkt_rq)
   );
@@ -787,6 +783,7 @@ module spio_hss_multiplexer_frame_assembler
     .bpkt_seq  (seq),
     .bpkt_data (bpkt_data[7]),
     .bpkt_pres (bpkt_pres[7]),
+    .bpkt_pld  (bpkt_pld[7]),
     .bpkt_gt   (bpkt_gt[7]),
     .bpkt_rq   (bpkt_rq)
   );

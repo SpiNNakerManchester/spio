@@ -60,6 +60,7 @@ module spio_hss_multiplexer_pkt_store
   input wire [`SEQ_BITS - 1:0] bpkt_seq,
   output reg [`PKT_BITS - 1:0] bpkt_data,
   output reg 		       bpkt_pres,
+  output reg 		       bpkt_pld,
   input wire 		       bpkt_rq,
   output reg 		       bpkt_gt
 );
@@ -96,6 +97,7 @@ module spio_hss_multiplexer_pkt_store
   // internal packet buffers (for frame resend)
   //---------------------------------------------------------------
   reg   [`PKT_BITS - 1:0] pkt_dbuf [0 : `BUF_LEN - 1];
+  reg                     pkt_pld  [0 : `BUF_LEN - 1];
 
   //---------------------------------------------------------------
   // sequence <-> register mapping
@@ -226,6 +228,10 @@ module spio_hss_multiplexer_pkt_store
   always @ (posedge clk)
     if (writing)
       pkt_dbuf[bw] <= pkt_data;
+
+  always @ (posedge clk)
+    if (writing)
+      pkt_pld[bw] <= pkt_data[1];
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------
@@ -246,8 +252,11 @@ module spio_hss_multiplexer_pkt_store
   //---------------------------------------------------------------
   // buffered packet data to frame issue
   //---------------------------------------------------------------
+  always @ (posedge clk)
+    bpkt_data <= pkt_dbuf[bo];
+
   always @ (*)
-    bpkt_data = pkt_dbuf[bo];
+    bpkt_pld = pkt_pld[bo];
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------
