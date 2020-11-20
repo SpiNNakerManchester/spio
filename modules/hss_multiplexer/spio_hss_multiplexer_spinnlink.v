@@ -34,7 +34,10 @@
 // ----------------------------------------------------------------
 
 `timescale 1ns / 1ps
-module spio_hss_multiplexer_spinnlink
+module spio_hss_multiplexer_spinnlink #(
+  // number of HSSL mux input channels
+  parameter NUM_INPUT_CHANS = 8
+)
 (
   input  wire 			 clk,
   input  wire 			 rst,
@@ -230,7 +233,11 @@ module spio_hss_multiplexer_spinnlink
   //---------------------------------------------------------------
   // instantiate the frame assembler
   //---------------------------------------------------------------
-  spio_hss_multiplexer_frame_assembler fa
+  spio_hss_multiplexer_frame_assembler
+  #(
+    .NUM_INPUT_CHANS (NUM_INPUT_CHANS)
+  )
+  fa
   (
     .clk        (clk),
     .rst        (rst),

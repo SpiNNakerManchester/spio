@@ -33,7 +33,10 @@
 // ----------------------------------------------------------------
 
 `timescale 1ns / 1ps
-module spio_hss_multiplexer_pkt_fifo
+module spio_hss_multiplexer_pkt_fifo #(
+    // register output packet interface ports
+    parameter REGISTERED_OUTPUTS = 0
+)
 (
   input  wire 			 clk,
   input  wire 			 rst,
@@ -73,6 +76,8 @@ module spio_hss_multiplexer_pkt_fifo
   reg                    full;
   reg                    empty;
 
+  reg                    pkt_vld_int;
+  reg                    pkt_rdy_int;
 
   //---------------------------------------------------------------
   // fifo operations and flags
@@ -81,7 +86,7 @@ module spio_hss_multiplexer_pkt_fifo
     writing = go_frm && ipkt_vld;  // write request will succeed
 
   always @ (*)
-    reading = pkt_vld && pkt_rdy;  // read request will succeed
+    reading = pkt_vld_int && pkt_rdy_int;  // read request will succeed
 
   always @ (posedge clk)
     if (writing)
@@ -133,14 +138,49 @@ module spio_hss_multiplexer_pkt_fifo
 
   //---------------------------------------------------------------
   // output packet interface
+  //NOTE: output registers allow the use of block RAMs
   //---------------------------------------------------------------
-  // output data from fifo
-  always @ (*)
-    pkt_data = fifo[rdp];
+  generate
+    if (REGISTERED_OUTPUTS)
+      begin : output_registers
+        always @ (posedge clk)
+          if (reading)
+          	pkt_data <= fifo[rdp];
+
+        always @ (posedge clk or posedge rst)
+          if (rst)
+            pkt_vld <= 1'b0;
+          else
+            if (reading)
+              pkt_vld <= 1'b1;
+            else if (pkt_rdy)
+              pkt_vld <= 1'b0;
+
+          always @ (posedge clk or posedge rst)
+            if (rst)
+              pkt_rdy_int <= 1'b0;
+            else
+              if (reading)
+                pkt_rdy_int <= 1'b0;
+              else
+                pkt_rdy_int <= pkt_rdy;
+      end
+    else
+      begin : combinatorial_outputs
+        always @ (*)
+          pkt_data = fifo[rdp];
+
+        always @ (*)
+          pkt_vld = pkt_vld_int;
+
+        always @ (*)
+          pkt_rdy_int = pkt_rdy;
+      end
+  endgenerate
 
   // output packet valid if not empty (combinatorial)
   always @ (*)
-    pkt_vld = !empty;
+    pkt_vld_int = !empty;
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------
@@ -148,7 +188,7 @@ module spio_hss_multiplexer_pkt_fifo
   //---------------------------------------------------------------
   // cannot accept a new packet (combinatorial)
   always @ (*)
-    busy = full && ipkt_vld && !pkt_rdy;
+    busy = full && ipkt_vld && !pkt_rdy_int;
 
   // control packet flow (stop when near full)
   always @ (posedge clk or posedge rst)

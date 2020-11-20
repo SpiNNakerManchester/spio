@@ -431,7 +431,10 @@ endmodule
 //----------------------- top-level module ----------------------
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 `timescale 1ns / 1ps
-module spio_hss_multiplexer_frame_assembler
+module spio_hss_multiplexer_frame_assembler #(
+  // number of HSSL mux input channels
+  parameter NUM_INPUT_CHANS = 8
+)
 (
   input  wire 			 clk,
   input  wire 			 rst,
@@ -510,6 +513,7 @@ module spio_hss_multiplexer_frame_assembler
   localparam IDLE_ST = 0;
   localparam BUSY_ST = IDLE_ST + 1;
 
+  genvar i;
 
   //---------------------------------------------------------------
   // internal signals
@@ -538,6 +542,9 @@ module spio_hss_multiplexer_frame_assembler
 
   reg  [`OOCC_BITS - 1:0] ooc_snd_ctr;
    
+  wire  [`PKT_BITS - 1:0] pkt_data_int [0 : `NUM_CHANS - 1];
+  wire                    pkt_vld_int  [0 : `NUM_CHANS - 1];
+  wire                    pkt_rdy_int  [0 : `NUM_CHANS - 1];
 
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   //--------------------------- structure -------------------------
@@ -580,213 +587,80 @@ module spio_hss_multiplexer_frame_assembler
   //---------------------------------------------------------------
   // packet store modules
   //---------------------------------------------------------------
-  spio_hss_multiplexer_pkt_store ps0
-  (
-    .clk       (clk),
-    .rst       (rst),
+  assign pkt_data_int[0] = pkt_data0;
+  assign pkt_vld_int[0]  = pkt_vld0;
+  assign pkt_rdy0        = pkt_rdy_int[0];
 
-    .empty     (reg_empt[0]),
-    .full      (reg_full[0]),
+  assign pkt_data_int[1] = pkt_data1;
+  assign pkt_vld_int[1]  = pkt_vld1;
+  assign pkt_rdy1        = pkt_rdy_int[1];
 
-    .cfc_rem   (cfc_rem[0]),
+  assign pkt_data_int[2] = pkt_data2;
+  assign pkt_vld_int[2]  = pkt_vld2;
+  assign pkt_rdy2        = pkt_rdy_int[2];
 
-    .pkt_data  (pkt_data0),
-    .pkt_vld   (pkt_vld0),
-    .pkt_rdy   (pkt_rdy0),
+  assign pkt_data_int[3] = pkt_data3;
+  assign pkt_vld_int[3]  = pkt_vld3;
+  assign pkt_rdy3        = pkt_rdy_int[3];
 
-    .vld_ack   (vld_ack),
-    .vld_nak   (vld_nak),
-    .ack_seq   (ack_seq),
+  assign pkt_data_int[4] = pkt_data4;
+  assign pkt_vld_int[4]  = pkt_vld4;
+  assign pkt_rdy4        = pkt_rdy_int[4];
 
-    .bpkt_seq  (seq),
-    .bpkt_data (bpkt_data[0]),
-    .bpkt_pres (bpkt_pres[0]),
-    .bpkt_pld  (bpkt_pld[0]),
-    .bpkt_gt   (bpkt_gt[0]),
-    .bpkt_rq   (bpkt_rq)
-  );
+  assign pkt_data_int[5] = pkt_data5;
+  assign pkt_vld_int[5]  = pkt_vld5;
+  assign pkt_rdy5        = pkt_rdy_int[5];
 
-  spio_hss_multiplexer_pkt_store ps1
-  (
-    .clk       (clk),
-    .rst       (rst),
+  assign pkt_data_int[6] = pkt_data6;
+  assign pkt_vld_int[6]  = pkt_vld6;
+  assign pkt_rdy6        = pkt_rdy_int[6];
 
-    .empty     (reg_empt[1]),
-    .full      (reg_full[1]),
+  assign pkt_data_int[7] = pkt_data7;
+  assign pkt_vld_int[7]  = pkt_vld7;
+  assign pkt_rdy7        = pkt_rdy_int[7];
 
-    .cfc_rem   (cfc_rem[1]),
+  generate
+    for (i = 0; i < NUM_INPUT_CHANS; i = i + 1)
+      begin : pkt_stores
+        spio_hss_multiplexer_pkt_store ps
+        (
+          .clk       (clk),
+          .rst       (rst),
 
-    .pkt_data  (pkt_data1),
-    .pkt_vld   (pkt_vld1),
-    .pkt_rdy   (pkt_rdy1),
+          .empty     (reg_empt[i]),
+          .full      (reg_full[i]),
 
-    .vld_ack   (vld_ack),
-    .vld_nak   (vld_nak),
-    .ack_seq   (ack_seq),
+          .cfc_rem   (cfc_rem[i]),
 
-    .bpkt_seq  (seq),
-    .bpkt_data (bpkt_data[1]),
-    .bpkt_pres (bpkt_pres[1]),
-    .bpkt_pld  (bpkt_pld[1]),
-    .bpkt_gt   (bpkt_gt[1]),
-    .bpkt_rq   (bpkt_rq)
-  );
+          .pkt_data  (pkt_data_int[i]),
+          .pkt_vld   (pkt_vld_int[i]),
+          .pkt_rdy   (pkt_rdy_int[i]),
 
-  spio_hss_multiplexer_pkt_store ps2
-  (
-    .clk       (clk),
-    .rst       (rst),
+          .vld_ack   (vld_ack),
+          .vld_nak   (vld_nak),
+          .ack_seq   (ack_seq),
 
-    .empty     (reg_empt[2]),
-    .full      (reg_full[2]),
+          .bpkt_seq  (seq),
+          .bpkt_data (bpkt_data[i]),
+          .bpkt_pres (bpkt_pres[i]),
+          .bpkt_pld  (bpkt_pld[i]),
+          .bpkt_gt   (bpkt_gt[i]),
+          .bpkt_rq   (bpkt_rq)
+        );
+      end
 
-    .cfc_rem   (cfc_rem[2]),
+    for (i = NUM_INPUT_CHANS; i < `NUM_CHANS; i = i + 1)
+      begin : unused_channels
+        assign pkt_rdy_int[i] = 1'b0;
 
-    .pkt_data  (pkt_data2),
-    .pkt_vld   (pkt_vld2),
-    .pkt_rdy   (pkt_rdy2),
+        assign bpkt_pres[i]   = 1'b0;
+        assign bpkt_pld[i]    = 1'b0;
+        assign bpkt_gt[i]     = 1'b0;
 
-    .vld_ack   (vld_ack),
-    .vld_nak   (vld_nak),
-    .ack_seq   (ack_seq),
-
-    .bpkt_seq  (seq),
-    .bpkt_data (bpkt_data[2]),
-    .bpkt_pres (bpkt_pres[2]),
-    .bpkt_pld  (bpkt_pld[2]),
-    .bpkt_gt   (bpkt_gt[2]),
-    .bpkt_rq   (bpkt_rq)
-  );
-
-  spio_hss_multiplexer_pkt_store ps3
-  (
-    .clk       (clk),
-    .rst       (rst),
-
-    .empty     (reg_empt[3]),
-    .full      (reg_full[3]),
-
-    .cfc_rem   (cfc_rem[3]),
-
-    .pkt_data  (pkt_data3),
-    .pkt_vld   (pkt_vld3),
-    .pkt_rdy   (pkt_rdy3),
-
-    .vld_ack   (vld_ack),
-    .vld_nak   (vld_nak),
-    .ack_seq   (ack_seq),
-
-    .bpkt_seq  (seq),
-    .bpkt_data (bpkt_data[3]),
-    .bpkt_pres (bpkt_pres[3]),
-    .bpkt_pld  (bpkt_pld[3]),
-    .bpkt_gt   (bpkt_gt[3]),
-    .bpkt_rq   (bpkt_rq)
-  );
-
-  spio_hss_multiplexer_pkt_store ps4
-  (
-    .clk       (clk),
-    .rst       (rst),
-
-    .empty     (reg_empt[4]),
-    .full      (reg_full[4]),
-
-    .cfc_rem   (cfc_rem[4]),
-
-    .pkt_data  (pkt_data4),
-    .pkt_vld   (pkt_vld4),
-    .pkt_rdy   (pkt_rdy4),
-
-    .vld_ack   (vld_ack),
-    .vld_nak   (vld_nak),
-    .ack_seq   (ack_seq),
-
-    .bpkt_seq  (seq),
-    .bpkt_data (bpkt_data[4]),
-    .bpkt_pres (bpkt_pres[4]),
-    .bpkt_pld  (bpkt_pld[4]),
-    .bpkt_gt   (bpkt_gt[4]),
-    .bpkt_rq   (bpkt_rq)
-  );
-
-  spio_hss_multiplexer_pkt_store ps5
-  (
-    .clk       (clk),
-    .rst       (rst),
-
-    .empty     (reg_empt[5]),
-    .full      (reg_full[5]),
-
-    .cfc_rem   (cfc_rem[5]),
-
-    .pkt_data  (pkt_data5),
-    .pkt_vld   (pkt_vld5),
-    .pkt_rdy   (pkt_rdy5),
-
-    .vld_ack   (vld_ack),
-    .vld_nak   (vld_nak),
-    .ack_seq   (ack_seq),
-
-    .bpkt_seq  (seq),
-    .bpkt_data (bpkt_data[5]),
-    .bpkt_pres (bpkt_pres[5]),
-    .bpkt_pld  (bpkt_pld[5]),
-    .bpkt_gt   (bpkt_gt[5]),
-    .bpkt_rq   (bpkt_rq)
-  );
-
-  spio_hss_multiplexer_pkt_store ps6
-  (
-    .clk       (clk),
-    .rst       (rst),
-
-    .empty     (reg_empt[6]),
-    .full      (reg_full[6]),
-
-    .cfc_rem   (cfc_rem[6]),
-
-    .pkt_data  (pkt_data6),
-    .pkt_vld   (pkt_vld6),
-    .pkt_rdy   (pkt_rdy6),
-
-    .vld_ack   (vld_ack),
-    .vld_nak   (vld_nak),
-    .ack_seq   (ack_seq),
-
-    .bpkt_seq  (seq),
-    .bpkt_data (bpkt_data[6]),
-    .bpkt_pres (bpkt_pres[6]),
-    .bpkt_pld  (bpkt_pld[6]),
-    .bpkt_gt   (bpkt_gt[6]),
-    .bpkt_rq   (bpkt_rq)
-  );
-
-  spio_hss_multiplexer_pkt_store ps7
-  (
-    .clk       (clk),
-    .rst       (rst),
-
-    .empty     (reg_empt[7]),
-    .full      (reg_full[7]),
-
-    .cfc_rem   (cfc_rem[7]),
-
-    .pkt_data  (pkt_data7),
-    .pkt_vld   (pkt_vld7),
-    .pkt_rdy   (pkt_rdy7),
-
-    .vld_ack   (vld_ack),
-    .vld_nak   (vld_nak),
-    .ack_seq   (ack_seq),
-
-    .bpkt_seq  (seq),
-    .bpkt_data (bpkt_data[7]),
-    .bpkt_pres (bpkt_pres[7]),
-    .bpkt_pld  (bpkt_pld[7]),
-    .bpkt_gt   (bpkt_gt[7]),
-    .bpkt_rq   (bpkt_rq)
-  );
+        assign reg_empt[i]    = 1'b0;
+        assign reg_full[i]    = 1'b0;
+      end
+  endgenerate
   //---------------------------------------------------------------
   //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 

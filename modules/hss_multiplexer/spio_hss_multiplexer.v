@@ -6,9 +6,11 @@
 `include "spio_hss_multiplexer_common.h"
 `include "spio_hss_multiplexer_reg_bank.h"
 
-module spio_hss_multiplexer #( // The interval at which clock correction sequences should
+module spio_hss_multiplexer #( // number of HSSL mux input channels
+                               parameter NUM_INPUT_CHANS = 8
+                               // The interval at which clock correction sequences should
                                // be inserted (in cycles).
-                               parameter CLOCK_CORRECTION_INTERVAL = 1000
+                             , parameter CLOCK_CORRECTION_INTERVAL = 1000
                                // The number of bits for the above counter.
                              , parameter CLOCK_CORRECTION_INTERVAL_BITS = 10
                                // Number of consecutive handshakes which must arrive
@@ -258,7 +260,8 @@ assign reg_hand_i = {VERSION_MISMATCH_OUT, HANDSHAKE_COMPLETE_OUT};
 
 // TODO: Check parameters selected above are compatible
 
-spio_hss_multiplexer_spinnlink
+spio_hss_multiplexer_spinnlink #( .NUM_INPUT_CHANS  (NUM_INPUT_CHANS)
+                                )
 spio_hss_multiplexer_spinnlink_i( .clk       (CLK_IN)
                                 , .rst       (RESET_IN)
                                 
