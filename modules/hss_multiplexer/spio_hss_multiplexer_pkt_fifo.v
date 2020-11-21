@@ -33,10 +33,7 @@
 // ----------------------------------------------------------------
 
 `timescale 1ns / 1ps
-module spio_hss_multiplexer_pkt_fifo #(
-    // register output packet interface ports
-    parameter REGISTERED_OUTPUTS = 0
-)
+module spio_hss_multiplexer_pkt_fifo
 (
   input  wire 			 clk,
   input  wire 			 rst,
@@ -138,47 +135,18 @@ module spio_hss_multiplexer_pkt_fifo #(
 
   //---------------------------------------------------------------
   // output packet interface
-  //NOTE: output registers allow the use of block RAMs
+  //NOTE: registered pkt_data would allow the use of block RAM
   //---------------------------------------------------------------
-  generate
-    if (REGISTERED_OUTPUTS)
-      begin : output_registers
-        always @ (posedge clk)
-          if (reading)
-          	pkt_data <= fifo[rdp];
+  always @ (*)
+    pkt_data = fifo[rdp];
 
-        always @ (posedge clk or posedge rst)
-          if (rst)
-            pkt_vld <= 1'b0;
-          else
-            if (reading)
-              pkt_vld <= 1'b1;
-            else if (pkt_rdy)
-              pkt_vld <= 1'b0;
+  always @ (*)
+    pkt_vld = pkt_vld_int;
 
-          always @ (posedge clk or posedge rst)
-            if (rst)
-              pkt_rdy_int <= 1'b0;
-            else
-              if (reading)
-                pkt_rdy_int <= 1'b0;
-              else
-                pkt_rdy_int <= pkt_rdy;
-      end
-    else
-      begin : combinatorial_outputs
-        always @ (*)
-          pkt_data = fifo[rdp];
+  always @ (*)
+    pkt_rdy_int = pkt_rdy;
 
-        always @ (*)
-          pkt_vld = pkt_vld_int;
-
-        always @ (*)
-          pkt_rdy_int = pkt_rdy;
-      end
-  endgenerate
-
-  // output packet valid if not empty (combinatorial)
+  // output packet valid if not empty
   always @ (*)
     pkt_vld_int = !empty;
   //---------------------------------------------------------------
