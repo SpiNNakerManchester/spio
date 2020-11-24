@@ -82,7 +82,9 @@ module hssl_interface (
 
   output wire        handshake_complete_out,
   output wire        version_mismatch_out,
+
   output wire [15:0] reg_idsi_out,
+  input  wire        reg_stop_in,
 
   output wire [31:0] userdata_tx_out,
   output wire  [0:0] tx8b10ben_out,
@@ -144,7 +146,7 @@ module hssl_interface (
 
       // diagnostic/control signals from/to frame transmitter
       , .reg_tfrm   ()
-      , .reg_stop   (1'b0)
+      , .reg_stop   (reg_stop_in)
 
       // diagnostic signals from frame disassembler
       , .reg_dfrm   ()

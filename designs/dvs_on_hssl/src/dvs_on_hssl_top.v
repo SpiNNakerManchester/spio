@@ -2,7 +2,7 @@
 //  dvs_on_hssl_top
 //
 //  DVS input to SpiNN-5 board through High-Speed Serial Link (HSSL)
-//  top-level module: processor sub-system + hssl interface + GTH block
+//  top-level module: processor subsystem + hssl interface + GTH block
 //
 // -------------------------------------------------------------------------
 // AUTHOR
@@ -32,7 +32,7 @@ module dvs_on_hssl_top
   parameter INTER_PACKET_DELAY = 32'd75000000
 )
 (
-  // Differential reference clock inputs
+  // differential reference clock inputs
   input  wire mgtrefclk0_x1y3_p,
   input  wire mgtrefclk0_x1y3_n,
 
@@ -50,9 +50,15 @@ module dvs_on_hssl_top
   wire        pl_freerun_clk_int;
   wire  [0:0] pl_reset_all_int;
 
+  // processor subsystem interface
+  wire [31:0] inter_pkt_delay_int;
+  wire        axi_clk_int;
+  wire        axi_resetn_int;
+
   // hssl interface block signals
   wire        hsslif_clk_int;
   wire        hsslif_reset_int;
+  wire  [0:0] hsslif_control_int;
   wire        handshake_complete_int;
   wire        version_mismatch_int;
   wire [15:0] reg_idsi_int;
@@ -125,7 +131,7 @@ module dvs_on_hssl_top
 
 
   //---------------------------------------------------------------
-  // processor sub-system -
+  // processor subsystem -
   // implements an AXI4-stream interface to the HSSL and
   // provides the free-running clock and the reset signal
   //---------------------------------------------------------------
@@ -135,6 +141,10 @@ module dvs_on_hssl_top
   proc_sys proc_sys_block (
       .peripheral_reset_0 (peripheral_reset_0_int)
     , .pl_clk0_0          (pl_clk0_int)
+
+    , .s_axi_aresetn_0    (axi_resetn_int)
+    , .s_axi_aclk_0       (axi_clk_int)
+    , .GPIO_0_tri_o       (hsslif_control_int)
     );
   //---------------------------------------------------------------
 
@@ -142,8 +152,8 @@ module dvs_on_hssl_top
   //---------------------------------------------------------------
   // HSSL interface and GTH block clocks
   // free-running clock for the GTH block derived from the PL clock
-  // provided by the processor sub-system.
-  //NOTE: (/2) avoids reconfiguration of the processor sub-system PL clock
+  // provided by the processor subsystem.
+  //NOTE: (/2) avoids reconfiguration of the processor subsystem PL clock
   //---------------------------------------------------------------
   wire pl_clk0_buf_int;
 
@@ -171,6 +181,8 @@ module dvs_on_hssl_top
   assign vio_freerun_clk_int = pl_freerun_clk_int;
 
   assign hsslif_clk_int = gth_userclk_tx_usrclk2_int;
+
+  assign axi_clk_int = gth_userclk_tx_usrclk2_int;
   //---------------------------------------------------------------
 
 
@@ -221,6 +233,8 @@ module dvs_on_hssl_top
   assign gth_userclk_rx_reset_int[0:0] = ~(&gth_rxpmaresetdone_int);
 
   assign hsslif_reset_int = !gth_reset_tx_done_int || !gth_userclk_tx_active_int;
+
+  assign axi_resetn_int = gth_reset_tx_done_int && gth_userclk_tx_active_int;
   //---------------------------------------------------------------
 
 
@@ -257,13 +271,14 @@ module dvs_on_hssl_top
   wire                 pkt_snd_int;
   reg           [31:0] pkt_snd_cnt_int;
 
+  assign inter_pkt_delay_int = INTER_PACKET_DELAY;
 
   always @ (posedge hsslif_clk_int or posedge hsslif_reset_int)
   	if (hsslif_reset_int)
-  		pkt_snd_cnt_int = INTER_PACKET_DELAY;
+  		pkt_snd_cnt_int = inter_pkt_delay_int;
   	else
     	if (tx_pkt0_vld_int == 1'b1)
-  		  pkt_snd_cnt_int = INTER_PACKET_DELAY;
+  		  pkt_snd_cnt_int = inter_pkt_delay_int;
     	else
 		    pkt_snd_cnt_int = pkt_snd_cnt_int - 1;
 
@@ -349,6 +364,7 @@ module dvs_on_hssl_top
     , .handshake_complete_out         (handshake_complete_int)
     , .version_mismatch_out           (version_mismatch_int)
     , .reg_idsi_out                   (reg_idsi_int)
+    , .reg_stop_in                    (hsslif_control_int[0])
 
     , .userdata_tx_out                (gth_userdata_tx_int)
     , .tx8b10ben_out                  (gth_tx8b10ben_int)
