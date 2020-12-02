@@ -145,6 +145,7 @@ module dvs_on_hssl_top
     , .s_axi_aresetn_0    (axi_resetn_int)
     , .s_axi_aclk_0       (axi_clk_int)
     , .GPIO_0_tri_o       (hsslif_control_int)
+    , .GPIO2_0_tri_o      (inter_pkt_delay_int)
     );
   //---------------------------------------------------------------
 
@@ -258,6 +259,8 @@ module dvs_on_hssl_top
   //---------------------------------------------------------------
   // drive the tx HSSL interface
   //---------------------------------------------------------------
+  wire          [31:0] inter_pkt_delay_sync;
+
   reg           [31:0] tx_pkt0_key_int;
   wire          [31:0] tx_pkt0_pld_int = 32'h0000_0000;
   wire                 tx_pkt0_pty_int = ~(^tx_pkt0_key_int ^ ^tx_pkt0_pld_int);
@@ -271,36 +274,34 @@ module dvs_on_hssl_top
   wire                 pkt_snd_int;
   reg           [31:0] pkt_snd_cnt_int;
 
-  assign inter_pkt_delay_int = INTER_PACKET_DELAY;
-
   always @ (posedge hsslif_clk_int or posedge hsslif_reset_int)
   	if (hsslif_reset_int)
-  		pkt_snd_cnt_int = inter_pkt_delay_int;
+  		pkt_snd_cnt_int <= INTER_PACKET_DELAY;
   	else
     	if (tx_pkt0_vld_int == 1'b1)
-  		  pkt_snd_cnt_int = inter_pkt_delay_int;
+  		  pkt_snd_cnt_int <= inter_pkt_delay_int;
     	else
-		    pkt_snd_cnt_int = pkt_snd_cnt_int - 1;
+		  pkt_snd_cnt_int <= pkt_snd_cnt_int - 1;
 
   assign pkt_snd_int = (tx_pkt0_vld_int == 1'b1) && (tx_pkt0_rdy_int == 1'b1);
 
   always @ (posedge hsslif_clk_int or posedge hsslif_reset_int)
     if (hsslif_reset_int)
-    	tx_pkt0_key_int = 32'd0;
+    	tx_pkt0_key_int <= 32'd0;
     else
       if (pkt_snd_int)
-      	tx_pkt0_key_int = tx_pkt0_key_int + 1;
+      	tx_pkt0_key_int <= tx_pkt0_key_int + 1;
 
   assign tx_pkt0_data_int = {tx_pkt0_pld_int, tx_pkt0_key_int, tx_pkt0_hdr_int};
 
   always @ (posedge hsslif_clk_int or posedge hsslif_reset_int)
     if (hsslif_reset_int)
-      tx_pkt0_vld_int = 1'b0;
+      tx_pkt0_vld_int <= 1'b0;
     else
       if (pkt_snd_int)
-        tx_pkt0_vld_int = 1'b0;
+        tx_pkt0_vld_int <= 1'b0;
       else if (pkt_snd_cnt_int == 0)
-        tx_pkt0_vld_int = 1'b1;
+        tx_pkt0_vld_int <= 1'b1;
   //---------------------------------------------------------------
 
 

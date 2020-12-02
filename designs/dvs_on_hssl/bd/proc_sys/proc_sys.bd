@@ -1,7 +1,7 @@
 {
   "design": {
     "design_info": {
-      "boundary_crc": "0xF13B3D534963EBD7",
+      "boundary_crc": "0x239AD710526ECC7C",
       "device": "xczu9eg-ffvb1156-2-e",
       "name": "proc_sys",
       "synth_flow_mode": "Hierarchical",
@@ -22,6 +22,10 @@
     },
     "interface_ports": {
       "GPIO_0": {
+        "mode": "Master",
+        "vlnv": "xilinx.com:interface:gpio_rtl:1.0"
+      },
+      "GPIO2_0": {
         "mode": "Master",
         "vlnv": "xilinx.com:interface:gpio_rtl:1.0"
       }
@@ -1189,17 +1193,35 @@
         "vlnv": "xilinx.com:ip:axi_gpio:2.0",
         "xci_name": "proc_sys_axi_gpio_0_0",
         "parameters": {
+          "C_ALL_INPUTS_2": {
+            "value": "0"
+          },
           "C_ALL_OUTPUTS": {
+            "value": "1"
+          },
+          "C_ALL_OUTPUTS_2": {
             "value": "1"
           },
           "C_DOUT_DEFAULT": {
             "value": "0x00000001"
           },
+          "C_DOUT_DEFAULT_2": {
+            "value": "0x047868C0"
+          },
+          "C_GPIO2_WIDTH": {
+            "value": "32"
+          },
           "C_GPIO_WIDTH": {
             "value": "1"
           },
           "C_IS_DUAL": {
-            "value": "0"
+            "value": "1"
+          },
+          "GPIO2_BOARD_INTERFACE": {
+            "value": "Custom"
+          },
+          "USE_BOARD_FLOW": {
+            "value": "true"
           }
         }
       },
@@ -1357,16 +1379,16 @@
                   "auto_ds/S_AXI"
                 ]
               },
-              "auto_ds_to_auto_pc": {
-                "interface_ports": [
-                  "auto_ds/M_AXI",
-                  "auto_pc/S_AXI"
-                ]
-              },
               "auto_pc_to_s00_couplers": {
                 "interface_ports": [
                   "M_AXI",
                   "auto_pc/M_AXI"
+                ]
+              },
+              "auto_ds_to_auto_pc": {
+                "interface_ports": [
+                  "auto_ds/M_AXI",
+                  "auto_pc/S_AXI"
                 ]
               }
             },
@@ -1445,22 +1467,28 @@
       }
     },
     "interface_nets": {
-      "zynq_ultra_ps_e_0_M_AXI_HPM0_FPD": {
-        "interface_ports": [
-          "zynq_ultra_ps_e_0/M_AXI_HPM0_FPD",
-          "ps8_0_axi_periph/S00_AXI"
-        ]
-      },
       "ps8_0_axi_periph_M00_AXI": {
         "interface_ports": [
           "ps8_0_axi_periph/M00_AXI",
           "axi_gpio_0/S_AXI"
         ]
       },
+      "axi_gpio_0_GPIO2": {
+        "interface_ports": [
+          "GPIO2_0",
+          "axi_gpio_0/GPIO2"
+        ]
+      },
       "axi_gpio_0_GPIO": {
         "interface_ports": [
           "GPIO_0",
           "axi_gpio_0/GPIO"
+        ]
+      },
+      "zynq_ultra_ps_e_0_M_AXI_HPM0_FPD": {
+        "interface_ports": [
+          "zynq_ultra_ps_e_0/M_AXI_HPM0_FPD",
+          "ps8_0_axi_periph/S00_AXI"
         ]
       }
     },
