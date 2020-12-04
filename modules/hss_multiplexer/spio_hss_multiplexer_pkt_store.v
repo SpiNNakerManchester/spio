@@ -177,7 +177,7 @@ module spio_hss_multiplexer_pkt_store
       br <= nxt_br;
 
   always @ (*)
-    casex ({vld_nak, reading})
+    casex ({vld_nak, bpkt_gt})
         2'b1x:   nxt_br = seq_to_reg;  // nack'd frame
         2'b01:   nxt_br = br + 1;      // next in sequence
         default: nxt_br = br;          // no change!
