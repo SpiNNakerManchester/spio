@@ -25,10 +25,70 @@
 
 `include "spio_hss_multiplexer_common.h"
 
+
+`timescale 1ps/1ps
+module pkt_sender
+#(
+  parameter INTER_PACKET_DELAY = 32'd75000000
+)
+(
+  input  wire                 clk,
+  input  wire                 reset,
+
+  input  wire          [31:0] inter_pkt_delay_in,
+
+  output reg  [`PKT_BITS-1:0] pkt_data_out,
+  output reg                  pkt_vld_out,
+  input  wire                 pkt_rdy_in
+);
+
+  //---------------------------------------------------------------
+  // internal signals
+  //---------------------------------------------------------------
+  reg           [31:0] pkt_key_int;
+  wire          [31:0] pkt_pld_int = 32'h0000_0000;
+  wire                 pkt_pty_int = ~(^pkt_key_int ^ ^pkt_pld_int);
+  wire           [7:0] pkt_hdr_int = {7'b000_0000, pkt_pty_int};
+
+  wire                 pkt_snd_int;
+  reg           [31:0] pkt_snd_cnt_int;
+
+  always @ (posedge clk or posedge reset)
+    if (reset)
+      pkt_snd_cnt_int <= INTER_PACKET_DELAY;
+    else
+      if (pkt_vld_out == 1'b1)
+        pkt_snd_cnt_int <= inter_pkt_delay_in;
+      else
+        pkt_snd_cnt_int <= pkt_snd_cnt_int - 1;
+
+  assign pkt_snd_int = (pkt_vld_out == 1'b1) && (pkt_rdy_in == 1'b1);
+
+  always @ (posedge clk or posedge reset)
+    if (reset)
+      pkt_key_int <= 32'd0;
+    else
+      if (pkt_snd_int)
+        pkt_key_int <= pkt_key_int + 1;
+
+  always @ (posedge clk)
+    pkt_data_out <= {pkt_pld_int, pkt_key_int, pkt_hdr_int};
+
+  always @ (posedge clk or posedge reset)
+    if (reset)
+      pkt_vld_out <= 1'b0;
+    else
+      if (pkt_snd_int)
+        pkt_vld_out <= 1'b0;
+      else if (pkt_snd_cnt_int == 0)
+        pkt_vld_out <= 1'b1;
+  //---------------------------------------------------------------
+endmodule
+
+
 `timescale 1ps/1ps
 module dvs_on_hssl_top
 #(
-  // SpiNNaker link number (for back-pressure settings)
   parameter INTER_PACKET_DELAY = 32'd75000000
 )
 (
@@ -259,49 +319,37 @@ module dvs_on_hssl_top
   //---------------------------------------------------------------
   // drive the tx HSSL interface
   //---------------------------------------------------------------
-  wire          [31:0] inter_pkt_delay_sync;
+  localparam NUM_PKT_SENDERS = 8;
 
-  reg           [31:0] tx_pkt0_key_int;
-  wire          [31:0] tx_pkt0_pld_int = 32'h0000_0000;
-  wire                 tx_pkt0_pty_int = ~(^tx_pkt0_key_int ^ ^tx_pkt0_pld_int);
-  wire           [7:0] tx_pkt0_hdr_int = {7'b000_0000, tx_pkt0_pty_int};
+  wire [`PKT_BITS-1:0] tx_pkt_data_int[NUM_PKT_SENDERS - 1:0];
+  wire                 tx_pkt_vld_int [NUM_PKT_SENDERS - 1:0];
+  wire                 tx_pkt_rdy_int [NUM_PKT_SENDERS - 1:0];
 
-  wire [`PKT_BITS-1:0] tx_pkt0_data_int;
+  genvar i;
+  generate
+    for (i = 0; i < NUM_PKT_SENDERS; i = i + 1)
+      begin : pkt_sender_inst
+        pkt_sender #(
+             .INTER_PACKET_DELAY (INTER_PACKET_DELAY)
+           )
+        ps (
+             .clk                (hsslif_clk_int)
+           , .reset              (hsslif_reset_int)
 
-  reg                  tx_pkt0_vld_int;
-  wire                 tx_pkt0_rdy_int;
+           , .inter_pkt_delay_in (inter_pkt_delay_int)
 
-  wire                 pkt_snd_int;
-  reg           [31:0] pkt_snd_cnt_int;
+           , .pkt_data_out       (tx_pkt_data_int[i])
+           , .pkt_vld_out        (tx_pkt_vld_int[i])
+           , .pkt_rdy_in         (tx_pkt_rdy_int[i])
+           );
+      end
 
-  always @ (posedge hsslif_clk_int or posedge hsslif_reset_int)
-  	if (hsslif_reset_int)
-  		pkt_snd_cnt_int <= INTER_PACKET_DELAY;
-  	else
-    	if (tx_pkt0_vld_int == 1'b1)
-  		  pkt_snd_cnt_int <= inter_pkt_delay_int;
-    	else
-		  pkt_snd_cnt_int <= pkt_snd_cnt_int - 1;
-
-  assign pkt_snd_int = (tx_pkt0_vld_int == 1'b1) && (tx_pkt0_rdy_int == 1'b1);
-
-  always @ (posedge hsslif_clk_int or posedge hsslif_reset_int)
-    if (hsslif_reset_int)
-    	tx_pkt0_key_int <= 32'd0;
-    else
-      if (pkt_snd_int)
-      	tx_pkt0_key_int <= tx_pkt0_key_int + 1;
-
-  assign tx_pkt0_data_int = {tx_pkt0_pld_int, tx_pkt0_key_int, tx_pkt0_hdr_int};
-
-  always @ (posedge hsslif_clk_int or posedge hsslif_reset_int)
-    if (hsslif_reset_int)
-      tx_pkt0_vld_int <= 1'b0;
-    else
-      if (pkt_snd_int)
-        tx_pkt0_vld_int <= 1'b0;
-      else if (pkt_snd_cnt_int == 0)
-        tx_pkt0_vld_int <= 1'b1;
+    // invalidate unused channels
+    for (i = NUM_PKT_SENDERS; i < `NUM_CHANS; i = i + 1)
+      begin : unused_channels
+        assign tx_pkt_vld_int[i] = 1'b0;
+      end
+  endgenerate
   //---------------------------------------------------------------
 
 
@@ -312,30 +360,30 @@ module dvs_on_hssl_top
       .clk                            (hsslif_clk_int)
     , .reset                          (hsslif_reset_int)
 
-    , .tx_pkt0_data_in                (tx_pkt0_data_int)
-    , .tx_pkt0_vld_in                 (tx_pkt0_vld_int)
-    , .tx_pkt0_rdy_out                (tx_pkt0_rdy_int)
-    , .tx_pkt1_data_in                ()
-    , .tx_pkt1_vld_in                 (1'b0)
-    , .tx_pkt1_rdy_out                ()
-    , .tx_pkt2_data_in                ()
-    , .tx_pkt2_vld_in                 (1'b0)
-    , .tx_pkt2_rdy_out                ()
-    , .tx_pkt3_data_in                ()
-    , .tx_pkt3_vld_in                 (1'b0)
-    , .tx_pkt3_rdy_out                ()
-    , .tx_pkt4_data_in                ()
-    , .tx_pkt4_vld_in                 (1'b0)
-    , .tx_pkt4_rdy_out                ()
-    , .tx_pkt5_data_in                ()
-    , .tx_pkt5_vld_in                 (1'b0)
-    , .tx_pkt5_rdy_out                ()
-    , .tx_pkt6_data_in                ()
-    , .tx_pkt6_vld_in                 (1'b0)
-    , .tx_pkt6_rdy_out                ()
-    , .tx_pkt7_data_in                ()
-    , .tx_pkt7_vld_in                 (1'b0)
-    , .tx_pkt7_rdy_out                ()
+    , .tx_pkt0_data_in                (tx_pkt_data_int[0])
+    , .tx_pkt0_vld_in                 (tx_pkt_vld_int[0])
+    , .tx_pkt0_rdy_out                (tx_pkt_rdy_int[0])
+    , .tx_pkt1_data_in                (tx_pkt_data_int[1])
+    , .tx_pkt1_vld_in                 (tx_pkt_vld_int[1])
+    , .tx_pkt1_rdy_out                (tx_pkt_rdy_int[1])
+    , .tx_pkt2_data_in                (tx_pkt_data_int[2])
+    , .tx_pkt2_vld_in                 (tx_pkt_vld_int[2])
+    , .tx_pkt2_rdy_out                (tx_pkt_rdy_int[2])
+    , .tx_pkt3_data_in                (tx_pkt_data_int[3])
+    , .tx_pkt3_vld_in                 (tx_pkt_vld_int[3])
+    , .tx_pkt3_rdy_out                (tx_pkt_rdy_int[3])
+    , .tx_pkt4_data_in                (tx_pkt_data_int[4])
+    , .tx_pkt4_vld_in                 (tx_pkt_vld_int[4])
+    , .tx_pkt4_rdy_out                (tx_pkt_rdy_int[4])
+    , .tx_pkt5_data_in                (tx_pkt_data_int[5])
+    , .tx_pkt5_vld_in                 (tx_pkt_vld_int[5])
+    , .tx_pkt5_rdy_out                (tx_pkt_rdy_int[5])
+    , .tx_pkt6_data_in                (tx_pkt_data_int[6])
+    , .tx_pkt6_vld_in                 (tx_pkt_vld_int[6])
+    , .tx_pkt6_rdy_out                (tx_pkt_rdy_int[6])
+    , .tx_pkt7_data_in                (tx_pkt_data_int[7])
+    , .tx_pkt7_vld_in                 (tx_pkt_vld_int[7])
+    , .tx_pkt7_rdy_out                (tx_pkt_rdy_int[7])
 
     , .rx_pkt0_data_out               ()
     , .rx_pkt0_vld_out                ()

@@ -118,6 +118,15 @@ localparam INCLUDE_PERIPH_SUPPORT = INCLUDE_PERIPH_INPUT_SUPPORT | INCLUDE_PERIP
 // number of output peripheral channels
 localparam PERIPH_NUM_OUTPUT_CHANS = (INCLUDE_PERIPH_OUTPUT_SUPPORT ? 1 : 0);
 
+// SpiNNaker chips link map to peripheral input channel (0 = no connection)
+//NOTE: at most 8 peripheral input channels are supported, numbered 1 - 8 below.
+localparam [(4 * NUM_LINKS) - 1:0] PERIPH_INPUT_LINKS = {
+							  4'd8, 4'd0, 4'd7, 4'd0
+							, 4'd6, 4'd0, 4'd5, 4'd0
+							, 4'd4, 4'd0, 4'd3, 4'd0
+							, 4'd2, 4'd0, 4'd1, 4'd0
+							};
+
 // GTP internal loopback connectivity (for debugging)
 localparam    B2B_GTP_LOOPBACK = 3'b000;
 localparam PERIPH_GTP_LOOPBACK = 3'b000;
@@ -1904,108 +1913,113 @@ endgenerate
 
 
 ////////////////////////////////////////////////////////////////////////////////
-// Arbitration between packets from high-speed links to SpiNNaker chips
-//TODO: add support for ring HSSL
-//TODO: may need to route SpiNNaker packets arriving on the HSSLs differently
+// Arbitration between packets from high-speed channels to SpiNNaker chips
+//TODO: add support for routing incoming packets to ring HSSL
 ////////////////////////////////////////////////////////////////////////////////
 
-// arbitrate between packets going to the first bank of SpiNNaker chip links
+// arbitrate between peripheral and b2b packets going to SpiNNaker chip links
 generate case ({INCLUDE_PERIPH_INPUT_SUPPORT, INCLUDE_B2B_SUPPORT})
 	{0, 0}:
 		// invalidate all SpiNNaker chip links
 		//NOTE: this case is not useful!
-		for (i = 0; i < `NUM_CHANS; i = i + 1)
+		for (i = 0; i < NUM_LINKS; i = i + 1)
 			begin : spinnaker_tx_link_arbitration_not_used
+				// invalidate all SpiNNaker chip links
 				assign sl_pkt_txvld_i[i] = 1'b0;
 			end
 
 	{0, 1}:
-		// connect the board-to-board links directly to the SpiNNaker chip links
-		for (i = 0; i < `NUM_CHANS; i = i + 1)
+		// connect board-to-board channels directly to SpiNNaker chip links
+		for (i = 0; i < NUM_LINKS; i = i + 1)
 			begin : spinnaker_tx_link_arbitration_not_used
-				assign sl_pkt_txdata_i[i]    = b2b_pkt_rxdata_i[0][i];
-				assign sl_pkt_txvld_i[i]     = b2b_pkt_rxvld_i[0][i];
-				assign b2b_pkt_rxrdy_i[0][i] = sl_pkt_txrdy_i[i];
+				// connect all SpiNNaker chip links directly to b2b channels
+				assign sl_pkt_txdata_i[i] = b2b_pkt_rxdata_i[i / `NUM_CHANS][i % `NUM_CHANS];
+				assign sl_pkt_txvld_i[i]  = b2b_pkt_rxvld_i[i / `NUM_CHANS][i % `NUM_CHANS];
+				assign b2b_pkt_rxrdy_i[i / `NUM_CHANS][i % `NUM_CHANS] = sl_pkt_txrdy_i[i];
 			end
 
 	{1, 0}:
-		// connect the peripheral links directly to the SpiNNaker chip links
-		for (i = 0; i < `NUM_CHANS; i = i + 1)
+		// connect peripheral channels directly to the SpiNNaker chip links
+		//NOTE: invalidate SpiNNaker chip links not used for peripheral input
+		for (i = 0; i < NUM_LINKS; i = i + 1)
 			begin : spinnaker_tx_link_arbitration_not_used
-				assign sl_pkt_txdata_i[i]    = periph_pkt_rxdata_i[i];
-				assign sl_pkt_txvld_i[i]     = periph_pkt_rxvld_i[i];
-				assign periph_pkt_rxrdy_i[i] = sl_pkt_txrdy_i[i];
+				if (PERIPH_INPUT_LINKS[(4 * i) +: 4])
+					begin
+						// connect peripheral input channel to SpiNNaker chip link
+						assign sl_pkt_txdata_i[i] = periph_pkt_rxdata_i[PERIPH_INPUT_LINKS[(4 * i) +: 4] - 1];
+						assign sl_pkt_txvld_i[i]  = periph_pkt_rxvld_i[PERIPH_INPUT_LINKS[(4 * i) +: 4] - 1];
+						assign periph_pkt_rxrdy_i[PERIPH_INPUT_LINKS[(4 * i) +: 4] - 1] = sl_pkt_txrdy_i[i];
+					end
+				else
+					begin
+						// invalidate unused SpiNNaker chip link
+						assign sl_pkt_txvld_i[i] = 1'b0;
+					end
 			end
 
 	{1, 1}:
 		// arbitrate between board-to-board and peripheral links
-		for (i = 0; i < `NUM_CHANS; i = i + 1)
+		for (i = 0; i < NUM_LINKS; i = i + 1)
 			begin : spinnaker_tx_link_arbitration
-				wire [`PKT_BITS-1:0] fast_periph_pkt_rxdata_i;
-				wire                 fast_periph_pkt_rxvld_i;
-				wire                 fast_periph_pkt_rxrdy_i;
+				if (PERIPH_INPUT_LINKS[(4 * i) +: 4])
+					begin
+						// arbitrate between peripheral and b2b channels
+						wire [`PKT_BITS-1:0] fast_periph_pkt_rxdata_i;
+						wire                 fast_periph_pkt_rxvld_i;
+						wire                 fast_periph_pkt_rxrdy_i;
 
-				// if needed add a speed adapter between the half-speed
-				// peripheral links and the full-speed arbiter
-				if (PERIPH_HALF_SPEED)
-					begin : peripheral_doubler
-						spio_link_speed_doubler #( .PKT_BITS (`PKT_BITS))
-						spio_link_speed_doubler_i( .RESET_IN (arbiter_reset_i)
-						                         , .SCLK_IN  (periph_usrclk2_i)
-						                         , .FCLK_IN  (b2b_usrclk2_i)
-						                           // Incoming signals (on CLK_IN)
-						                         , .DATA_IN  (periph_pkt_rxdata_i[i])
-						                         , .VLD_IN   (periph_pkt_rxvld_i[i])
-						                         , .RDY_OUT  (periph_pkt_rxrdy_i[i])
-						                           // Outgoing signals (on CLK2_IN)
-						                         , .DATA_OUT (fast_periph_pkt_rxdata_i)
-						                         , .VLD_OUT  (fast_periph_pkt_rxvld_i)
-						                         , .RDY_IN   (fast_periph_pkt_rxrdy_i)
-						                         );
+						// if needed add a speed adapter between the half-speed
+						// peripheral link and the full-speed arbiter
+						if (PERIPH_HALF_SPEED)
+						begin : peripheral_doubler
+							spio_link_speed_doubler #( .PKT_BITS (`PKT_BITS))
+							spio_link_speed_doubler_i( .RESET_IN (arbiter_reset_i)
+										 , .SCLK_IN  (periph_usrclk2_i)
+										 , .FCLK_IN  (b2b_usrclk2_i)
+										    // Incoming signals (on CLK_IN)
+										 , .DATA_IN  (periph_pkt_rxdata_i[PERIPH_INPUT_LINKS[(4 * i) +: 4] - 1])
+										 , .VLD_IN   (periph_pkt_rxvld_i[PERIPH_INPUT_LINKS[(4 * i) +: 4] - 1])
+										 , .RDY_OUT  (periph_pkt_rxrdy_i[PERIPH_INPUT_LINKS[(4 * i) +: 4] - 1])
+										    // Outgoing signals (on CLK2_IN)
+										 , .DATA_OUT (fast_periph_pkt_rxdata_i)
+										 , .VLD_OUT  (fast_periph_pkt_rxvld_i)
+										 , .RDY_IN   (fast_periph_pkt_rxrdy_i)
+										 );
+						end
+						else
+						begin : peripheral_doubler_not_used
+							// connect full-speed peripheral link directly to arbiter
+							assign fast_periph_pkt_rxdata_i = periph_pkt_rxdata_i[PERIPH_INPUT_LINKS[(4 * i) +: 4] - 1];
+							assign fast_periph_pkt_rxvld_i  = periph_pkt_rxvld_i[PERIPH_INPUT_LINKS[(4 * i) +: 4] - 1];
+							assign periph_pkt_rxrdy_i[PERIPH_INPUT_LINKS[(4 * i) +: 4] - 1] = fast_periph_pkt_rxrdy_i;
+						end
+
+						// arbitrate into SpiNNaker chip link
+						spio_rr_arbiter #( .PKT_BITS (`PKT_BITS))
+						spio_rr_arbiter_i( .CLK_IN   (b2b_usrclk2_i)
+								 , .RESET_IN (arbiter_reset_i)
+								    // Input ports
+								 , .DATA0_IN (b2b_pkt_rxdata_i[i / `NUM_CHANS][i % `NUM_CHANS])
+								 , .VLD0_IN  (b2b_pkt_rxvld_i[i / `NUM_CHANS][i % `NUM_CHANS])
+								 , .RDY0_OUT (b2b_pkt_rxrdy_i[i / `NUM_CHANS][i % `NUM_CHANS])
+								 , .DATA1_IN (fast_periph_pkt_rxdata_i)
+								 , .VLD1_IN  (fast_periph_pkt_rxvld_i)
+								 , .RDY1_OUT (fast_periph_pkt_rxrdy_i)
+								    // Output port where the merged stream will be sent
+								 , .DATA_OUT (sl_pkt_txdata_i[i])
+								 , .VLD_OUT  (sl_pkt_txvld_i[i])
+								 , .RDY_IN   (sl_pkt_txrdy_i[i])
+								 );
 					end
 				else
-					begin : peripheral_doubler_not_used
-						// connect full-speed peripheral links directly to arbiter
-						assign fast_periph_pkt_rxdata_i = periph_pkt_rxdata_i[i];
-						assign fast_periph_pkt_rxvld_i  = periph_pkt_rxvld_i[i];
-						assign periph_pkt_rxrdy_i[i]    = fast_periph_pkt_rxrdy_i;
+					begin
+						// connect b2b channel directly to SpiNNaker chip link
+						assign sl_pkt_txdata_i[i] = b2b_pkt_rxdata_i[i / `NUM_CHANS][i % `NUM_CHANS];
+						assign sl_pkt_txvld_i[i]  = b2b_pkt_rxvld_i[i / `NUM_CHANS][i % `NUM_CHANS];
+						assign b2b_pkt_rxrdy_i[i / `NUM_CHANS][i % `NUM_CHANS] = sl_pkt_txrdy_i[i];
 					end
-
-				// arbitrate into the first bank of SpiNNaker links
-				spio_rr_arbiter #( .PKT_BITS (`PKT_BITS))
-				spio_rr_arbiter_i( .CLK_IN   (b2b_usrclk2_i)
-				                 , .RESET_IN (arbiter_reset_i)
-				                   // Input ports
-				                 , .DATA0_IN (b2b_pkt_rxdata_i[0][i])
-				                 , .VLD0_IN  (b2b_pkt_rxvld_i[0][i])
-				                 , .RDY0_OUT (b2b_pkt_rxrdy_i[0][i])
-				                 , .DATA1_IN (fast_periph_pkt_rxdata_i)
-				                 , .VLD1_IN  (fast_periph_pkt_rxvld_i)
-				                 , .RDY1_OUT (fast_periph_pkt_rxrdy_i)
-				                   // Output port where the merged stream will be sent
-				                 , .DATA_OUT (sl_pkt_txdata_i[i])
-				                 , .VLD_OUT  (sl_pkt_txvld_i[i])
-				                 , .RDY_IN   (sl_pkt_txrdy_i[i])
-				                 );
 			end
 endcase endgenerate
-
-// no arbitration required on the second bank of SpiNNaker chip links
-// connect board-to-board links directly to SpiNNaker chip links
-generate if (INCLUDE_B2B_SUPPORT)
-		for (i = 0; i < `NUM_CHANS; i = i + 1)
-			begin : spinnaker_tx_link_second_bank
-				assign sl_pkt_txdata_i[i+8]  = b2b_pkt_rxdata_i[1][i];
-				assign sl_pkt_txvld_i[i+8]   = b2b_pkt_rxvld_i[1][i];
-				assign b2b_pkt_rxrdy_i[1][i] = sl_pkt_txrdy_i[i+8];
-			end
-	else
-		// invalidate the second bank of SpiNNaker chip links
-		for (i = 0; i < `NUM_CHANS; i = i + 1)
-			begin : spinnaker_tx_link_second_bank_not_used
-				assign sl_pkt_txvld_i[i+8] = 1'b0;
-			end
-endgenerate
 ////////////////////////////////////////////////////////////////////////////////
 
 
