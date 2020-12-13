@@ -51,7 +51,7 @@ With the collaboration of:
 * Oliver Rhodes (Advanced Processor Technologies Group, The University of Manchester)
 * Juan Pablo Romero Bermúdez (Neurorobotics Group, KTH Royal Institute of Technology)
 * Andrew Rowley (Advanced Processor Technologies Group, The University of Manchester)
-
+* Will Toms (Advanced Processor Technologies Group, The University of Manchester)
 
 * Jörg Conradt (Neurorobotics Group, KTH Royal Institute of Technology)
 * Steve Furber (Advanced Processor Technologies Group, The University of Manchester)
