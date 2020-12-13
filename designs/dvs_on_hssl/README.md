@@ -1,17 +1,19 @@
 SpiNNaker high-speed serial interface to DVS 
 ============================================
 
-This repository contains an FPGA design to interace an event-based sensor,
-such as an event camera or DVS, to a SpiNNaker system through a High-Speed
-Serial Link (HSSL).
+This repository contains an FPGA design to interface an event-based sensor,
+such as an event camera or DVS, to a SpiNNaker system.
 
 The design targets the Xilinx ZYNQ-based ZCU102 development board. It
-connects to the SpiNNaker system using a SATA cable. The design implements
-the spiNNlink protocol used in SpiNNaker systems for board-to-board interconnect.
+connects to the SpiNNaker system using a SATA cable and intends to offer
+a choice of interfaces to the sensor. The initial implementation targets
+10Gbs Ethernet.
 
 The design is built on top of [spI/O](https://github.com/SpiNNakerManchester/spio),
 the library of FPGA designs and reusable modules for I/O and
-internal connectivity in SpiNNaker systems.
+internal connectivity in SpiNNaker systems. In particular, the design uses
+spiNNlink, the board-to-board interconnect implemented on SpiNNaker Systems, to
+transport sensor events between the ZCU102 board and SpiNNaker.
 
 spiNNlink
 ---------
@@ -38,9 +40,22 @@ vol. 8, pp. 84918-84928, 2020, doi:
 Authors
 -------
 
-The design in this repository is largely the work of:
+The designs in this repository are largely the work of:
 
-* Luis A. Plana (The University of Manchester)
+* Luis A. Plana (Advanced Processor Technologies Group, The University of Manchester)
+
+With the collaboration of:
+
+* Simon Davidson (Advanced Processor Technologies Group, The University of Manchester)
+* Jens E. Pedersen (Neurorobotics Group, KTH Royal Institute of Technology)
+* Oliver Rhodes (Advanced Processor Technologies Group, The University of Manchester)
+* Juan Pablo Romero Bermúdez (Neurorobotics Group, KTH Royal Institute of Technology)
+* Andrew Rowley (Advanced Processor Technologies Group, The University of Manchester)
+
+
+* Jörg Conradt (Neurorobotics Group, KTH Royal Institute of Technology)
+* Steve Furber (Advanced Processor Technologies Group, The University of Manchester)
+
 
 Acknowledgments
 ---------------
