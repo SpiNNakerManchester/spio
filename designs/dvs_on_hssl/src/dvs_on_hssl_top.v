@@ -27,6 +27,95 @@
 
 
 `timescale 1ps/1ps
+module pkt_assembler
+(
+  input  wire                 clk,
+  input  wire                 reset,
+
+  input  wire          [31:0] key_data_in,
+  input  wire                 key_vld_in,
+  output reg                  key_rdy_out,
+
+  output reg  [`PKT_BITS-1:0] pkt_data_out,
+  output reg                  pkt_vld_out,
+  input  wire                 pkt_rdy_in
+);
+
+  //---------------------------------------------------------------
+  // internal signals
+  //---------------------------------------------------------------
+  // interface status
+  wire  key_present_int = key_vld_in && key_rdy_out;
+  wire  pkt_busy_int = pkt_vld_out && !pkt_rdy_in;
+
+
+  // input key interface
+  reg         parked_int;
+  reg  [31:0] parked_data_int;
+
+  // park input data when output is busy
+  always @ (posedge clk or posedge reset)
+    if (reset)
+      parked_int <= 1'b0;
+    else
+      if (key_present_int && pkt_busy_int)
+        parked_int <= 1'b1;
+      else if (pkt_rdy_in)
+        parked_int <= 1'b0;
+
+  always @ (posedge clk)
+    if (key_present_int && pkt_busy_int)
+      parked_data_int <= key_data_in;
+
+  // don't accept a new key when parked or parking data
+  always @ (posedge clk or posedge reset)
+    if (reset)
+      key_rdy_out <= 1'b0;
+    else
+      casex ({parked_int, key_present_int, pkt_busy_int})
+        //NOTE: 3'b111 must not happen - data loss!
+        3'bx11,                        // busy and parking
+        3'b1x1 : key_rdy_out <= 1'b0;  // busy and parked 
+
+        3'bxx0,                        // not busy
+        3'b001 : key_rdy_out <= 1'b1;  // busy but park available
+      endcase
+
+
+  // output packet interface
+  reg   [31:0] pkt_key_int;
+  wire  [31:0] pkt_pld_int = 32'h0000_0000;
+  wire         pkt_pty_int = ~(^pkt_key_int ^ ^pkt_pld_int);
+  wire   [7:0] pkt_hdr_int = {7'b000_0000, pkt_pty_int};
+
+  // used parked key when available
+  always @ (*)
+    if (parked_int)
+      pkt_key_int = parked_data_int;
+    else
+      pkt_key_int = key_data_in;
+
+  // packet data must not change when busy 
+  always @ (posedge clk)
+    if (!pkt_busy_int && (parked_int || key_present_int))
+      pkt_data_out <= {pkt_pld_int, pkt_key_int, pkt_hdr_int};
+
+  always @ (posedge clk or posedge reset)
+    if (reset)
+      pkt_vld_out <= 1'b0;
+    else
+      casex ({parked_int, key_present_int, pkt_busy_int})
+        3'b000 : pkt_vld_out <= 1'b0;  // not busy and no data
+
+        3'b1x0,                        // not busy and parked data
+        3'bx10,                        // not busy and new data
+        3'bxx1 : pkt_vld_out <= 1'b1;  // busy
+      endcase
+  //---------------------------------------------------------------
+endmodule
+
+
+`timescale 1ps/1ps
 module pkt_sender
 #(
   parameter INTER_PACKET_DELAY = 32'd75000000
@@ -119,6 +208,11 @@ module dvs_on_hssl_top
   wire        hsslif_clk_int;
   wire        hsslif_reset_int;
   wire  [0:0] hsslif_control_int;
+
+  wire [31:0] key_data_int;
+  wire        key_vld_int;
+  wire        key_rdy_int;
+
   wire        handshake_complete_int;
   wire        version_mismatch_int;
   wire [15:0] reg_idsi_int;
@@ -199,13 +293,19 @@ module dvs_on_hssl_top
   wire pl_clk0_int;
 
   proc_sys proc_sys_block (
-      .peripheral_reset_0 (peripheral_reset_0_int)
-    , .pl_clk0_0          (pl_clk0_int)
+      .peripheral_reset_0       (peripheral_reset_0_int)
+    , .pl_clk0_0                (pl_clk0_int)
 
-    , .s_axi_aresetn_0    (axi_resetn_int)
-    , .s_axi_aclk_0       (axi_clk_int)
-    , .GPIO_0_tri_o       (hsslif_control_int)
-    , .GPIO2_0_tri_o      (inter_pkt_delay_int)
+    , .s_axi_aresetn_0          (axi_resetn_int)
+    , .s_axi_aclk_0             (axi_clk_int)
+    , .GPIO_0_tri_o             (hsslif_control_int)
+    , .GPIO2_0_tri_o            (inter_pkt_delay_int)
+
+    , .AXI_STR_TXD_0_tdata      (key_data_int)
+    , .AXI_STR_TXD_0_tlast      ()
+    , .AXI_STR_TXD_0_tvalid     (key_vld_int)
+    , .AXI_STR_TXD_0_tready     (key_rdy_int)
+    , .mm2s_prmry_reset_out_n_0 ()
     );
   //---------------------------------------------------------------
 
@@ -325,9 +425,25 @@ module dvs_on_hssl_top
   wire                 tx_pkt_vld_int [NUM_PKT_SENDERS - 1:0];
   wire                 tx_pkt_rdy_int [NUM_PKT_SENDERS - 1:0];
 
+  // channel 0: assemble packets using keys sent by processor subsystem
+  pkt_assembler pa0
+    (
+      .clk                (hsslif_clk_int)
+    , .reset              (hsslif_reset_int)
+
+    , .key_data_in        (key_data_int)
+    , .key_vld_in         (key_vld_int)
+    , .key_rdy_out        (key_rdy_int)
+
+    , .pkt_data_out       (tx_pkt_data_int[0])
+    , .pkt_vld_out        (tx_pkt_vld_int[0])
+    , .pkt_rdy_in         (tx_pkt_rdy_int[0])
+    );
+
+  // channels [1, 7]: send packets with sequential keys
   genvar i;
   generate
-    for (i = 0; i < NUM_PKT_SENDERS; i = i + 1)
+    for (i = 1; i < NUM_PKT_SENDERS; i = i + 1)
       begin : pkt_sender_inst
         pkt_sender #(
              .INTER_PACKET_DELAY (INTER_PACKET_DELAY)
