@@ -23,62 +23,24 @@
 //  * everything
 // -------------------------------------------------------------------------
 
-`include "spio_hss_multiplexer_common.h"
 
 `timescale 1ps/1ps
-module hssl_interface (
+module hssl_interface
+#(
+    parameter PACKET_BITS  = 72,
+    parameter NUM_CHANNELS = 8
+)
+(
   input  wire        clk,
   input  wire        reset,
 
-  input  wire [`PKT_BITS-1:0] tx_pkt0_data_in,
-  input  wire                 tx_pkt0_vld_in,
-  output wire                 tx_pkt0_rdy_out,
-  input  wire [`PKT_BITS-1:0] tx_pkt1_data_in,
-  input  wire                 tx_pkt1_vld_in,
-  output wire                 tx_pkt1_rdy_out,
-  input  wire [`PKT_BITS-1:0] tx_pkt2_data_in,
-  input  wire                 tx_pkt2_vld_in,
-  output wire                 tx_pkt2_rdy_out,
-  input  wire [`PKT_BITS-1:0] tx_pkt3_data_in,
-  input  wire                 tx_pkt3_vld_in,
-  output wire                 tx_pkt3_rdy_out,
-  input  wire [`PKT_BITS-1:0] tx_pkt4_data_in,
-  input  wire                 tx_pkt4_vld_in,
-  output wire                 tx_pkt4_rdy_out,
-  input  wire [`PKT_BITS-1:0] tx_pkt5_data_in,
-  input  wire                 tx_pkt5_vld_in,
-  output wire                 tx_pkt5_rdy_out,
-  input  wire [`PKT_BITS-1:0] tx_pkt6_data_in,
-  input  wire                 tx_pkt6_vld_in,
-  output wire                 tx_pkt6_rdy_out,
-  input  wire [`PKT_BITS-1:0] tx_pkt7_data_in,
-  input  wire                 tx_pkt7_vld_in,
-  output wire                 tx_pkt7_rdy_out,
+  input  wire [PACKET_BITS - 1:0] tx_pkt_data_in  [NUM_CHANNELS - 1:0],
+  input  wire                     tx_pkt_vld_in   [NUM_CHANNELS - 1:0],
+  output wire                     tx_pkt_rdy_out  [NUM_CHANNELS - 1:0],
 
-  output wire [`PKT_BITS-1:0] rx_pkt0_data_out,
-  output wire                 rx_pkt0_vld_out,
-  input  wire                 rx_pkt0_rdy_in,
-  output wire [`PKT_BITS-1:0] rx_pkt1_data_out,
-  output wire                 rx_pkt1_vld_out,
-  input  wire                 rx_pkt1_rdy_in,
-  output wire [`PKT_BITS-1:0] rx_pkt2_data_out,
-  output wire                 rx_pkt2_vld_out,
-  input  wire                 rx_pkt2_rdy_in,
-  output wire [`PKT_BITS-1:0] rx_pkt3_data_out,
-  output wire                 rx_pkt3_vld_out,
-  input  wire                 rx_pkt3_rdy_in,
-  output wire [`PKT_BITS-1:0] rx_pkt4_data_out,
-  output wire                 rx_pkt4_vld_out,
-  input  wire                 rx_pkt4_rdy_in,
-  output wire [`PKT_BITS-1:0] rx_pkt5_data_out,
-  output wire                 rx_pkt5_vld_out,
-  input  wire                 rx_pkt5_rdy_in,
-  output wire [`PKT_BITS-1:0] rx_pkt6_data_out,
-  output wire                 rx_pkt6_vld_out,
-  input  wire                 rx_pkt6_rdy_in,
-  output wire [`PKT_BITS-1:0] rx_pkt7_data_out,
-  output wire                 rx_pkt7_vld_out,
-  input  wire                 rx_pkt7_rdy_in,
+  output wire [PACKET_BITS - 1:0] rx_pkt_data_out [NUM_CHANNELS - 1:0],
+  output wire                     rx_pkt_vld_out  [NUM_CHANNELS - 1:0],
+  input  wire                     rx_pkt_rdy_in   [NUM_CHANNELS - 1:0],
 
   output wire        handshake_complete_out,
   output wire        version_mismatch_out,
@@ -176,70 +138,70 @@ module hssl_interface (
       , .ihsl_vld   (rxen_int)
 
       // incoming packet streams
-      , .pkt_data0  (tx_pkt0_data_in)
-      , .pkt_vld0   (tx_pkt0_vld_in)
-      , .pkt_rdy0   (tx_pkt0_rdy_out)
+      , .pkt_data0  (tx_pkt_data_in[0])
+      , .pkt_vld0   (tx_pkt_vld_in[0])
+      , .pkt_rdy0   (tx_pkt_rdy_out[0])
 
-      , .pkt_data1  (tx_pkt1_data_in)
-      , .pkt_vld1   (tx_pkt1_vld_in)
-      , .pkt_rdy1   (tx_pkt1_rdy_out)
+      , .pkt_data1  (tx_pkt_data_in[1])
+      , .pkt_vld1   (tx_pkt_vld_in[1])
+      , .pkt_rdy1   (tx_pkt_rdy_out[1])
 
-      , .pkt_data2  (tx_pkt2_data_in)
-      , .pkt_vld2   (tx_pkt2_vld_in)
-      , .pkt_rdy2   (tx_pkt2_rdy_out)
+      , .pkt_data2  (tx_pkt_data_in[2])
+      , .pkt_vld2   (tx_pkt_vld_in[2])
+      , .pkt_rdy2   (tx_pkt_rdy_out[2])
 
-      , .pkt_data3  (tx_pkt3_data_in)
-      , .pkt_vld3   (tx_pkt3_vld_in)
-      , .pkt_rdy3   (tx_pkt3_rdy_out)
+      , .pkt_data3  (tx_pkt_data_in[3])
+      , .pkt_vld3   (tx_pkt_vld_in[3])
+      , .pkt_rdy3   (tx_pkt_rdy_out[3])
 
-      , .pkt_data4  (tx_pkt4_data_in)
-      , .pkt_vld4   (tx_pkt4_vld_in)
-      , .pkt_rdy4   (tx_pkt4_rdy_out)
+      , .pkt_data4  (tx_pkt_data_in[4])
+      , .pkt_vld4   (tx_pkt_vld_in[4])
+      , .pkt_rdy4   (tx_pkt_rdy_out[4])
 
-      , .pkt_data5  (tx_pkt5_data_in)
-      , .pkt_vld5   (tx_pkt5_vld_in)
-      , .pkt_rdy5   (tx_pkt5_rdy_out)
+      , .pkt_data5  (tx_pkt_data_in[5])
+      , .pkt_vld5   (tx_pkt_vld_in[5])
+      , .pkt_rdy5   (tx_pkt_rdy_out[5])
 
-      , .pkt_data6  (tx_pkt6_data_in)
-      , .pkt_vld6   (tx_pkt6_vld_in)
-      , .pkt_rdy6   (tx_pkt6_rdy_out)
+      , .pkt_data6  (tx_pkt_data_in[6])
+      , .pkt_vld6   (tx_pkt_vld_in[6])
+      , .pkt_rdy6   (tx_pkt_rdy_out[6])
 
-      , .pkt_data7  (tx_pkt7_data_in)
-      , .pkt_vld7   (tx_pkt7_vld_in)
-      , .pkt_rdy7   (tx_pkt7_rdy_out)
+      , .pkt_data7  (tx_pkt_data_in[7])
+      , .pkt_vld7   (tx_pkt_vld_in[7])
+      , .pkt_rdy7   (tx_pkt_rdy_out[7])
 
       // outgoing packet streams
-      , .opkt_data0 (rx_pkt0_data_out)
-      , .opkt_vld0  (rx_pkt0_vld_out)
-      , .opkt_rdy0  (rx_pkt0_rdy_in)
+      , .opkt_data0 (rx_pkt_data_out[0])
+      , .opkt_vld0  (rx_pkt_vld_out[0])
+      , .opkt_rdy0  (rx_pkt_rdy_in[0])
 
-      , .opkt_data1 (rx_pkt1_data_out)
-      , .opkt_vld1  (rx_pkt1_vld_out)
-      , .opkt_rdy1  (rx_pkt1_rdy_in)
+      , .opkt_data1 (rx_pkt_data_out[1])
+      , .opkt_vld1  (rx_pkt_vld_out[1])
+      , .opkt_rdy1  (rx_pkt_rdy_in[1])
 
-      , .opkt_data2 (rx_pkt2_data_out)
-      , .opkt_vld2  (rx_pkt2_vld_out)
-      , .opkt_rdy2  (rx_pkt2_rdy_in)
+      , .opkt_data2 (rx_pkt_data_out[2])
+      , .opkt_vld2  (rx_pkt_vld_out[2])
+      , .opkt_rdy2  (rx_pkt_rdy_in[2])
 
-      , .opkt_data3 (rx_pkt3_data_out)
-      , .opkt_vld3  (rx_pkt3_vld_out)
-      , .opkt_rdy3  (rx_pkt3_rdy_in)
+      , .opkt_data3 (rx_pkt_data_out[3])
+      , .opkt_vld3  (rx_pkt_vld_out[3])
+      , .opkt_rdy3  (rx_pkt_rdy_in[3])
 
-      , .opkt_data4 (rx_pkt4_data_out)
-      , .opkt_vld4  (rx_pkt4_vld_out)
-      , .opkt_rdy4  (rx_pkt4_rdy_in)
+      , .opkt_data4 (rx_pkt_data_out[4])
+      , .opkt_vld4  (rx_pkt_vld_out[4])
+      , .opkt_rdy4  (rx_pkt_rdy_in[4])
 
-      , .opkt_data5 (rx_pkt5_data_out)
-      , .opkt_vld5  (rx_pkt5_vld_out)
-      , .opkt_rdy5  (rx_pkt5_rdy_in)
+      , .opkt_data5 (rx_pkt_data_out[5])
+      , .opkt_vld5  (rx_pkt_vld_out[5])
+      , .opkt_rdy5  (rx_pkt_rdy_in[5])
 
-      , .opkt_data6 (rx_pkt6_data_out)
-      , .opkt_vld6  (rx_pkt6_vld_out)
-      , .opkt_rdy6  (rx_pkt6_rdy_in)
+      , .opkt_data6 (rx_pkt_data_out[6])
+      , .opkt_vld6  (rx_pkt_vld_out[6])
+      , .opkt_rdy6  (rx_pkt_rdy_in[6])
 
-      , .opkt_data7 (rx_pkt7_data_out)
-      , .opkt_vld7  (rx_pkt7_vld_out)
-      , .opkt_rdy7  (rx_pkt7_rdy_in)
+      , .opkt_data7 (rx_pkt_data_out[7])
+      , .opkt_vld7  (rx_pkt_vld_out[7])
+      , .opkt_rdy7  (rx_pkt_rdy_in[7])
     );
   //---------------------------------------------------------------
 

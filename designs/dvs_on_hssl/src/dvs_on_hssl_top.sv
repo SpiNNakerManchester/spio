@@ -27,158 +27,10 @@
 
 
 `timescale 1ps/1ps
-module pkt_assembler
-(
-  input  wire                 clk,
-  input  wire                 reset,
-
-  input  wire          [31:0] key_data_in,
-  input  wire                 key_vld_in,
-  output reg                  key_rdy_out,
-
-  output reg  [`PKT_BITS-1:0] pkt_data_out,
-  output reg                  pkt_vld_out,
-  input  wire                 pkt_rdy_in
-);
-
-  //---------------------------------------------------------------
-  // internal signals
-  //---------------------------------------------------------------
-  // interface status
-  wire  key_present_int = key_vld_in && key_rdy_out;
-  wire  pkt_busy_int = pkt_vld_out && !pkt_rdy_in;
-
-
-  // input key interface
-  reg         parked_int;
-  reg  [31:0] parked_data_int;
-
-  // park input data when output is busy
-  always @ (posedge clk or posedge reset)
-    if (reset)
-      parked_int <= 1'b0;
-    else
-      if (key_present_int && pkt_busy_int)
-        parked_int <= 1'b1;
-      else if (pkt_rdy_in)
-        parked_int <= 1'b0;
-
-  always @ (posedge clk)
-    if (key_present_int && pkt_busy_int)
-      parked_data_int <= key_data_in;
-
-  // don't accept a new key when parked or parking data
-  always @ (posedge clk or posedge reset)
-    if (reset)
-      key_rdy_out <= 1'b0;
-    else
-      casex ({parked_int, key_present_int, pkt_busy_int})
-        //NOTE: 3'b111 must not happen - data loss!
-        3'bx11,                        // busy and parking
-        3'b1x1 : key_rdy_out <= 1'b0;  // busy and parked 
-
-        3'bxx0,                        // not busy
-        3'b001 : key_rdy_out <= 1'b1;  // busy but park available
-      endcase
-
-
-  // output packet interface
-  reg   [31:0] pkt_key_int;
-  wire  [31:0] pkt_pld_int = 32'h0000_0000;
-  wire         pkt_pty_int = ~(^pkt_key_int ^ ^pkt_pld_int);
-  wire   [7:0] pkt_hdr_int = {7'b000_0000, pkt_pty_int};
-
-  // used parked key when available
-  always @ (*)
-    if (parked_int)
-      pkt_key_int = parked_data_int;
-    else
-      pkt_key_int = key_data_in;
-
-  // packet data must not change when busy 
-  always @ (posedge clk)
-    if (!pkt_busy_int && (parked_int || key_present_int))
-      pkt_data_out <= {pkt_pld_int, pkt_key_int, pkt_hdr_int};
-
-  always @ (posedge clk or posedge reset)
-    if (reset)
-      pkt_vld_out <= 1'b0;
-    else
-      casex ({parked_int, key_present_int, pkt_busy_int})
-        3'b000 : pkt_vld_out <= 1'b0;  // not busy and no data
-
-        3'b1x0,                        // not busy and parked data
-        3'bx10,                        // not busy and new data
-        3'bxx1 : pkt_vld_out <= 1'b1;  // busy
-      endcase
-  //---------------------------------------------------------------
-endmodule
-
-
-`timescale 1ps/1ps
-module pkt_sender
-#(
-  parameter INTER_PACKET_DELAY = 32'd75000000
-)
-(
-  input  wire                 clk,
-  input  wire                 reset,
-
-  input  wire          [31:0] inter_pkt_delay_in,
-
-  output reg  [`PKT_BITS-1:0] pkt_data_out,
-  output reg                  pkt_vld_out,
-  input  wire                 pkt_rdy_in
-);
-
-  //---------------------------------------------------------------
-  // internal signals
-  //---------------------------------------------------------------
-  reg           [31:0] pkt_key_int;
-  wire          [31:0] pkt_pld_int = 32'h0000_0000;
-  wire                 pkt_pty_int = ~(^pkt_key_int ^ ^pkt_pld_int);
-  wire           [7:0] pkt_hdr_int = {7'b000_0000, pkt_pty_int};
-
-  wire                 pkt_snd_int;
-  reg           [31:0] pkt_snd_cnt_int;
-
-  always @ (posedge clk or posedge reset)
-    if (reset)
-      pkt_snd_cnt_int <= INTER_PACKET_DELAY;
-    else
-      if (pkt_vld_out == 1'b1)
-        pkt_snd_cnt_int <= inter_pkt_delay_in;
-      else
-        pkt_snd_cnt_int <= pkt_snd_cnt_int - 1;
-
-  assign pkt_snd_int = (pkt_vld_out == 1'b1) && (pkt_rdy_in == 1'b1);
-
-  always @ (posedge clk or posedge reset)
-    if (reset)
-      pkt_key_int <= 32'd0;
-    else
-      if (pkt_snd_int)
-        pkt_key_int <= pkt_key_int + 1;
-
-  always @ (posedge clk)
-    pkt_data_out <= {pkt_pld_int, pkt_key_int, pkt_hdr_int};
-
-  always @ (posedge clk or posedge reset)
-    if (reset)
-      pkt_vld_out <= 1'b0;
-    else
-      if (pkt_snd_int)
-        pkt_vld_out <= 1'b0;
-      else if (pkt_snd_cnt_int == 0)
-        pkt_vld_out <= 1'b1;
-  //---------------------------------------------------------------
-endmodule
-
-
-`timescale 1ps/1ps
 module dvs_on_hssl_top
 #(
-  parameter INTER_PACKET_DELAY = 32'd75000000
+  parameter PACKET_BITS  = `PKT_BITS,
+  parameter NUM_CHANNELS = 8
 )
 (
   // differential reference clock inputs
@@ -204,14 +56,29 @@ module dvs_on_hssl_top
   wire        axi_clk_int;
   wire        axi_resetn_int;
 
+  wire [39:0] apb_paddr_int;
+  wire        apb_penable_int;
+  wire [31:0] apb_prdata_int;
+  wire  [0:0] apb_pready_int;
+  wire  [0:0] apb_psel_int;
+  wire  [0:0] apb_pslverr_int;
+  wire [31:0] apb_pwdata_int;
+  wire        apb_pwrite_int;
+
+  // register bank - routing table
+  wire [31:0] reg_bank_int  [15:0];
+  wire [31:0] reg_key_int   [15:0];
+  wire [31:0] reg_mask_int  [15:0];
+  wire  [2:0] reg_route_int [15:0];
+
   // hssl interface block signals
   wire        hsslif_clk_int;
   wire        hsslif_reset_int;
   wire  [0:0] hsslif_control_int;
 
-  wire [31:0] key_data_int;
-  wire        key_vld_int;
-  wire        key_rdy_int;
+  wire [31:0] evt_data_int;
+  wire        evt_vld_int;
+  wire        evt_rdy_int;
 
   wire        handshake_complete_int;
   wire        version_mismatch_int;
@@ -298,14 +165,51 @@ module dvs_on_hssl_top
 
     , .s_axi_aresetn_0          (axi_resetn_int)
     , .s_axi_aclk_0             (axi_clk_int)
+
     , .GPIO_0_tri_o             (hsslif_control_int)
     , .GPIO2_0_tri_o            (inter_pkt_delay_int)
 
-    , .AXI_STR_TXD_0_tdata      (key_data_int)
+    , .APB_M_0_paddr            (apb_paddr_int)
+    , .APB_M_0_penable          (apb_penable_int)
+    , .APB_M_0_prdata           (apb_prdata_int)
+    , .APB_M_0_pready           (apb_pready_int)
+    , .APB_M_0_psel             (apb_psel_int)
+    , .APB_M_0_pslverr          (apb_pslverr_int)
+    , .APB_M_0_pwdata           (apb_pwdata_int)
+    , .APB_M_0_pwrite           (apb_pwrite_int)
+
+    , .AXI_STR_TXD_0_tdata      (evt_data_int)
     , .AXI_STR_TXD_0_tlast      ()
-    , .AXI_STR_TXD_0_tvalid     (key_vld_int)
-    , .AXI_STR_TXD_0_tready     (key_rdy_int)
+    , .AXI_STR_TXD_0_tvalid     (evt_vld_int)
+    , .AXI_STR_TXD_0_tready     (evt_rdy_int)
     , .mm2s_prmry_reset_out_n_0 ()
+    );
+  //---------------------------------------------------------------
+
+
+  //---------------------------------------------------------------
+  // register bank (APB peripheral)
+  //---------------------------------------------------------------
+  hssl_reg_bank rb
+    (
+      .clk             (axi_clk_int)
+    , .resetn          (axi_resetn_int)
+
+    , .apb_psel_in     (apb_psel_int)
+    , .apb_pwrite_in   (apb_pwrite_int)
+    , .apb_penable_in  (apb_penable_int)
+
+    , .apb_paddr_in    (apb_paddr_int)
+    , .apb_pwdata_in   (apb_pwdata_int)
+    , .apb_prdata_out  (apb_prdata_int)
+
+    , .apb_pready_out  (apb_pready_int)
+    , .apb_pslverr_out (apb_pslverr_int)
+
+    , .reg_bank_out    (reg_bank_int)
+    , .reg_key_out     (reg_key_int)
+    , .reg_mask_out    (reg_mask_int)
+    , .reg_route_out   (reg_route_int)
     );
   //---------------------------------------------------------------
 
@@ -419,53 +323,57 @@ module dvs_on_hssl_top
   //---------------------------------------------------------------
   // drive the tx HSSL interface
   //---------------------------------------------------------------
-  localparam NUM_PKT_SENDERS = 8;
+  wire [PACKET_BITS - 1:0] pkt_data_int;
+  wire                     pkt_vld_int;
+  wire                     pkt_rdy_int;
 
-  wire [`PKT_BITS-1:0] tx_pkt_data_int[NUM_PKT_SENDERS - 1:0];
-  wire                 tx_pkt_vld_int [NUM_PKT_SENDERS - 1:0];
-  wire                 tx_pkt_rdy_int [NUM_PKT_SENDERS - 1:0];
+  wire [PACKET_BITS - 1:0] tx_pkt_data_int [NUM_CHANNELS - 1:0];
+  wire                     tx_pkt_vld_int  [NUM_CHANNELS - 1:0];
+  wire                     tx_pkt_rdy_int  [NUM_CHANNELS - 1:0];
 
-  // channel 0: assemble packets using keys sent by processor subsystem
-  pkt_assembler pa0
+  //make unused receivers *not* ready
+  wire rx_pkt_rdy_int [NUM_CHANNELS - 1:0];
+  genvar chan;
+  generate
+    for (chan = 0; chan < NUM_CHANNELS; chan = chan + 1)
+      begin : rx_not_rdy
+        assign rx_pkt_rdy_int[chan] = 1'b0;
+      end
+  endgenerate
+
+  // assemble packets using events sent by processor subsystem
+  pkt_assembler pa
     (
       .clk                (hsslif_clk_int)
     , .reset              (hsslif_reset_int)
 
-    , .key_data_in        (key_data_int)
-    , .key_vld_in         (key_vld_int)
-    , .key_rdy_out        (key_rdy_int)
+    , .evt_data_in        (evt_data_int)
+    , .evt_vld_in         (evt_vld_int)
+    , .evt_rdy_out        (evt_rdy_int)
 
-    , .pkt_data_out       (tx_pkt_data_int[0])
-    , .pkt_vld_out        (tx_pkt_vld_int[0])
-    , .pkt_rdy_in         (tx_pkt_rdy_int[0])
+    , .pkt_data_out       (pkt_data_int)
+    , .pkt_vld_out        (pkt_vld_int)
+    , .pkt_rdy_in         (pkt_rdy_int)
     );
 
-  // channels [1, 7]: send packets with sequential keys
-  genvar i;
-  generate
-    for (i = 1; i < NUM_PKT_SENDERS; i = i + 1)
-      begin : pkt_sender_inst
-        pkt_sender #(
-             .INTER_PACKET_DELAY (INTER_PACKET_DELAY)
-           )
-        ps (
-             .clk                (hsslif_clk_int)
-           , .reset              (hsslif_reset_int)
+  // route packets to hssl channels
+  pkt_router pr
+    (
+      // routing table data from register bank
+      .reg_key_in         (reg_key_int)
+    , .reg_mask_in        (reg_mask_int)
+    , .reg_route_in       (reg_route_int)
 
-           , .inter_pkt_delay_in (inter_pkt_delay_int)
+      // incoming packet
+    , .pkt_in_data_in     (pkt_data_int)
+    , .pkt_in_vld_in      (pkt_vld_int)
+    , .pkt_in_rdy_out     (pkt_rdy_int)
 
-           , .pkt_data_out       (tx_pkt_data_int[i])
-           , .pkt_vld_out        (tx_pkt_vld_int[i])
-           , .pkt_rdy_in         (tx_pkt_rdy_int[i])
-           );
-      end
-
-    // invalidate unused channels
-    for (i = NUM_PKT_SENDERS; i < `NUM_CHANS; i = i + 1)
-      begin : unused_channels
-        assign tx_pkt_vld_int[i] = 1'b0;
-      end
-  endgenerate
+      // outgoing packet channels
+    , .pkt_out_data_out   (tx_pkt_data_int)
+    , .pkt_out_vld_out    (tx_pkt_vld_int)
+    , .pkt_out_rdy_in     (tx_pkt_rdy_int)
+    );
   //---------------------------------------------------------------
 
 
@@ -476,55 +384,13 @@ module dvs_on_hssl_top
       .clk                            (hsslif_clk_int)
     , .reset                          (hsslif_reset_int)
 
-    , .tx_pkt0_data_in                (tx_pkt_data_int[0])
-    , .tx_pkt0_vld_in                 (tx_pkt_vld_int[0])
-    , .tx_pkt0_rdy_out                (tx_pkt_rdy_int[0])
-    , .tx_pkt1_data_in                (tx_pkt_data_int[1])
-    , .tx_pkt1_vld_in                 (tx_pkt_vld_int[1])
-    , .tx_pkt1_rdy_out                (tx_pkt_rdy_int[1])
-    , .tx_pkt2_data_in                (tx_pkt_data_int[2])
-    , .tx_pkt2_vld_in                 (tx_pkt_vld_int[2])
-    , .tx_pkt2_rdy_out                (tx_pkt_rdy_int[2])
-    , .tx_pkt3_data_in                (tx_pkt_data_int[3])
-    , .tx_pkt3_vld_in                 (tx_pkt_vld_int[3])
-    , .tx_pkt3_rdy_out                (tx_pkt_rdy_int[3])
-    , .tx_pkt4_data_in                (tx_pkt_data_int[4])
-    , .tx_pkt4_vld_in                 (tx_pkt_vld_int[4])
-    , .tx_pkt4_rdy_out                (tx_pkt_rdy_int[4])
-    , .tx_pkt5_data_in                (tx_pkt_data_int[5])
-    , .tx_pkt5_vld_in                 (tx_pkt_vld_int[5])
-    , .tx_pkt5_rdy_out                (tx_pkt_rdy_int[5])
-    , .tx_pkt6_data_in                (tx_pkt_data_int[6])
-    , .tx_pkt6_vld_in                 (tx_pkt_vld_int[6])
-    , .tx_pkt6_rdy_out                (tx_pkt_rdy_int[6])
-    , .tx_pkt7_data_in                (tx_pkt_data_int[7])
-    , .tx_pkt7_vld_in                 (tx_pkt_vld_int[7])
-    , .tx_pkt7_rdy_out                (tx_pkt_rdy_int[7])
+    , .tx_pkt_data_in                 (tx_pkt_data_int)
+    , .tx_pkt_vld_in                  (tx_pkt_vld_int)
+    , .tx_pkt_rdy_out                 (tx_pkt_rdy_int)
 
-    , .rx_pkt0_data_out               ()
-    , .rx_pkt0_vld_out                ()
-    , .rx_pkt0_rdy_in                 (1'b0)
-    , .rx_pkt1_data_out               ()
-    , .rx_pkt1_vld_out                ()
-    , .rx_pkt1_rdy_in                 (1'b0)
-    , .rx_pkt2_data_out               ()
-    , .rx_pkt2_vld_out                ()
-    , .rx_pkt2_rdy_in                 (1'b0)
-    , .rx_pkt3_data_out               ()
-    , .rx_pkt3_vld_out                ()
-    , .rx_pkt3_rdy_in                 (1'b0)
-    , .rx_pkt4_data_out               ()
-    , .rx_pkt4_vld_out                ()
-    , .rx_pkt4_rdy_in                 (1'b0)
-    , .rx_pkt5_data_out               ()
-    , .rx_pkt5_vld_out                ()
-    , .rx_pkt5_rdy_in                 (1'b0)
-    , .rx_pkt6_data_out               ()
-    , .rx_pkt6_vld_out                ()
-    , .rx_pkt6_rdy_in                 (1'b0)
-    , .rx_pkt7_data_out               ()
-    , .rx_pkt7_vld_out                ()
-    , .rx_pkt7_rdy_in                 (1'b0)
+    , .rx_pkt_data_out                ()
+    , .rx_pkt_vld_out                 ()
+    , .rx_pkt_rdy_in                  (rx_pkt_rdy_int)
 
     , .handshake_complete_out         (handshake_complete_int)
     , .version_mismatch_out           (version_mismatch_int)
