@@ -63,7 +63,7 @@ module pkt_router
     for (te = 0; te < NUM_ENTRIES; te = te + 1)
       begin : routing_table
         //NOTE: bit-wise and - it is a mask!
-        assign hit[te] = (reg_key_in[te] == (reg_mask_in[te] & packet_key));
+        assign hit[te] = ((packet_key & reg_mask_in[te]) == reg_key_in[te]);
       end
   endgenerate
 
@@ -104,6 +104,6 @@ module pkt_router
 
   // route selected channel ready signal to pkt_in rdy
   //NOTE: signal ready if no table hit!
-  assign pkt_in_rdy_out = pkt_out_rdy_in [route] || !hit;
+  assign pkt_in_rdy_out = pkt_out_rdy_in[route] || !hit;
   //---------------------------------------------------------------
 endmodule
