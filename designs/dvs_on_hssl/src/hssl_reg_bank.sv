@@ -26,6 +26,7 @@
 `timescale 1ps/1ps
 module hssl_reg_bank
 #(
+    parameter NUM_REGS      = 1,
     parameter NUM_ENTRIES   = 16,
     parameter ROUTE_MASK    = 3'b111,
     parameter REG_SEC_LSB   = 6,
@@ -48,7 +49,7 @@ module hssl_reg_bank
   output wire  [0:0] apb_pslverr_out,
 
   // register interface
-  output reg  [31:0] reg_bank_out  [NUM_ENTRIES - 1:0],
+  output reg   [0:0] reg_hssl_out  [NUM_REGS - 1:0],
   output reg  [31:0] reg_key_out   [NUM_ENTRIES - 1:0],
   output reg  [31:0] reg_mask_out  [NUM_ENTRIES - 1:0],
   output reg   [2:0] reg_route_out [NUM_ENTRIES - 1:0]
@@ -63,21 +64,21 @@ module hssl_reg_bank
   // register writes
   always @ (posedge clk or negedge resetn)
     if (resetn == 0)
-      reg_bank_out[0] <= 32'hfeed_cafe;
+      reg_hssl_out[0] <= 1'b0;
     else
       if (apb_psel_in && apb_penable_in && apb_pwrite_in)
         case (reg_sec)
-          2'd0: reg_bank_out[reg_num]  <= apb_pwdata_in;
+          2'd0: reg_hssl_out[reg_num]  <= apb_pwdata_in;
           2'd1: reg_key_out[reg_num]   <= apb_pwdata_in;
           2'd2: reg_mask_out[reg_num]  <= apb_pwdata_in;
-          2'd3: reg_route_out[reg_num] <= (apb_pwdata_in & ROUTE_MASK);
+          2'd3: reg_route_out[reg_num] <= apb_pwdata_in;
         endcase
 
   // register reads
   always @ (posedge clk)
     if (apb_psel_in && !apb_pwrite_in)
       case (reg_sec)
-        2'd0: apb_prdata_out <= reg_bank_out[reg_num];
+        2'd0: apb_prdata_out <= reg_hssl_out[reg_num];
         2'd1: apb_prdata_out <= reg_key_out[reg_num];
         2'd2: apb_prdata_out <= reg_mask_out[reg_num];
         2'd3: apb_prdata_out <= reg_route_out[reg_num];

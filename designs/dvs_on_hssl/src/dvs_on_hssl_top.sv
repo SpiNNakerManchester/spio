@@ -30,7 +30,9 @@
 module dvs_on_hssl_top
 #(
   parameter PACKET_BITS  = `PKT_BITS,
-  parameter NUM_CHANNELS = 8
+  parameter NUM_CHANNELS = 8,
+  parameter NUM_REGS     = 1,
+  parameter NUM_ENTRIES  = 16
 )
 (
   // differential reference clock inputs
@@ -52,7 +54,6 @@ module dvs_on_hssl_top
   wire  [0:0] pl_reset_all_int;
 
   // processor subsystem interface
-  wire [31:0] inter_pkt_delay_int;
   wire        axi_clk_int;
   wire        axi_resetn_int;
 
@@ -66,15 +67,14 @@ module dvs_on_hssl_top
   wire        apb_pwrite_int;
 
   // register bank - routing table
-  wire [31:0] reg_bank_int  [15:0];
-  wire [31:0] reg_key_int   [15:0];
-  wire [31:0] reg_mask_int  [15:0];
-  wire  [2:0] reg_route_int [15:0];
+  wire  [0:0] reg_hssl_int  [NUM_REGS - 1:0];
+  wire [31:0] reg_key_int   [NUM_ENTRIES - 1:0];
+  wire [31:0] reg_mask_int  [NUM_ENTRIES - 1:0];
+  wire  [2:0] reg_route_int [NUM_ENTRIES - 1:0];
 
   // hssl interface block signals
   wire        hsslif_clk_int;
   wire        hsslif_reset_int;
-  wire  [0:0] hsslif_control_int;
 
   wire [31:0] evt_data_int;
   wire        evt_vld_int;
@@ -163,12 +163,11 @@ module dvs_on_hssl_top
       .peripheral_reset_0       (peripheral_reset_0_int)
     , .pl_clk0_0                (pl_clk0_int)
 
+    // AXI interface clock and reset generated from GTH block
     , .s_axi_aresetn_0          (axi_resetn_int)
     , .s_axi_aclk_0             (axi_clk_int)
 
-    , .GPIO_0_tri_o             (hsslif_control_int)
-    , .GPIO2_0_tri_o            (inter_pkt_delay_int)
-
+    // APB interface to register bank
     , .APB_M_0_paddr            (apb_paddr_int)
     , .APB_M_0_penable          (apb_penable_int)
     , .APB_M_0_prdata           (apb_prdata_int)
@@ -178,6 +177,7 @@ module dvs_on_hssl_top
     , .APB_M_0_pwdata           (apb_pwdata_int)
     , .APB_M_0_pwrite           (apb_pwrite_int)
 
+    // AXI stream interface to HSSL multiplexer
     , .AXI_STR_TXD_0_tdata      (evt_data_int)
     , .AXI_STR_TXD_0_tlast      ()
     , .AXI_STR_TXD_0_tvalid     (evt_vld_int)
@@ -206,7 +206,7 @@ module dvs_on_hssl_top
     , .apb_pready_out  (apb_pready_int)
     , .apb_pslverr_out (apb_pslverr_int)
 
-    , .reg_bank_out    (reg_bank_int)
+    , .reg_hssl_out    (reg_hssl_int)
     , .reg_key_out     (reg_key_int)
     , .reg_mask_out    (reg_mask_int)
     , .reg_route_out   (reg_route_int)
@@ -395,7 +395,7 @@ module dvs_on_hssl_top
     , .handshake_complete_out         (handshake_complete_int)
     , .version_mismatch_out           (version_mismatch_int)
     , .reg_idsi_out                   (reg_idsi_int)
-    , .reg_stop_in                    (hsslif_control_int[0])
+    , .reg_stop_in                    (reg_hssl_int[0][0])
 
     , .userdata_tx_out                (gth_userdata_tx_int)
     , .tx8b10ben_out                  (gth_tx8b10ben_int)
