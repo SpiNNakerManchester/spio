@@ -27,8 +27,13 @@
 `timescale 1ps/1ps
 module hssl_interface
 #(
-    parameter PACKET_BITS  = 72,
-    parameter NUM_CHANNELS = 8
+    parameter PACKET_BITS           = 72,
+    parameter NUM_CHANNELS          = 8,
+    parameter NUM_CLKC_FOR_LOSS     = 128,
+    parameter NUM_CLKC_FOR_SYNC     = 4,
+    parameter NUM_CLKC_FOR_RX_RESET = 4,
+    parameter NUM_CLKC_FOR_IDLE     = 1000
+
 )
 (
   input  wire        clk,
@@ -42,6 +47,7 @@ module hssl_interface
   output wire                     rx_pkt_vld_out  [NUM_CHANNELS - 1:0],
   input  wire                     rx_pkt_rdy_in   [NUM_CHANNELS - 1:0],
 
+  output reg   [1:0] loss_of_sync_state_out,
   output wire        handshake_complete_out,
   output wire        version_mismatch_out,
 
@@ -53,7 +59,9 @@ module hssl_interface
   output wire [15:0] txctrl0_out,
   output wire [15:0] txctrl1_out,
   output wire  [7:0] txctrl2_out,
+  output wire  [0:0] txelecidle_out,
 
+  output reg   [0:0] reset_rx_datapath,
   input  wire [31:0] userdata_rx_in,
   output wire  [0:0] rx8b10ben_out,
   output wire  [0:0] rxbufreset_out,
@@ -85,7 +93,7 @@ module hssl_interface
   wire        rxen_int;
 
   // link state signals
-  wire handshake_phase_int;
+  wire        handshake_phase_int;
   //---------------------------------------------------------------
 
 
@@ -207,6 +215,96 @@ module hssl_interface
 
 
   //---------------------------------------------------------------
+  // HSSL interface Loss-of-sync state machine
+  //---------------------------------------------------------------
+  localparam LOSS_OF_SYNC_ST   = 2'b10;
+  localparam RESYNC_ST         = 2'b01;
+  localparam SYNC_ACQUIRED_ST  = 2'b00;
+
+  // data invalid if wrong disparity or wrong 8b/10 encoding
+  wire invalid_data = (|rxctrl1_in[3:0]) || (|rxctrl3_in[3:0]);
+
+  // keep track of clock cycles spent in RESYNC
+  reg [7:0] loss_of_sync_cnt_int;
+  always @ (posedge clk, posedge reset)
+    if (reset)
+      loss_of_sync_cnt_int = 0;
+    else
+      case (loss_of_sync_state_out)
+        RESYNC_ST:
+          loss_of_sync_cnt_int = loss_of_sync_cnt_int + 1;
+
+        SYNC_ACQUIRED_ST:
+          if (!handshake_complete_out)
+            loss_of_sync_cnt_int = loss_of_sync_cnt_int + 1;
+          else
+            loss_of_sync_cnt_int = 0;
+
+        default:
+          loss_of_sync_cnt_int = 0;
+      endcase
+
+  // sync acquired after NUM_CLKC_FOR_SYNC clock cycles in RESYNC
+  //NOTE: check conditions for loss of sync!
+  always @ (posedge clk, posedge reset)
+    if (reset)
+      loss_of_sync_state_out = LOSS_OF_SYNC_ST;
+    else
+      case (loss_of_sync_state_out)
+        LOSS_OF_SYNC_ST:
+          if (rxcommadet_in)
+            loss_of_sync_state_out = RESYNC_ST;
+
+        RESYNC_ST:
+          if (invalid_data)
+            loss_of_sync_state_out = LOSS_OF_SYNC_ST;
+          else if (loss_of_sync_cnt_int >= NUM_CLKC_FOR_SYNC)
+            loss_of_sync_state_out = SYNC_ACQUIRED_ST;
+
+        SYNC_ACQUIRED_ST:
+          if (invalid_data || (loss_of_sync_cnt_int >= NUM_CLKC_FOR_LOSS))
+            loss_of_sync_state_out = LOSS_OF_SYNC_ST;
+
+        default:  // should never happen
+          loss_of_sync_state_out = LOSS_OF_SYNC_ST;
+      endcase
+
+  // keep track of clock cycles spent in RX RESET
+  reg [2:0] reset_rx_cnt_int;
+  always @ (posedge clk, posedge reset)
+    if (reset)
+      reset_rx_cnt_int = 0;
+    else
+      case (loss_of_sync_state_out)
+        LOSS_OF_SYNC_ST: reset_rx_cnt_int = reset_rx_cnt_int + 1;
+        default:         reset_rx_cnt_int = 0;
+      endcase
+
+  // may need to RESET the RX datapath if the SATA cable reconnected
+  always @ (posedge clk, posedge reset)
+    if (reset)
+      reset_rx_datapath[0] = 1'b0;
+    else
+      case (loss_of_sync_state_out)
+        LOSS_OF_SYNC_ST:
+          if (reset_rx_cnt_int >= NUM_CLKC_FOR_RX_RESET)
+            reset_rx_datapath[0] = 1'b0;
+
+        RESYNC_ST:
+          if (invalid_data) 
+            reset_rx_datapath[0] = 1'b1;
+
+        SYNC_ACQUIRED_ST:
+          if (invalid_data) 
+            reset_rx_datapath[0] = 1'b1;
+
+        default:  // should not happen
+          reset_rx_datapath[0] = 1'b1;
+      endcase
+  //---------------------------------------------------------------
+
+
+  //---------------------------------------------------------------
   // GTH configuration
   //---------------------------------------------------------------
   assign tx8b10ben_out[0:0] = 1'b1;
@@ -249,6 +347,18 @@ module hssl_interface
   assign txctrl0_out = 16'h0000;
   assign txctrl1_out = 16'h0000;
   assign txctrl2_out = {4'h0, tx_char_is_k_int};
+
+  // make transmitter electrically idle after
+  // reset to indicate reset to far receiver
+  reg [9:0] idle_cnt_int;
+  always @ (posedge clk, posedge reset)
+    if (reset)
+      idle_cnt_int = NUM_CLKC_FOR_IDLE;
+    else
+      if (idle_cnt_int != 0)
+        idle_cnt_int = idle_cnt_int - 1;
+
+  assign txelecidle_out = (idle_cnt_int != 0);
   //---------------------------------------------------------------
 
 
@@ -269,7 +379,7 @@ module hssl_interface
       // GTH rx data interface
     , .RXDATA_IN              (userdata_rx_in)
     , .RXCHARISCOMMA_IN       (rxctrl2_in[3:0])
-    , .RXLOSSOFSYNC_IN        (2'b01)
+    , .RXLOSSOFSYNC_IN        (loss_of_sync_state_out)
     , .RXCHARISK_IN           (rxctrl0_in[3:0])
 
     // outgoing frame interface

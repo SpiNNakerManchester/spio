@@ -93,6 +93,7 @@ module gth_x1y11_3Gbs_example_wrapper (
  ,input  wire [15:0] txctrl0_in
  ,input  wire [15:0] txctrl1_in
  ,input  wire [7:0] txctrl2_in
+ ,input  wire [0:0] txelecidle_in
  ,output wire [0:0] gtpowergood_out
  ,output wire [2:0] rxbufstatus_out
  ,output wire [0:0] rxbyteisaligned_out
@@ -235,6 +236,7 @@ module gth_x1y11_3Gbs_example_wrapper (
    ,.txctrl0_in                              (txctrl0_int)
    ,.txctrl1_in                              (txctrl1_int)
    ,.txctrl2_in                              (txctrl2_in)
+   ,.txelecidle_in                           (txelecidle_in)
    ,.txusrclk_in                             (txusrclk_int)
    ,.txusrclk2_in                            (txusrclk2_int)
    ,.gtpowergood_out                         (gtpowergood_int)

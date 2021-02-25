@@ -75,11 +75,13 @@ module dvs_on_hssl_top
   // hssl interface block signals
   wire        hsslif_clk_int;
   wire        hsslif_reset_int;
+  wire  [0:0] hsslif_reset_rx_datapath_int;
 
   wire [31:0] evt_data_int;
   wire        evt_vld_int;
   wire        evt_rdy_int;
 
+  wire  [1:0] loss_of_sync_int;
   wire        handshake_complete_int;
   wire        version_mismatch_int;
   wire [15:0] reg_idsi_int;
@@ -110,6 +112,8 @@ module dvs_on_hssl_top
   wire [15:0] gth_txctrl0_int;
   wire [15:0] gth_txctrl1_int;
   wire  [7:0] gth_txctrl2_int;
+
+  wire  [0:0] gth_txelecidle_int;
 
   wire  [0:0] gth_userclk_rx_reset_int;
   wire  [0:0] gth_userclk_rx_srcclk_int;
@@ -146,7 +150,6 @@ module dvs_on_hssl_top
   wire  [0:0] vio_reset_tx_datapath_int;
   wire  [0:0] vio_reset_rx_pll_and_datapath_int;
   wire  [0:0] vio_reset_rx_datapath_int;
-  wire        vio_reset_link_down_latched_int;
   wire  [2:0] vio_loopback_int;
   //---------------------------------------------------------------
 
@@ -292,7 +295,9 @@ module dvs_on_hssl_top
   assign gth_reset_tx_datapath_int[0:0]         = vio_reset_tx_datapath_int;
 
   assign gth_reset_rx_pll_and_datapath_int[0:0] = vio_reset_rx_pll_and_datapath_int;
-  assign gth_reset_rx_datapath_int[0:0]         = vio_reset_rx_datapath_int;
+
+  assign gth_reset_rx_datapath_int[0:0] = hsslif_reset_rx_datapath_int ||
+    vio_reset_rx_datapath_int;
 
   assign gth_userclk_tx_reset_int[0:0] = ~(&gth_txpmaresetdone_int);
   assign gth_userclk_rx_reset_int[0:0] = ~(&gth_rxpmaresetdone_int);
@@ -392,6 +397,7 @@ module dvs_on_hssl_top
     , .rx_pkt_vld_out                 ()
     , .rx_pkt_rdy_in                  (rx_pkt_rdy_int)
 
+    , .loss_of_sync_state_out         (loss_of_sync_int)
     , .handshake_complete_out         (handshake_complete_int)
     , .version_mismatch_out           (version_mismatch_int)
     , .reg_idsi_out                   (reg_idsi_int)
@@ -402,7 +408,9 @@ module dvs_on_hssl_top
     , .txctrl0_out                    (gth_txctrl0_int)
     , .txctrl1_out                    (gth_txctrl1_int)
     , .txctrl2_out                    (gth_txctrl2_int)
+    , .txelecidle_out                 (gth_txelecidle_int)
 
+    , .reset_rx_datapath              (hsslif_reset_rx_datapath_int)
     , .userdata_rx_in                 (gth_userdata_rx_int)
     , .rx8b10ben_out                  (gth_rx8b10ben_int)
     , .rxbufreset_out                 (gth_rxbufreset_int)
@@ -473,6 +481,8 @@ module dvs_on_hssl_top
     , .txctrl1_in                              (gth_txctrl1_int)
     , .txctrl2_in                              (gth_txctrl2_int)
 
+    , .txelecidle_in                           (gth_txelecidle_int)
+
     , .rx8b10ben_in                            (gth_rx8b10ben_int)
     , .rxbufreset_in                           (gth_rxbufreset_int)
     , .rxcommadeten_in                         (gth_rxcommadeten_int)
@@ -498,10 +508,10 @@ module dvs_on_hssl_top
       .clk              (vio_freerun_clk_int)
 
       // HSSL interface probes
-    , .probe_in0        ()
+    , .probe_in0        (loss_of_sync_int)
     , .probe_in1        (handshake_complete_int)
     , .probe_in2        (version_mismatch_int)
-    , .probe_in3        (reg_idsi_int[3:0])
+    , .probe_in3        ({gth_txpd_int, gth_txpolarity_int, gth_txelecidle_int})
 
       // GTH block probes
     , .probe_in4        (gth_gtpowergood_int)
@@ -513,6 +523,7 @@ module dvs_on_hssl_top
     , .probe_in10       (gth_rxctrl0_int)
     , .probe_in11       (gth_rxctrl2_int)
     , .probe_in12       (gth_userdata_rx_int)
+    , .probe_in13       (gth_userdata_tx_int)
 
       // VIO control signals
     , .probe_out0       (vio_reset_all_int)
@@ -520,7 +531,7 @@ module dvs_on_hssl_top
     , .probe_out2       (vio_reset_tx_datapath_int)
     , .probe_out3       (vio_reset_rx_pll_and_datapath_int)
     , .probe_out4       (vio_reset_rx_datapath_int)
-    , .probe_out5       (vio_reset_link_down_latched_int)
+    , .probe_out5       ()
     , .probe_out6       (vio_loopback_int)
     );
   //---------------------------------------------------------------
