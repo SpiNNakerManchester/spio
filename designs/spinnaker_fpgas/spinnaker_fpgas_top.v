@@ -34,11 +34,11 @@ module spinnaker_fpgas_top #( // -----------------------------------------------
                               // include peripheral hss multiplexer, arbiter and, 
                               // if needed, speed doubler to support 
                               // peripheral input (peripheral port -> SpiNNaker)
-                            , parameter INCLUDE_PERIPH_INPUT_SUPPORT = 1
+                            , parameter INCLUDE_PERIPH_INPUT_SUPPORT = 0
                               // include peripheral hss multiplexer, switch and, 
                               // if needed, speed halver to support 
                               // peripheral output (SpiNNaker -> peripheral port)
-                            , parameter INCLUDE_PERIPH_OUTPUT_SUPPORT = 1
+                            , parameter INCLUDE_PERIPH_OUTPUT_SUPPORT = 0
                               // include hss multiplexer module for FPGA ring
                             , parameter INCLUDE_RING_SUPPORT = 0
                               // include chip-scope Virtual I/O interface (e.g.
@@ -46,7 +46,7 @@ module spinnaker_fpgas_top #( // -----------------------------------------------
                             , parameter INCLUDE_DEBUG_CHIPSCOPE_VIO = 0
                               // -----------------------------------------------
                               // Which FPGA should this module be compiled for
-                            , parameter FPGA_ID = 0
+                            , parameter FPGA_ID = 2
                               // Should North and South connections be connected
                               // to 0: J6 and J8 on the back respectively or 1:
                               // J9 and J11 on the front respectively.
