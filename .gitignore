@@ -1,5 +1,6 @@
 # Editor junk
 .*
+!.gitignore
 *.f
 *.swp
 *~
@@ -60,8 +61,6 @@
 *.veo
 *.wcfg
 *.wdb
-*.xdc
-*.xise
 *.xml
 *.xmsgs
 *.xpi
@@ -69,17 +68,37 @@
 *.xsl
 *.xst
 *.xwbt
+
+# ignore ISE project and internal files
+*.xise
 **/isim/
 **/iseconfig/
 **/_ngo/
 **/xst/
 **/xlnx_auto_*_xdb/
 
-# Don't care about the generated verliog/UCF for IP cores
+# Don't care about ISE-generated Verilog, UCF and XDC for IP cores
 **/ipcore_dir/*.v
 **/ipcore_dir/*.ucf
+**/ipcore_dir/*.xdc
 
-# Don't care about generated example projects and other junk generated for IP
-# cores.
+# Don't care about ISE-generated example projects and
+# other junk generated for IP cores
 **/ipcore_dir/*/
 
+# ignore Vivado project and internal files
+*.xpr
+**/*.cache/
+**/*.hw/
+**/*.ip_user_files/
+**/*.runs/
+**/*.sim/
+
+**/gth_x1y11_3Gbs/*
+!**/gth_x1y11_3Gbs/*xci
+
+**/gth_x1y11_3Gbs_vio_0/*
+!**/gth_x1y11_3Gbs_vio_0/*xci
+
+**/proc_sys/*
+!**/proc_sys/*.bd

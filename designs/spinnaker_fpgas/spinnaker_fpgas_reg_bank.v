@@ -17,7 +17,7 @@ module spinnaker_fpgas_reg_bank #( // Address bits
                                  ,   output reg  [REGD_BITS-1:0] READ_DATA_OUT
                                    // Version
                                  , input  wire   [REGD_BITS-1:0] VERSION_IN
-                                   // Compilation flags { DEBUG_CHIPSCOPE_VIO
+                                   // Compilation flags { INCLUDE_DEBUG_CHIPSCOPE_VIO
                                    //                   , INCLUDE_PERIPH_SUPPORT
                                    //                   , INCLUDE_RING_SUPPORT
                                    //                   , NORTH_SOUTH_ON_FRONT
@@ -67,18 +67,18 @@ module spinnaker_fpgas_reg_bank #( // Address bits
 
 // GTP Analog signal generation settings (either found via IBERT or left as zeros)
 localparam    B2B_RXEQMIX = 2'b10;   // 5.4 dB
-localparam PERIPH_RXEQMIX = 2'b00;   // Default
+localparam PERIPH_RXEQMIX = 2'b10;   // 5.4 dB
 localparam   RING_RXEQMIX = 2'b00;   // Default
 
 //!! localparam    B2B_TXDIFFCTRL = 4'b0010; // 495 mV
 localparam    B2B_TXDIFFCTRL = 4'b0110; // 762 mV
 //!! localparam    B2B_TXDIFFCTRL = 4'b0111; // 849 mV
 //!! localparam    B2B_TXDIFFCTRL = 4'b1010; // 1054 mV
-localparam PERIPH_TXDIFFCTRL = 4'b0000; // Default
+localparam PERIPH_TXDIFFCTRL = 4'b0110; // 762 mV
 localparam   RING_TXDIFFCTRL = 4'b0000; // Default
 
 localparam    B2B_TXPREEMPHASIS = 3'b010;  // 1.7 dB
-localparam PERIPH_TXPREEMPHASIS = 3'b000;  // Default
+localparam PERIPH_TXPREEMPHASIS = 3'b010;  // 1.7 dB
 localparam   RING_TXPREEMPHASIS = 3'b000;  // Default
 
 localparam VERS_REG = 0; // Top level design version

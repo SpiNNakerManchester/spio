@@ -7,6 +7,9 @@
 `ifndef SPINNAKER_FPGAS_TOP_H
 `define SPINNAKER_FPGAS_TOP_H
 
+// number of SpiNNaker chip links connected to this FPGA
+localparam NUM_LINKS = 16;
+
 // In the bit fields below, 1=input, 0=output with the LSB corresponding to the
 // SpiNNaker -> FPGA data pins and FPGA -> SpiNNaker ack pin and the MSB the
 // FPGA -> SpiNNaker data pins and SpiNNaker -> FPGA ack pin.

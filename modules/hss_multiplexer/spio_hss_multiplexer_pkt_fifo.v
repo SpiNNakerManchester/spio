@@ -73,6 +73,8 @@ module spio_hss_multiplexer_pkt_fifo
   reg                    full;
   reg                    empty;
 
+  reg                    pkt_vld_int;
+  reg                    pkt_rdy_int;
 
   //---------------------------------------------------------------
   // fifo operations and flags
@@ -81,7 +83,7 @@ module spio_hss_multiplexer_pkt_fifo
     writing = go_frm && ipkt_vld;  // write request will succeed
 
   always @ (*)
-    reading = pkt_vld && pkt_rdy;  // read request will succeed
+    reading = pkt_vld_int && pkt_rdy_int;  // read request will succeed
 
   always @ (posedge clk)
     if (writing)
@@ -133,14 +135,20 @@ module spio_hss_multiplexer_pkt_fifo
 
   //---------------------------------------------------------------
   // output packet interface
+  //NOTE: registered pkt_data would allow the use of block RAM
   //---------------------------------------------------------------
-  // output data from fifo
   always @ (*)
     pkt_data = fifo[rdp];
 
-  // output packet valid if not empty (combinatorial)
   always @ (*)
-    pkt_vld = !empty;
+    pkt_vld = pkt_vld_int;
+
+  always @ (*)
+    pkt_rdy_int = pkt_rdy;
+
+  // output packet valid if not empty
+  always @ (*)
+    pkt_vld_int = !empty;
   //---------------------------------------------------------------
 
   //---------------------------------------------------------------
@@ -148,7 +156,7 @@ module spio_hss_multiplexer_pkt_fifo
   //---------------------------------------------------------------
   // cannot accept a new packet (combinatorial)
   always @ (*)
-    busy = full && ipkt_vld && !pkt_rdy;
+    busy = full && ipkt_vld && !pkt_rdy_int;
 
   // control packet flow (stop when near full)
   always @ (posedge clk or posedge rst)
