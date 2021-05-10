@@ -1,5 +1,5 @@
-spI/O
-=====
+spI/O: SpiNNaker FPGA library
+=============================
 
 A library of FPGA designs and reusable modules for I/O and internal
 connectivity in SpiNNaker systems.
