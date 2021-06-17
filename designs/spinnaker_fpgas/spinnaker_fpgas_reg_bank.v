@@ -63,7 +63,26 @@ module spinnaker_fpgas_reg_bank #( // Address bits
                                    //   , B2B_TXPREEMPHASIS
                                    //   };
                                  , output reg             [11:0] TXPREEMPHASIS
+                                 // local configuration routing key/mask
+                                 , output reg             [31:0] LC_KEY
+                                 , output reg             [31:0] LC_MASK
+                                 // remote configuration routing key/mask
+                                 , output reg             [31:0] RC_KEY
+                                 , output reg             [31:0] RC_MASK
                                  );
+
+// default register values
+localparam PKEY_DEF   = 32'hffff_ffff;  // peripheral routing key
+localparam PMSK_DEF   = 32'h0000_0000;  // peripheral routing mask
+localparam SCRMBL_DEF =  4'hf;          // idle frame scrambler
+localparam LINKEN_DEF = 32'h0000_0000;  // SpiNNaker link enables
+localparam LEDOVR_DEF =  8'h0f;         // LED overrides
+
+// peripheral configuration registers
+localparam LKEY_DEF   = 32'hffff_fe00;  // local configuration routing key
+localparam LMSK_DEF   = 32'hffff_ff00;  // local configuration routing mask
+localparam RKEY_DEF   = 32'hffff_ff00;  // remote configuration routing key
+localparam RMSK_DEF   = 32'hffff_ff00;  // remote configuration routing mask
 
 // GTP Analog signal generation settings (either found via IBERT or left as zeros)
 localparam    B2B_RXEQMIX = 2'b10;   // 5.4 dB
@@ -81,6 +100,8 @@ localparam    B2B_TXPREEMPHASIS = 3'b010;  // 1.7 dB
 localparam PERIPH_TXPREEMPHASIS = 3'b010;  // 1.7 dB
 localparam   RING_TXPREEMPHASIS = 3'b000;  // Default
 
+
+// register addresses
 localparam VERS_REG = 0; // Top level design version
 localparam FLAG_REG = 1; // Compile flags {   5: chip scope
                          //               ,   4: peripheral support
@@ -117,16 +138,22 @@ localparam TXPE_REG = 9; // tx pre-emphasis   { 11-9: RING_TXPREEMPHASIS
                          //                   ,  2-0: B2B0_TXPREEMPHASIS
                          //                   }
 
+// peripheral configuration registers
+localparam LKEY_REG = 12; // local configuration route key
+localparam LMSK_REG = 13; // local configuration route mask
+localparam RKEY_REG = 14; // local configuration route key
+localparam RMSK_REG = 15; // local configuration route mask
+
 
 // Write address decode
 always @ (posedge CLK_IN, posedge RESET_IN)
 	if (RESET_IN)
 		begin
-			PERIPH_MC_KEY  <= 32'hFFFFFFFF;
-			PERIPH_MC_MASK <= 32'h00000000;
-			SCRMBL_IDL_DAT <=  4'hF;
-			SPINNAKER_LINK_ENABLE <= 32'h00000000;
-			LED_OVERRIDE <= 8'h0F;
+			PERIPH_MC_KEY  <= PKEY_DEF;
+			PERIPH_MC_MASK <= PMSK_DEF;
+			SCRMBL_IDL_DAT <= SCRMBL_DEF;
+			SPINNAKER_LINK_ENABLE <= LINKEN_DEF;
+			LED_OVERRIDE <= LEDOVR_DEF;
 			RXEQMIX <= {RING_RXEQMIX
 			           , PERIPH_RXEQMIX
 			           , B2B_RXEQMIX
@@ -142,6 +169,10 @@ always @ (posedge CLK_IN, posedge RESET_IN)
 			                 , B2B_TXPREEMPHASIS
 			                 , B2B_TXPREEMPHASIS
 			                 };
+			LC_KEY  <= LKEY_DEF;
+			LC_MASK <= LMSK_DEF;
+			RC_KEY  <= RKEY_DEF;
+			RC_MASK <= RMSK_DEF;
 		end
 	else
 		if (WRITE_IN)
@@ -154,6 +185,10 @@ always @ (posedge CLK_IN, posedge RESET_IN)
 				RXEQ_REG: RXEQMIX <= WRITE_DATA_IN;
 				TXDS_REG: TXDIFFCTRL <= WRITE_DATA_IN;
 				TXPE_REG: TXPREEMPHASIS <= WRITE_DATA_IN;
+				LKEY_REG: LC_KEY  <= WRITE_DATA_IN;
+				LMSK_REG: LC_MASK <= WRITE_DATA_IN;
+				RKEY_REG: RC_KEY  <= WRITE_DATA_IN;
+				RMSK_REG: RC_MASK <= WRITE_DATA_IN;
 			endcase
 
 
@@ -170,6 +205,10 @@ always @ (*)
 		RXEQ_REG: READ_DATA_OUT = RXEQMIX;
 		TXDS_REG: READ_DATA_OUT = TXDIFFCTRL;
 		TXPE_REG: READ_DATA_OUT = TXPREEMPHASIS;
+		LKEY_REG: READ_DATA_OUT = LC_KEY;
+		LMSK_REG: READ_DATA_OUT = LC_MASK;
+		RKEY_REG: READ_DATA_OUT = RC_KEY;
+		RMSK_REG: READ_DATA_OUT = RC_MASK;
 		default:  READ_DATA_OUT = {REGD_BITS{1'b1}};
 	endcase
 

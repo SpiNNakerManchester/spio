@@ -118,16 +118,17 @@ localparam INCLUDE_PERIPH_SUPPORT = INCLUDE_PERIPH_INPUT_SUPPORT | INCLUDE_PERIP
 // number of output peripheral channels
 localparam PERIPH_NUM_OUTPUT_CHANS = (INCLUDE_PERIPH_OUTPUT_SUPPORT ? 1 : 0);
 
-// SpiNNaker link to be connected to the output peripheral channel
-localparam PERIPH_OUTPUT_CHAN = 15;
+// SpiNNaker link to peripheral output channel map
+//NOTE: currently only one peripheral output channel supported
+localparam PERIPH_OUTPUT_LINK = 15;
 
-// SpiNNaker chips link map to peripheral input channel (0 = no connection)
+// SpiNNaker link to peripheral input channel map (0 = no connection)
 //NOTE: at most 8 peripheral input channels are supported, numbered 1 - 8 below.
 localparam [(4 * NUM_LINKS) - 1:0] PERIPH_INPUT_LINKS = {
-							  4'd8, 4'd0, 4'd7, 4'd0
-							, 4'd6, 4'd0, 4'd5, 4'd0
-							, 4'd4, 4'd0, 4'd3, 4'd0
-							, 4'd2, 4'd0, 4'd1, 4'd0
+							  4'd1, 4'd0, 4'd2, 4'd0
+							, 4'd3, 4'd0, 4'd4, 4'd0
+							, 4'd5, 4'd0, 4'd6, 4'd0
+							, 4'd7, 4'd0, 4'd8, 4'd0
 							};
 
 // GTP internal loopback connectivity (for debugging)
@@ -363,6 +364,14 @@ wire [31:0] spinnaker_link_enable_i;
 // Key/mask to match to forward MC packets to peripheral link
 wire [31:0] periph_mc_key_i;
 wire [31:0] periph_mc_mask_i;
+
+// Key/mask set for local configuration
+wire [31:0] lc_key_i;
+wire [31:0] lc_mask_i;
+
+// Key/mask set for remote configuration
+wire [31:0] rc_key_i;
+wire [31:0] rc_mask_i;
 
 // control wires from the top-level register bank
 wire [3:0] scrmbl_idl_dat_i;
@@ -1777,7 +1786,7 @@ generate case ({INCLUDE_PERIPH_OUTPUT_SUPPORT, INCLUDE_B2B_SUPPORT})
 	{1, 0}:
 		// connect the SpiNNaker chip links directly to output peripheral links
                 for (i = 0; i < NUM_LINKS; i = i + 1)
-                        if (i == PERIPH_OUTPUT_CHAN)
+                        if (i == PERIPH_OUTPUT_LINK)
                                 // connect available output peripheral links
         			begin : spinnaker_rx_link_routing_not_used
         				assign periph_pkt_txdata_i = sl_pkt_rxdata_i[i];
@@ -1795,13 +1804,15 @@ generate case ({INCLUDE_PERIPH_OUTPUT_SUPPORT, INCLUDE_B2B_SUPPORT})
                 // route incoming packets to board-to-board or peripheral links
                 for (i = 0; i < NUM_LINKS; i = i + 1)
 			// route to available output peripheral links
-                        if (i == PERIPH_OUTPUT_CHAN)
+                        if (i == PERIPH_OUTPUT_LINK)
 				begin : spinnaker_rx_link_routing
+					localparam SO = 3; // number of switch outputs
+
 					// switch output ports (which must be
 					// broken onto their various buses)
-					wire [(`PKT_BITS*2)-1:0] switch_out_data_i;
-					wire [1:0]               switch_out_vld_i;
-					wire [1:0]               switch_out_rdy_i;
+					wire [(`PKT_BITS * (SO - 1))-1:0] switch_out_data_i;
+					wire                   [SO - 1:0] switch_out_vld_i;
+					wire                   [SO - 1:0] switch_out_rdy_i;
 
 					wire [`PKT_BITS-1:0] fast_periph_pkt_txdata_i;
 					wire                 fast_periph_pkt_txvld_i;
@@ -1809,27 +1820,33 @@ generate case ({INCLUDE_PERIPH_OUTPUT_SUPPORT, INCLUDE_B2B_SUPPORT})
 
 					// Only match non-emergency routed multicast packets
 					wire is_mc_packet_i = (sl_pkt_rxdata_i[i][0+:8]  & 8'b11110000) == 8'b00000000;
-					wire key_matches_i  = (sl_pkt_rxdata_i[i][8+:32] & periph_mc_mask_i) == periph_mc_key_i;
+					wire pkey_matches_i = (sl_pkt_rxdata_i[i][8+:32] & periph_mc_mask_i) == periph_mc_key_i;
+					wire lkey_matches_i = (sl_pkt_rxdata_i[i][8+:32] & lc_mask_i) == lc_key_i;
+					wire rkey_matches_i = (sl_pkt_rxdata_i[i][8+:32] & rc_mask_i) == rc_key_i;
 
-					// temporary solution to prevent streams blocking due to disconnected devices:
+					// route packets according to key/mask settings
+					// output 0: board-to-board packets
+					// output 1: peripheral and remote configuration packets
+					// output 2: local configuration packets
+					wire periph_pkt_i = is_mc_packet_i && pkey_matches_i && periph_handshake_complete_i;
+					wire rconf_pkt_i  = is_mc_packet_i && rkey_matches_i && periph_handshake_complete_i;
+					wire lconf_pkt_i  = is_mc_packet_i && lkey_matches_i;
+					wire b2b_pkt_i    = !periph_pkt_i && !rconf_pkt_i && !lconf_pkt_i;
+
+					wire [SO - 1:0] route_i = {lconf_pkt_i, periph_pkt_i | rconf_pkt_i, b2b_pkt_i};
+
 					// drop packets whenever blocked while also being known to be disconnected.
-					//TODO: design and implement permanent solution
-					wire drop_i = |(switch_blocked_outputs_i & { !periph_handshake_complete_i
-								, !b2b_handshake_complete_i[i / `NUM_CHANS]
-							});
+					wire [SO - 1:0] disconn_outputs_i = {1'b0, !periph_handshake_complete_i, !b2b_handshake_complete_i[i / `NUM_CHANS]};
+					wire drop_i = |(switch_blocked_outputs_i & disconn_outputs_i);
 
 					// Route packets arriving from the first bank of SpiNNaker chips.
 					spio_switch #( .PKT_BITS             (`PKT_BITS)
-						     , .NUM_PORTS            (2)
+						     , .NUM_PORTS            (SO)
 						     )
 					spio_switch_i( .CLK_IN               (b2b_usrclk2_i)
 						     , .RESET_IN             (switch_reset_i)
-						       // Input port (from SpiNNaker chips)
-						     , .IN_OUTPUT_SELECT_IN  ( ( is_mc_packet_i
-									       & key_matches_i
-									       & periph_handshake_complete_i
-								               ) ? 2'b10 : 2'b01 
-							                     )
+						       // Output selection
+						     , .IN_OUTPUT_SELECT_IN  (route_i)
 						       // Input port (from SpiNNaker chips)
 						     , .IN_DATA_IN           (sl_pkt_rxdata_i[i])
 						     , .IN_VLD_IN            (sl_pkt_rxvld_i[i])
@@ -1858,6 +1875,9 @@ generate case ({INCLUDE_PERIPH_OUTPUT_SUPPORT, INCLUDE_B2B_SUPPORT})
 					assign fast_periph_pkt_txdata_i = switch_out_data_i[1*`PKT_BITS+:`PKT_BITS];
 					assign fast_periph_pkt_txvld_i  = switch_out_vld_i[1];
 					assign switch_out_rdy_i[1]      = fast_periph_pkt_txrdy_i;
+
+					// Connect third output port of the switch to local configuration logic
+					assign switch_out_rdy_i[2]      = 1'b1;
 
 					// if needed add a speed adapter between the full-speed
 					// switch and the half-speed peripheral links 
@@ -2156,6 +2176,10 @@ spinnaker_fpgas_reg_bank_i( .CLK_IN         (reg_bank_clk_i)
                           , .RXEQMIX        (rxeqmix_i)
                           , .TXDIFFCTRL     (txdiffctrl_i)
                           , .TXPREEMPHASIS  (txpreemphasis_i)
+                          , .LC_KEY         (lc_key_i)
+                          , .LC_MASK        (lc_mask_i)
+                          , .RC_KEY         (rc_key_i)
+                          , .RC_MASK        (rc_mask_i)
                           );
 ////////////////////////////////////////////////////////////////////////////////
 
