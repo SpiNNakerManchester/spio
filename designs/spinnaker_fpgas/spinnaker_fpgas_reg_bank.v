@@ -10,11 +10,15 @@ module spinnaker_fpgas_reg_bank #( // Address bits
                                  )
                                  ( input  wire CLK_IN
                                  , input  wire RESET_IN
-                                   // Register bank interface
+                                   // Register bank SPI interface
                                  ,   input  wire                 WRITE_IN
                                  ,   input  wire [REGA_BITS-1:0] ADDR_IN
                                  ,   input  wire [REGD_BITS-1:0] WRITE_DATA_IN
                                  ,   output reg  [REGD_BITS-1:0] READ_DATA_OUT
+                                 // Register bank local configuration  interface
+                                 ,   input  wire                 LC_WRITE_IN
+                                 ,   input  wire           [7:0] LC_ADDR_IN
+                                 ,   input  wire [REGD_BITS-1:0] LC_WR_DATA_IN
                                    // Version
                                  , input  wire   [REGD_BITS-1:0] VERSION_IN
                                    // Compilation flags { INCLUDE_DEBUG_CHIPSCOPE_VIO
@@ -144,13 +148,24 @@ localparam LMSK_REG = 13; // local configuration route mask
 localparam RKEY_REG = 14; // local configuration route key
 localparam RMSK_REG = 15; // local configuration route mask
 
+// LC_KEY and LC_MASK must be updated atomically to avoid
+// configuration errors. Changes to LC_MASK will not will not
+// take effect until a subsequent change to LC_KEY takes effect
+//NOTE: use temp register to store the new LC_MASK value
+reg [31:0] LC_MASK_TMP;
+always @ (posedge CLK_IN, posedge RESET_IN)
+	if (RESET_IN)
+		LC_MASK <= LMSK_DEF;
+	else
+		if ((LC_WRITE_IN && (LC_ADDR_IN == LKEY_REG))
+			|| (WRITE_IN && (ADDR_IN == LKEY_REG)))
+			LC_MASK <= LC_MASK_TMP;
 
-// Write address decode
+
+// Write address decode for non-routing registers
 always @ (posedge CLK_IN, posedge RESET_IN)
 	if (RESET_IN)
 		begin
-			PERIPH_MC_KEY  <= PKEY_DEF;
-			PERIPH_MC_MASK <= PMSK_DEF;
 			SCRMBL_IDL_DAT <= SCRMBL_DEF;
 			SPINNAKER_LINK_ENABLE <= LINKEN_DEF;
 			LED_OVERRIDE <= LEDOVR_DEF;
@@ -169,28 +184,56 @@ always @ (posedge CLK_IN, posedge RESET_IN)
 			                 , B2B_TXPREEMPHASIS
 			                 , B2B_TXPREEMPHASIS
 			                 };
-			LC_KEY  <= LKEY_DEF;
-			LC_MASK <= LMSK_DEF;
-			RC_KEY  <= RKEY_DEF;
-			RC_MASK <= RMSK_DEF;
 		end
 	else
 		if (WRITE_IN)
 			case (ADDR_IN)
-				PKEY_REG: PERIPH_MC_KEY  <= WRITE_DATA_IN;
-				PMSK_REG: PERIPH_MC_MASK <= WRITE_DATA_IN;
 				SCRM_REG: SCRMBL_IDL_DAT <= WRITE_DATA_IN;
 				SLEN_REG: SPINNAKER_LINK_ENABLE <= WRITE_DATA_IN;
 				LEDO_REG: LED_OVERRIDE <= WRITE_DATA_IN;
 				RXEQ_REG: RXEQMIX <= WRITE_DATA_IN;
 				TXDS_REG: TXDIFFCTRL <= WRITE_DATA_IN;
 				TXPE_REG: TXPREEMPHASIS <= WRITE_DATA_IN;
-				LKEY_REG: LC_KEY  <= WRITE_DATA_IN;
-				LMSK_REG: LC_MASK <= WRITE_DATA_IN;
-				RKEY_REG: RC_KEY  <= WRITE_DATA_IN;
-				RMSK_REG: RC_MASK <= WRITE_DATA_IN;
 			endcase
 
+
+// Write address decode for routing registers
+always @ (posedge CLK_IN, posedge RESET_IN)
+	if (RESET_IN)
+		begin
+			PERIPH_MC_KEY  <= PKEY_DEF;
+			PERIPH_MC_MASK <= PMSK_DEF;
+			LC_KEY         <= LKEY_DEF;
+			LC_MASK_TMP    <= LMSK_DEF;
+			RC_KEY         <= RKEY_DEF;
+			RC_MASK        <= RMSK_DEF;
+		end
+	else
+		begin
+			// local configuration writes
+			//NOTE: LC_KEY and LC_MASK must be updated atomically!
+			if (LC_WRITE_IN)
+				case (LC_ADDR_IN)
+					PKEY_REG: PERIPH_MC_KEY  <= LC_WR_DATA_IN;
+					PMSK_REG: PERIPH_MC_MASK <= LC_WR_DATA_IN;
+					LKEY_REG: LC_KEY         <= LC_WR_DATA_IN;
+					LMSK_REG: LC_MASK_TMP    <= LC_WR_DATA_IN;
+					RKEY_REG: RC_KEY         <= LC_WR_DATA_IN;
+					RMSK_REG: RC_MASK        <= LC_WR_DATA_IN;
+				endcase
+
+			// SPI writes
+			//NOTE: prioritise local configuration writes
+			if (WRITE_IN && (!LC_WRITE_IN || (ADDR_IN != LC_ADDR_IN)))
+				case (ADDR_IN)
+					PKEY_REG: PERIPH_MC_KEY  <= WRITE_DATA_IN;
+					PMSK_REG: PERIPH_MC_MASK <= WRITE_DATA_IN;
+					LKEY_REG: LC_KEY         <= WRITE_DATA_IN;
+					LMSK_REG: LC_MASK_TMP    <= WRITE_DATA_IN;
+					RKEY_REG: RC_KEY         <= WRITE_DATA_IN;
+					RMSK_REG: RC_MASK        <= WRITE_DATA_IN;
+				endcase
+		end
 
 // Read address decode
 always @ (*)

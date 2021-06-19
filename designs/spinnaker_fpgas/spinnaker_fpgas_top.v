@@ -343,6 +343,11 @@ wire [13:0] top_reg_addr_i;
 wire [31:0] top_reg_read_data_i;
 wire [31:0] top_reg_write_data_i;
 
+// local configuration register bank signals
+wire        lc_reg_write_i;
+wire  [7:0] lc_reg_addr_i;
+wire [31:0] lc_reg_write_data_i;
+
 // packet counter signals
 wire [`CTRA_BITS-1:0] pkt_ctr_addr_i [1:0];
 wire [`CTRD_BITS-1:0] pkt_ctr_read_data_i [1:0];
@@ -1829,37 +1834,45 @@ generate case ({INCLUDE_PERIPH_OUTPUT_SUPPORT, INCLUDE_B2B_SUPPORT})
 			// route to available output peripheral links
                         if (i == PERIPH_OUTPUT_LINK)
 				begin : spinnaker_rx_link_routing
-					localparam SO = 3; // number of switch outputs
+					localparam SO = 3;       // number of switch outputs
+					localparam B2B_OUT = 0;  // board-to-board switch output
+					localparam PER_OUT = 1;  // peripheral (+ remote config) switch output
+					localparam LCF_OUT = 2;  // local config switch output
 
 					// switch output ports (which must be
 					// broken onto their various buses)
-					wire [(`PKT_BITS * (SO - 1))-1:0] switch_out_data_i;
-					wire                   [SO - 1:0] switch_out_vld_i;
-					wire                   [SO - 1:0] switch_out_rdy_i;
+					wire [(`PKT_BITS * SO) - 1:0] switch_out_data_i;
+					wire               [SO - 1:0] switch_out_vld_i;
+					wire               [SO - 1:0] switch_out_rdy_i;
 
 					wire [`PKT_BITS-1:0] fast_periph_pkt_txdata_i;
 					wire                 fast_periph_pkt_txvld_i;
 					wire                 fast_periph_pkt_txrdy_i;
 
+					// switch outputs disconnection status
+					wire [SO - 1:0] disconn_outputs_i;
+					assign disconn_outputs_i[B2B_OUT] = !b2b_handshake_complete_i[i / `NUM_CHANS];
+					assign disconn_outputs_i[PER_OUT] = !periph_handshake_complete_i;
+					assign disconn_outputs_i[LCF_OUT] = 1'b0;  // always available!
+
 					// Only match non-emergency routed multicast packets
 					wire is_mc_packet_i = (sl_pkt_rxdata_i[i][0+:8]  & 8'b11110000) == 8'b00000000;
 					wire pkey_matches_i = (sl_pkt_rxdata_i[i][8+:32] & periph_mc_mask_i) == periph_mc_key_i;
-					wire lkey_matches_i = (sl_pkt_rxdata_i[i][8+:32] & lc_mask_i) == lc_key_i;
 					wire rkey_matches_i = (sl_pkt_rxdata_i[i][8+:32] & rc_mask_i) == rc_key_i;
+					wire lkey_matches_i = (sl_pkt_rxdata_i[i][8+:32] & lc_mask_i) == lc_key_i;
 
 					// route packets according to key/mask settings
-					// output 0: board-to-board packets
-					// output 1: peripheral and remote configuration packets
-					// output 2: local configuration packets
-					wire periph_pkt_i = is_mc_packet_i && pkey_matches_i && periph_handshake_complete_i;
-					wire rconf_pkt_i  = is_mc_packet_i && rkey_matches_i && periph_handshake_complete_i;
+					wire periph_pkt_i = is_mc_packet_i && pkey_matches_i;
+					wire rconf_pkt_i  = is_mc_packet_i && rkey_matches_i;
 					wire lconf_pkt_i  = is_mc_packet_i && lkey_matches_i;
 					wire b2b_pkt_i    = !periph_pkt_i && !rconf_pkt_i && !lconf_pkt_i;
 
-					wire [SO - 1:0] route_i = {lconf_pkt_i, periph_pkt_i | rconf_pkt_i, b2b_pkt_i};
+					wire [SO - 1:0] route_i;
+					assign route_i[B2B_OUT] = b2b_pkt_i;
+					assign route_i[PER_OUT] = periph_pkt_i | rconf_pkt_i;
+					assign route_i[LCF_OUT] = lconf_pkt_i;
 
 					// drop packets whenever blocked while also being known to be disconnected.
-					wire [SO - 1:0] disconn_outputs_i = {1'b0, !periph_handshake_complete_i, !b2b_handshake_complete_i[i / `NUM_CHANS]};
 					wire drop_i = |(switch_blocked_outputs_i & disconn_outputs_i);
 
 					// Route packets arriving from the first bank of SpiNNaker chips.
@@ -1874,7 +1887,7 @@ generate case ({INCLUDE_PERIPH_OUTPUT_SUPPORT, INCLUDE_B2B_SUPPORT})
 						     , .IN_DATA_IN           (sl_pkt_rxdata_i[i])
 						     , .IN_VLD_IN            (sl_pkt_rxvld_i[i])
 						     , .IN_RDY_OUT           (sl_pkt_rxrdy_i[i])
-						       // Output ports (to b2b and periph links)
+						       // Output ports
 						     , .OUT_DATA_OUT         (switch_out_data_i)
 						     , .OUT_VLD_OUT          (switch_out_vld_i)
 						     , .OUT_RDY_IN           (switch_out_rdy_i)
@@ -1889,18 +1902,24 @@ generate case ({INCLUDE_PERIPH_OUTPUT_SUPPORT, INCLUDE_B2B_SUPPORT})
 						     , .DROPPED_VLD_OUT      (switch_dropped_vld_i)
 						     );
 
-					// Connect first output port of the switch to b2b links
-					assign b2b_pkt_txdata_i[i / `NUM_CHANS][i % `NUM_CHANS] = switch_out_data_i[0*`PKT_BITS+:`PKT_BITS];
-					assign b2b_pkt_txvld_i[i / `NUM_CHANS][i % `NUM_CHANS]  = switch_out_vld_i[0];
-					assign switch_out_rdy_i[0] = b2b_pkt_txrdy_i[i / `NUM_CHANS][i % `NUM_CHANS];
+					// connect B2B_OUT switch output port to board-to-board links
+					assign b2b_pkt_txdata_i[i / `NUM_CHANS][i % `NUM_CHANS] = switch_out_data_i[B2B_OUT * `PKT_BITS+:`PKT_BITS];
+					assign b2b_pkt_txvld_i[i / `NUM_CHANS][i % `NUM_CHANS]  = switch_out_vld_i[B2B_OUT];
+					assign switch_out_rdy_i[B2B_OUT] = b2b_pkt_txrdy_i[i / `NUM_CHANS][i % `NUM_CHANS];
 
-					// Connect second output port of the switch to peripheral links
-					assign fast_periph_pkt_txdata_i = switch_out_data_i[1*`PKT_BITS+:`PKT_BITS];
-					assign fast_periph_pkt_txvld_i  = switch_out_vld_i[1];
-					assign switch_out_rdy_i[1]      = fast_periph_pkt_txrdy_i;
+					// connect PER_OUT switch output port to peripheral links
+					assign fast_periph_pkt_txdata_i  = switch_out_data_i[PER_OUT * `PKT_BITS+:`PKT_BITS];
+					assign fast_periph_pkt_txvld_i   = switch_out_vld_i[PER_OUT];
+					assign switch_out_rdy_i[PER_OUT] = fast_periph_pkt_txrdy_i;
 
-					// Connect third output port of the switch to local configuration logic
-					assign switch_out_rdy_i[2]      = 1'b1;
+					// connect LCF_OUT switch output port to local configuration logic
+					wire [`PKT_BITS-1:0] lc_pkt_txdata_i = switch_out_data_i[LCF_OUT * `PKT_BITS+:`PKT_BITS];
+					assign lc_pkt_tx_vld_i               = switch_out_vld_i[LCF_OUT];
+					assign switch_out_rdy_i[LCF_OUT]     = 1'b1;  // always ready
+
+					assign lc_reg_write_i      = lc_pkt_tx_vld_i;
+					assign lc_reg_addr_i       = lc_pkt_txdata_i[8 +: 8];
+					assign lc_reg_write_data_i = lc_pkt_txdata_i[40 +: 32];
 
 					// if needed add a speed adapter between the full-speed
 					// switch and the half-speed peripheral links 
@@ -2203,6 +2222,10 @@ spinnaker_fpgas_reg_bank_i( .CLK_IN         (reg_bank_clk_i)
                           , .ADDR_IN        (top_reg_addr_i)
                           , .WRITE_DATA_IN  (top_reg_write_data_i)
                           , .READ_DATA_OUT  (top_reg_read_data_i)
+                          // local configuration interface
+                          , .LC_WRITE_IN    (lc_reg_write_i)
+                          , .LC_ADDR_IN     (lc_reg_addr_i)
+                          , .LC_WR_DATA_IN  (lc_reg_write_data_i)
                             // Regsiters
                           , .VERSION_IN     (VERSION)
                           , .FLAGS_IN       ({ INCLUDE_DEBUG_CHIPSCOPE_VIO[0]
