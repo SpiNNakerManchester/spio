@@ -366,6 +366,9 @@ wire                  switch_dropped_vld_i;
 // 1 controls link 0 FPGA->SpiNN, and so on.
 wire [31:0] spinnaker_link_enable_i;
 
+// peripheral input enable
+wire        periph_in_en_i;
+
 // Key/mask to match to forward MC packets to peripheral link
 wire [31:0] periph_mc_key_i;
 wire [31:0] periph_mc_mask_i;
@@ -1560,81 +1563,93 @@ endgenerate
 
 // Connect to peripherals
 generate if (INCLUDE_PERIPH_SUPPORT)
-	spio_hss_multiplexer   #( .NUM_INPUT_CHANS                (PERIPH_NUM_OUTPUT_CHANS)
-        	                , .CLOCK_CORRECTION_INTERVAL      (PERIPH_CLOCK_CORRECTION_INTERVAL)
-        	                , .CLOCK_CORRECTION_INTERVAL_BITS (PERIPH_CLOCK_CORRECTION_INTERVAL_BITS)
-                	        , .NUM_HANDSHAKES                 (PERIPH_NUM_HANDSHAKES)
-                        	, .NUM_HANDSHAKES_BITS            (PERIPH_NUM_HANDSHAKES_BITS)
-	                        )
-	periph_hss_multiplexer_i( .CLK_IN                         (periph_usrclk2_i)
-	                        , .RESET_IN                       (periph_hss_reset_i)
-                                  // Status Signals
-                                , .HANDSHAKE_COMPLETE_OUT         (periph_handshake_complete_i)
-                                , .VERSION_MISMATCH_OUT           (periph_version_mismatch_i)
-	                          // High-Speed-Serial Interface
-	                        , .RXDATA_IN                      (periph_rxdata_i)
-	                        , .RXCHARISCOMMA_IN               (periph_rxchariscomma_i)
-                                , .RXCHARISK_IN                   (periph_rxcharisk_i)
-                                , .RXLOSSOFSYNC_IN                (periph_rxlossofsync_i)
-                                , .TXDATA_OUT                     (periph_txdata_i)
-	                        , .TXCHARISK_OUT                  (periph_txcharisk_i)
-	                          // Packet interface
-	                        , .TX_PKT0_DATA_IN                (periph_pkt_txdata_i)
-                                , .TX_PKT0_VLD_IN                 (periph_pkt_txvld_i)
-                                , .TX_PKT0_RDY_OUT                (periph_pkt_txrdy_i)
-                                , .TX_PKT1_DATA_IN                ()
-	                        , .TX_PKT1_VLD_IN                 (1'b0)
-	                        , .TX_PKT1_RDY_OUT                ()
-	                        , .TX_PKT2_DATA_IN                ()
-                                , .TX_PKT2_VLD_IN                 (1'b0)
-                                , .TX_PKT2_RDY_OUT                ()
-                                , .TX_PKT3_DATA_IN                ()
-	                        , .TX_PKT3_VLD_IN                 (1'b0)
-	                        , .TX_PKT3_RDY_OUT                ()
-	                        , .TX_PKT4_DATA_IN                ()
-                                , .TX_PKT4_VLD_IN                 (1'b0)
-                                , .TX_PKT4_RDY_OUT                ()
-                                , .TX_PKT5_DATA_IN                ()
-	                        , .TX_PKT5_VLD_IN                 (1'b0)
-	                        , .TX_PKT5_RDY_OUT                ()
-	                        , .TX_PKT6_DATA_IN                ()
-                                , .TX_PKT6_VLD_IN                 (1'b0)
-                                , .TX_PKT6_RDY_OUT                ()
-                                , .TX_PKT7_DATA_IN                ()
-	                        , .TX_PKT7_VLD_IN                 (1'b0)
-	                        , .TX_PKT7_RDY_OUT                ()
-	                        , .RX_PKT0_DATA_OUT               (periph_pkt_rxdata_i[0])
-                                , .RX_PKT0_VLD_OUT                (periph_pkt_rxvld_i[0])
-                                , .RX_PKT0_RDY_IN                 (periph_pkt_rxrdy_i[0])
-                                , .RX_PKT1_DATA_OUT               (periph_pkt_rxdata_i[1])
-	                        , .RX_PKT1_VLD_OUT                (periph_pkt_rxvld_i[1])
-	                        , .RX_PKT1_RDY_IN                 (periph_pkt_rxrdy_i[1])
-	                        , .RX_PKT2_DATA_OUT               (periph_pkt_rxdata_i[2])
-                                , .RX_PKT2_VLD_OUT                (periph_pkt_rxvld_i[2])
-                                , .RX_PKT2_RDY_IN                 (periph_pkt_rxrdy_i[2])
-                                , .RX_PKT3_DATA_OUT               (periph_pkt_rxdata_i[3])
-	                        , .RX_PKT3_VLD_OUT                (periph_pkt_rxvld_i[3])
-	                        , .RX_PKT3_RDY_IN                 (periph_pkt_rxrdy_i[3])
-	                        , .RX_PKT4_DATA_OUT               (periph_pkt_rxdata_i[4])
-                                , .RX_PKT4_VLD_OUT                (periph_pkt_rxvld_i[4])
-                                , .RX_PKT4_RDY_IN                 (periph_pkt_rxrdy_i[4])
-                                , .RX_PKT5_DATA_OUT               (periph_pkt_rxdata_i[5])
-	                        , .RX_PKT5_VLD_OUT                (periph_pkt_rxvld_i[5])
-	                        , .RX_PKT5_RDY_IN                 (periph_pkt_rxrdy_i[5])
-	                        , .RX_PKT6_DATA_OUT               (periph_pkt_rxdata_i[6])
-                                , .RX_PKT6_VLD_OUT                (periph_pkt_rxvld_i[6])
-                                , .RX_PKT6_RDY_IN                 (periph_pkt_rxrdy_i[6])
-                                , .RX_PKT7_DATA_OUT               (periph_pkt_rxdata_i[7])
-	                        , .RX_PKT7_VLD_OUT                (periph_pkt_rxvld_i[7])
-	                        , .RX_PKT7_RDY_IN                 (periph_pkt_rxrdy_i[7])
-	                          // top-level control inputs
-		                , .SCRMBL_IDL_DAT                 (scrmbl_idl_dat_i[2])
-	                          // High-level protocol performance counters
-                                , .REG_WRITE_IN                   (periph_reg_write_i)
-                                , .REG_ADDR_IN                    (periph_reg_addr_i)
-                                , .REG_READ_DATA_OUT              (periph_reg_read_data_i)
-	                        , .REG_WRITE_DATA_IN              (periph_reg_write_data_i)
-	                        );
+	begin
+		wire ungated_pkt_rxvld_i [`NUM_CHANS - 1:0];
+		wire gated_pkt_rxrdy_i   [`NUM_CHANS - 1:0];
+
+		spio_hss_multiplexer   #( .NUM_INPUT_CHANS                (PERIPH_NUM_OUTPUT_CHANS)
+	        	                , .CLOCK_CORRECTION_INTERVAL      (PERIPH_CLOCK_CORRECTION_INTERVAL)
+	        	                , .CLOCK_CORRECTION_INTERVAL_BITS (PERIPH_CLOCK_CORRECTION_INTERVAL_BITS)
+	                	        , .NUM_HANDSHAKES                 (PERIPH_NUM_HANDSHAKES)
+	                        	, .NUM_HANDSHAKES_BITS            (PERIPH_NUM_HANDSHAKES_BITS)
+		                        )
+		periph_hss_multiplexer_i( .CLK_IN                         (periph_usrclk2_i)
+		                        , .RESET_IN                       (periph_hss_reset_i)
+	                                  // Status Signals
+	                                , .HANDSHAKE_COMPLETE_OUT         (periph_handshake_complete_i)
+	                                , .VERSION_MISMATCH_OUT           (periph_version_mismatch_i)
+		                          // High-Speed-Serial Interface
+		                        , .RXDATA_IN                      (periph_rxdata_i)
+		                        , .RXCHARISCOMMA_IN               (periph_rxchariscomma_i)
+	                                , .RXCHARISK_IN                   (periph_rxcharisk_i)
+	                                , .RXLOSSOFSYNC_IN                (periph_rxlossofsync_i)
+	                                , .TXDATA_OUT                     (periph_txdata_i)
+		                        , .TXCHARISK_OUT                  (periph_txcharisk_i)
+		                          // Packet interface
+		                        , .TX_PKT0_DATA_IN                (periph_pkt_txdata_i)
+	                                , .TX_PKT0_VLD_IN                 (periph_pkt_txvld_i)
+	                                , .TX_PKT0_RDY_OUT                (periph_pkt_txrdy_i)
+	                                , .TX_PKT1_DATA_IN                ()
+		                        , .TX_PKT1_VLD_IN                 (1'b0)
+		                        , .TX_PKT1_RDY_OUT                ()
+		                        , .TX_PKT2_DATA_IN                ()
+	                                , .TX_PKT2_VLD_IN                 (1'b0)
+	                                , .TX_PKT2_RDY_OUT                ()
+	                                , .TX_PKT3_DATA_IN                ()
+		                        , .TX_PKT3_VLD_IN                 (1'b0)
+		                        , .TX_PKT3_RDY_OUT                ()
+		                        , .TX_PKT4_DATA_IN                ()
+	                                , .TX_PKT4_VLD_IN                 (1'b0)
+	                                , .TX_PKT4_RDY_OUT                ()
+	                                , .TX_PKT5_DATA_IN                ()
+		                        , .TX_PKT5_VLD_IN                 (1'b0)
+		                        , .TX_PKT5_RDY_OUT                ()
+		                        , .TX_PKT6_DATA_IN                ()
+	                                , .TX_PKT6_VLD_IN                 (1'b0)
+	                                , .TX_PKT6_RDY_OUT                ()
+	                                , .TX_PKT7_DATA_IN                ()
+		                        , .TX_PKT7_VLD_IN                 (1'b0)
+		                        , .TX_PKT7_RDY_OUT                ()
+		                        , .RX_PKT0_DATA_OUT               (periph_pkt_rxdata_i[0])
+	                                , .RX_PKT0_VLD_OUT                (ungated_pkt_rxvld_i[0])
+	                                , .RX_PKT0_RDY_IN                 (gated_pkt_rxrdy_i[0])
+	                                , .RX_PKT1_DATA_OUT               (periph_pkt_rxdata_i[1])
+		                        , .RX_PKT1_VLD_OUT                (ungated_pkt_rxvld_i[1])
+		                        , .RX_PKT1_RDY_IN                 (gated_pkt_rxrdy_i[1])
+		                        , .RX_PKT2_DATA_OUT               (periph_pkt_rxdata_i[2])
+	                                , .RX_PKT2_VLD_OUT                (ungated_pkt_rxvld_i[2])
+	                                , .RX_PKT2_RDY_IN                 (gated_pkt_rxrdy_i[2])
+	                                , .RX_PKT3_DATA_OUT               (periph_pkt_rxdata_i[3])
+		                        , .RX_PKT3_VLD_OUT                (ungated_pkt_rxvld_i[3])
+		                        , .RX_PKT3_RDY_IN                 (gated_pkt_rxrdy_i[3])
+		                        , .RX_PKT4_DATA_OUT               (periph_pkt_rxdata_i[4])
+	                                , .RX_PKT4_VLD_OUT                (ungated_pkt_rxvld_i[4])
+	                                , .RX_PKT4_RDY_IN                 (gated_pkt_rxrdy_i[4])
+	                                , .RX_PKT5_DATA_OUT               (periph_pkt_rxdata_i[5])
+		                        , .RX_PKT5_VLD_OUT                (ungated_pkt_rxvld_i[5])
+		                        , .RX_PKT5_RDY_IN                 (gated_pkt_rxrdy_i[5])
+		                        , .RX_PKT6_DATA_OUT               (periph_pkt_rxdata_i[6])
+	                                , .RX_PKT6_VLD_OUT                (ungated_pkt_rxvld_i[6])
+	                                , .RX_PKT6_RDY_IN                 (gated_pkt_rxrdy_i[6])
+	                                , .RX_PKT7_DATA_OUT               (periph_pkt_rxdata_i[7])
+		                        , .RX_PKT7_VLD_OUT                (ungated_pkt_rxvld_i[7])
+		                        , .RX_PKT7_RDY_IN                 (gated_pkt_rxrdy_i[7])
+		                          // top-level control inputs
+			                , .SCRMBL_IDL_DAT                 (scrmbl_idl_dat_i[2])
+		                          // High-level protocol performance counters
+	                                , .REG_WRITE_IN                   (periph_reg_write_i)
+	                                , .REG_ADDR_IN                    (periph_reg_addr_i)
+	                                , .REG_READ_DATA_OUT              (periph_reg_read_data_i)
+		                        , .REG_WRITE_DATA_IN              (periph_reg_write_data_i)
+		                        );
+
+		for (i = 0; i < `NUM_CHANS; i = i + 1)
+			begin
+				// gate peripheral input vld/rdy signals with peripheral input enable
+				assign periph_pkt_rxvld_i[i] = ungated_pkt_rxvld_i[i] & periph_in_en_i;
+				assign gated_pkt_rxrdy_i[i]  = periph_pkt_rxrdy_i[i]  & periph_in_en_i;
+			end
+	end
 else
 	begin : periph_hss_not_supported
 		// invalidate status signals
@@ -1903,17 +1918,17 @@ generate case ({INCLUDE_PERIPH_OUTPUT_SUPPORT, INCLUDE_B2B_SUPPORT})
 						     );
 
 					// connect B2B_OUT switch output port to board-to-board links
-					assign b2b_pkt_txdata_i[i / `NUM_CHANS][i % `NUM_CHANS] = switch_out_data_i[B2B_OUT * `PKT_BITS+:`PKT_BITS];
+					assign b2b_pkt_txdata_i[i / `NUM_CHANS][i % `NUM_CHANS] = switch_out_data_i[B2B_OUT * `PKT_BITS +: `PKT_BITS];
 					assign b2b_pkt_txvld_i[i / `NUM_CHANS][i % `NUM_CHANS]  = switch_out_vld_i[B2B_OUT];
 					assign switch_out_rdy_i[B2B_OUT] = b2b_pkt_txrdy_i[i / `NUM_CHANS][i % `NUM_CHANS];
 
 					// connect PER_OUT switch output port to peripheral links
-					assign fast_periph_pkt_txdata_i  = switch_out_data_i[PER_OUT * `PKT_BITS+:`PKT_BITS];
+					assign fast_periph_pkt_txdata_i  = switch_out_data_i[PER_OUT * `PKT_BITS +: `PKT_BITS];
 					assign fast_periph_pkt_txvld_i   = switch_out_vld_i[PER_OUT];
 					assign switch_out_rdy_i[PER_OUT] = fast_periph_pkt_txrdy_i;
 
 					// connect LCF_OUT switch output port to local configuration logic
-					wire [`PKT_BITS-1:0] lc_pkt_txdata_i = switch_out_data_i[LCF_OUT * `PKT_BITS+:`PKT_BITS];
+					wire [`PKT_BITS-1:0] lc_pkt_txdata_i = switch_out_data_i[LCF_OUT * `PKT_BITS +: `PKT_BITS];
 					assign lc_pkt_tx_vld_i               = switch_out_vld_i[LCF_OUT];
 					assign switch_out_rdy_i[LCF_OUT]     = 1'b1;  // always ready
 
@@ -2243,6 +2258,7 @@ spinnaker_fpgas_reg_bank_i( .CLK_IN         (reg_bank_clk_i)
                           , .RXEQMIX        (rxeqmix_i)
                           , .TXDIFFCTRL     (txdiffctrl_i)
                           , .TXPREEMPHASIS  (txpreemphasis_i)
+                          , .PERIPH_IN_EN   (periph_in_en_i)
                           , .LC_KEY         (lc_key_i)
                           , .LC_MASK        (lc_mask_i)
                           , .RC_KEY         (rc_key_i)

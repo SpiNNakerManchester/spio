@@ -67,6 +67,8 @@ module spinnaker_fpgas_reg_bank #( // Address bits
                                    //   , B2B_TXPREEMPHASIS
                                    //   };
                                  , output reg             [11:0] TXPREEMPHASIS
+                                 // peripheral input enable
+                                 , output reg              [1:0] PERIPH_IN_EN
                                  // local configuration routing key/mask
                                  , output reg             [31:0] LC_KEY
                                  , output reg             [31:0] LC_MASK
@@ -83,6 +85,7 @@ localparam LINKEN_DEF = 32'h0000_0000;  // SpiNNaker link enables
 localparam LEDOVR_DEF =  8'h0f;         // LED overrides
 
 // peripheral configuration registers
+localparam PINE_DEF   = 1'b0;           // peripheral input enable
 localparam LKEY_DEF   = 32'hffff_fe00;  // local configuration routing key
 localparam LMSK_DEF   = 32'hffff_ff00;  // local configuration routing mask
 localparam RKEY_DEF   = 32'hffff_ff00;  // remote configuration routing key
@@ -143,14 +146,16 @@ localparam TXPE_REG = 9; // tx pre-emphasis   { 11-9: RING_TXPREEMPHASIS
                          //                   }
 
 // peripheral configuration registers
-localparam LKEY_REG = 12; // local configuration route key
-localparam LMSK_REG = 13; // local configuration route mask
-localparam RKEY_REG = 14; // local configuration route key
-localparam RMSK_REG = 15; // local configuration route mask
+localparam LKEY_REG = 12;  // local configuration route key
+localparam LMSK_REG = 13;  // local configuration route mask
+localparam RKEY_REG = 14;  // local configuration route key
+localparam RMSK_REG = 15;  // local configuration route mask
+localparam PIND_REG = 16;  // peripheral input disable
+localparam PINE_REG = 17;  // peripheral input enable
 
 // LC_KEY and LC_MASK must be updated atomically to avoid
-// configuration errors. Changes to LC_MASK will not will not
-// take effect until a subsequent change to LC_KEY takes effect
+// configuration errors. Changes to LC_MASK will not take
+// effect until a subsequent change to LC_KEY takes effect
 //NOTE: use temp register to store the new LC_MASK value
 reg [31:0] LC_MASK_TMP;
 always @ (posedge CLK_IN, posedge RESET_IN)
@@ -207,6 +212,7 @@ always @ (posedge CLK_IN, posedge RESET_IN)
 			LC_MASK_TMP    <= LMSK_DEF;
 			RC_KEY         <= RKEY_DEF;
 			RC_MASK        <= RMSK_DEF;
+			PERIPH_IN_EN   <= PINE_DEF;
 		end
 	else
 		begin
@@ -220,6 +226,8 @@ always @ (posedge CLK_IN, posedge RESET_IN)
 					LMSK_REG: LC_MASK_TMP    <= LC_WR_DATA_IN;
 					RKEY_REG: RC_KEY         <= LC_WR_DATA_IN;
 					RMSK_REG: RC_MASK        <= LC_WR_DATA_IN;
+					PIND_REG: PERIPH_IN_EN   <= 1'b0;
+					PINE_REG: PERIPH_IN_EN   <= 1'b1;
 				endcase
 
 			// SPI writes
@@ -232,6 +240,8 @@ always @ (posedge CLK_IN, posedge RESET_IN)
 					LMSK_REG: LC_MASK_TMP    <= WRITE_DATA_IN;
 					RKEY_REG: RC_KEY         <= WRITE_DATA_IN;
 					RMSK_REG: RC_MASK        <= WRITE_DATA_IN;
+					PIND_REG: PERIPH_IN_EN   <= 1'b0;
+					PINE_REG: PERIPH_IN_EN   <= 1'b1;
 				endcase
 		end
 
@@ -252,6 +262,8 @@ always @ (*)
 		LMSK_REG: READ_DATA_OUT = LC_MASK;
 		RKEY_REG: READ_DATA_OUT = RC_KEY;
 		RMSK_REG: READ_DATA_OUT = RC_MASK;
+		PIND_REG: READ_DATA_OUT = PERIPH_IN_EN;
+		PINE_REG: READ_DATA_OUT = PERIPH_IN_EN;
 		default:  READ_DATA_OUT = {REGD_BITS{1'b1}};
 	endcase
 
