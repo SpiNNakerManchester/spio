@@ -1923,7 +1923,10 @@ generate case ({INCLUDE_PERIPH_OUTPUT_SUPPORT, INCLUDE_B2B_SUPPORT})
 					assign switch_out_rdy_i[B2B_OUT] = b2b_pkt_txrdy_i[i / `NUM_CHANS][i % `NUM_CHANS];
 
 					// connect PER_OUT switch output port to peripheral links
-					assign fast_periph_pkt_txdata_i  = switch_out_data_i[PER_OUT * `PKT_BITS +: `PKT_BITS];
+					// use emergency routing bits to indicate peripheral/remote_config packet
+					//NOTE: no need to recalculate parity as 2 bits change from 0 to 1
+					assign fast_periph_pkt_txdata_i  = switch_out_data_i[PER_OUT * `PKT_BITS +: `PKT_BITS]
+						| {{64 {1'b0}}, 2'b00, rconf_pkt_i, rconf_pkt_i, 4'b0000};
 					assign fast_periph_pkt_txvld_i   = switch_out_vld_i[PER_OUT];
 					assign switch_out_rdy_i[PER_OUT] = fast_periph_pkt_txrdy_i;
 
