@@ -44,9 +44,7 @@ data. If `rdy` and `vld` are asserted in the same cycle, the value on the data
 bus is captured by B. In the next cycle, if both signals are still asserted then
 the new data on the bus is considered transferred.
 
-Once the `vld` signal has been asserted it must not be deasserted until `rdy`
-has gone high (i.e. until the value is transferred). Similarly, `rdy` must also
-not be deasserted once asserted until `vld` goes high (i.e. a value is
-transferred).
-
-
+The `vld`/`rdy` handshake must follow the following rules:
+- The source device must not wait for an asserted `rdy` to assert `vld`.
+- Once the `vld` signal has been asserted it must not be deasserted until `rdy`
+has gone high (i.e. until the value is transferred).
