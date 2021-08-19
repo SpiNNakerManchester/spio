@@ -1564,8 +1564,9 @@ endgenerate
 // Connect to peripherals
 generate if (INCLUDE_PERIPH_SUPPORT)
 	begin
-		wire ungated_pkt_rxvld_i [`NUM_CHANS - 1:0];
-		wire gated_pkt_rxrdy_i   [`NUM_CHANS - 1:0];
+                wire [`PKT_BITS-1:0] pregate_pkt_rxdata_i [`NUM_CHANS-1:0];
+		wire                 pregate_pkt_rxvld_i  [`NUM_CHANS - 1:0];
+		wire                 pregate_pkt_rxrdy_i  [`NUM_CHANS - 1:0];
 
 		spio_hss_multiplexer   #( .NUM_INPUT_CHANS                (PERIPH_NUM_OUTPUT_CHANS)
 	        	                , .CLOCK_CORRECTION_INTERVAL      (PERIPH_CLOCK_CORRECTION_INTERVAL)
@@ -1610,30 +1611,30 @@ generate if (INCLUDE_PERIPH_SUPPORT)
 	                                , .TX_PKT7_DATA_IN                ()
 		                        , .TX_PKT7_VLD_IN                 (1'b0)
 		                        , .TX_PKT7_RDY_OUT                ()
-		                        , .RX_PKT0_DATA_OUT               (periph_pkt_rxdata_i[0])
-	                                , .RX_PKT0_VLD_OUT                (ungated_pkt_rxvld_i[0])
-	                                , .RX_PKT0_RDY_IN                 (gated_pkt_rxrdy_i[0])
-	                                , .RX_PKT1_DATA_OUT               (periph_pkt_rxdata_i[1])
-		                        , .RX_PKT1_VLD_OUT                (ungated_pkt_rxvld_i[1])
-		                        , .RX_PKT1_RDY_IN                 (gated_pkt_rxrdy_i[1])
-		                        , .RX_PKT2_DATA_OUT               (periph_pkt_rxdata_i[2])
-	                                , .RX_PKT2_VLD_OUT                (ungated_pkt_rxvld_i[2])
-	                                , .RX_PKT2_RDY_IN                 (gated_pkt_rxrdy_i[2])
-	                                , .RX_PKT3_DATA_OUT               (periph_pkt_rxdata_i[3])
-		                        , .RX_PKT3_VLD_OUT                (ungated_pkt_rxvld_i[3])
-		                        , .RX_PKT3_RDY_IN                 (gated_pkt_rxrdy_i[3])
-		                        , .RX_PKT4_DATA_OUT               (periph_pkt_rxdata_i[4])
-	                                , .RX_PKT4_VLD_OUT                (ungated_pkt_rxvld_i[4])
-	                                , .RX_PKT4_RDY_IN                 (gated_pkt_rxrdy_i[4])
-	                                , .RX_PKT5_DATA_OUT               (periph_pkt_rxdata_i[5])
-		                        , .RX_PKT5_VLD_OUT                (ungated_pkt_rxvld_i[5])
-		                        , .RX_PKT5_RDY_IN                 (gated_pkt_rxrdy_i[5])
-		                        , .RX_PKT6_DATA_OUT               (periph_pkt_rxdata_i[6])
-	                                , .RX_PKT6_VLD_OUT                (ungated_pkt_rxvld_i[6])
-	                                , .RX_PKT6_RDY_IN                 (gated_pkt_rxrdy_i[6])
-	                                , .RX_PKT7_DATA_OUT               (periph_pkt_rxdata_i[7])
-		                        , .RX_PKT7_VLD_OUT                (ungated_pkt_rxvld_i[7])
-		                        , .RX_PKT7_RDY_IN                 (gated_pkt_rxrdy_i[7])
+		                        , .RX_PKT0_DATA_OUT               (pregate_pkt_rxdata_i[0])
+	                                , .RX_PKT0_VLD_OUT                (pregate_pkt_rxvld_i[0])
+	                                , .RX_PKT0_RDY_IN                 (pregate_pkt_rxrdy_i[0])
+	                                , .RX_PKT1_DATA_OUT               (pregate_pkt_rxdata_i[1])
+		                        , .RX_PKT1_VLD_OUT                (pregate_pkt_rxvld_i[1])
+		                        , .RX_PKT1_RDY_IN                 (pregate_pkt_rxrdy_i[1])
+		                        , .RX_PKT2_DATA_OUT               (pregate_pkt_rxdata_i[2])
+	                                , .RX_PKT2_VLD_OUT                (pregate_pkt_rxvld_i[2])
+	                                , .RX_PKT2_RDY_IN                 (pregate_pkt_rxrdy_i[2])
+	                                , .RX_PKT3_DATA_OUT               (pregate_pkt_rxdata_i[3])
+		                        , .RX_PKT3_VLD_OUT                (pregate_pkt_rxvld_i[3])
+		                        , .RX_PKT3_RDY_IN                 (pregate_pkt_rxrdy_i[3])
+		                        , .RX_PKT4_DATA_OUT               (pregate_pkt_rxdata_i[4])
+	                                , .RX_PKT4_VLD_OUT                (pregate_pkt_rxvld_i[4])
+	                                , .RX_PKT4_RDY_IN                 (pregate_pkt_rxrdy_i[4])
+	                                , .RX_PKT5_DATA_OUT               (pregate_pkt_rxdata_i[5])
+		                        , .RX_PKT5_VLD_OUT                (pregate_pkt_rxvld_i[5])
+		                        , .RX_PKT5_RDY_IN                 (pregate_pkt_rxrdy_i[5])
+		                        , .RX_PKT6_DATA_OUT               (pregate_pkt_rxdata_i[6])
+	                                , .RX_PKT6_VLD_OUT                (pregate_pkt_rxvld_i[6])
+	                                , .RX_PKT6_RDY_IN                 (pregate_pkt_rxrdy_i[6])
+	                                , .RX_PKT7_DATA_OUT               (pregate_pkt_rxdata_i[7])
+		                        , .RX_PKT7_VLD_OUT                (pregate_pkt_rxvld_i[7])
+		                        , .RX_PKT7_RDY_IN                 (pregate_pkt_rxrdy_i[7])
 		                          // top-level control inputs
 			                , .SCRMBL_IDL_DAT                 (scrmbl_idl_dat_i[2])
 		                          // High-level protocol performance counters
@@ -1646,8 +1647,21 @@ generate if (INCLUDE_PERIPH_SUPPORT)
 		for (i = 0; i < `NUM_CHANS; i = i + 1)
 			begin
 				// gate peripheral input vld/rdy signals with peripheral input enable
-				assign periph_pkt_rxvld_i[i] = ungated_pkt_rxvld_i[i] & periph_in_en_i;
-				assign gated_pkt_rxrdy_i[i]  = periph_pkt_rxrdy_i[i]  & periph_in_en_i;
+                                //NOTE: ER bits used to indicate config packet (bit[5:4] == 2'b11)
+                                wire config_pkt = pregate_pkt_rxdata_i[i][4];
+
+                                // clear ER bits
+                                //NOTE: no need to fix parity as 2 bits change from 1 to 0
+                                assign periph_pkt_rxdata_i[i] =
+                                        {pregate_pkt_rxdata_i[i][`PKT_BITS - 1:6], 2'b00, pregate_pkt_rxdata_i[i][3:0]};
+
+                                // let config packets through always
+				assign periph_pkt_rxvld_i[i] = pregate_pkt_rxvld_i[i]
+                                        & (periph_in_en_i | config_pkt);
+
+                                // drop non-config packets if peripherals not enabled
+                                assign pregate_pkt_rxrdy_i[i] = periph_pkt_rxrdy_i[i]
+                                        | (!periph_in_en_i & !config_pkt);
 			end
 	end
 else
@@ -1925,8 +1939,10 @@ generate case ({INCLUDE_PERIPH_OUTPUT_SUPPORT, INCLUDE_B2B_SUPPORT})
 					// connect PER_OUT switch output port to peripheral links
 					// use emergency routing bits to indicate peripheral/remote_config packet
 					//NOTE: no need to recalculate parity as 2 bits change from 0 to 1
-					assign fast_periph_pkt_txdata_i  = switch_out_data_i[PER_OUT * `PKT_BITS +: `PKT_BITS]
-						| {{64 {1'b0}}, 2'b00, rconf_pkt_i, rconf_pkt_i, 4'b0000};
+                                        wire [`PKT_BITS - 1:0] fpp_data_i = switch_out_data_i[PER_OUT * `PKT_BITS +: `PKT_BITS];
+                                        assign fast_periph_pkt_txdata_i =
+                                                {fpp_data_i[`PKT_BITS - 1:6], rconf_pkt_i, rconf_pkt_i, fpp_data_i[3:0]};
+
 					assign fast_periph_pkt_txvld_i   = switch_out_vld_i[PER_OUT];
 					assign switch_out_rdy_i[PER_OUT] = fast_periph_pkt_txrdy_i;
 

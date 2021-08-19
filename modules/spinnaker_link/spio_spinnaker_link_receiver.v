@@ -310,17 +310,6 @@ module flit_input_if
   endfunction
 
 
-  //-------------------------------------------------------------
-  // SpiNNaker link interface: generate SL_ACK_OUT
-  //-------------------------------------------------------------
-  always @(posedge CLK_IN or posedge RESET_IN)
-    if (RESET_IN)
-      SL_ACK_OUT <= 1'b0;
-    else
-    if (send_ack)
-      SL_ACK_OUT <= ~SL_ACK_OUT;
-
-
   //---------------------------------------------------------------
   // translate data from nrz to rtz
   //---------------------------------------------------------------
@@ -335,9 +324,9 @@ module flit_input_if
     dat_flit = data_2of7 (rtz_data);
 
 
-  //---------------------------------------------------------------
+  //-------------------------------------------------------------
   // is the new nrz flit an end-of-packet?
-  //---------------------------------------------------------------
+  //-------------------------------------------------------------
   always @(*)
     eop_flit = eop_2of7 (rtz_data);
 
@@ -356,106 +345,18 @@ module flit_input_if
     bad_flit = err_flit && err_seen;
 
 
-  //---------------------------------------------------------------
+  //-------------------------------------------------------------
   // detect the arrival of a new nrz flit
-  //---------------------------------------------------------------
+  //-------------------------------------------------------------
   always @(*)
     new_flit = dat_flit || eop_flit || bad_flit;
-
-
-  //-------------------------------------------------------------
-  // remember nrz 2of7 data to generate next rtz value
-  //-------------------------------------------------------------
-  always @(posedge CLK_IN)
-    case (state)
-      STRT_ST:
-        old_data_2of7 <= SL_DATA_2OF7_IN;  // remember initial data
-
-      IDLE_ST,
-      RECV_ST:
-        if (new_flit && flt_cts)
-          old_data_2of7 <= SL_DATA_2OF7_IN;  // remember incoming data
-    endcase 
-
-
-  //---------------------------------------------------------------
-  // deal with short (1 clock cycle) glitches
-  //---------------------------------------------------------------
-  always @(posedge CLK_IN or posedge RESET_IN)
-    if (RESET_IN)
-      err_seen <= 1'b0;  // ignore glitches during reset
-    else
-    if (err_flit && !err_seen)
-      err_seen <= 1'b1;
-    else
-      err_seen <= 1'b0;
-
-
-  //---------------------------------------------------------------
-  // error reporting (2 clock cycles -- counter runs on slower clock)
-  //---------------------------------------------------------------
-  reg gch_err_ext;  // extend error indication by 1 clock cycle
-  always @(posedge CLK_IN or posedge RESET_IN)
-    if (RESET_IN)
-      gch_err_ext <= 1'b0;
-    else
-      gch_err_ext <= GCH_ERR_OUT;
-
-  always @(posedge CLK_IN or posedge RESET_IN)
-    if (RESET_IN)
-      GCH_ERR_OUT <= 1'b0;
-    else
-    if (err_seen)
-      GCH_ERR_OUT <= 1'b1;
-    else if (gch_err_ext)
-      GCH_ERR_OUT <= 1'b0;
-
-
-  //---------------------------------------------------------------
-  reg dat_flit_l;  // correct data flit arrived
-  reg eop_flit_l;  // end-of-packet flit arrived
-  reg bad_flit_l;  // incorrect data flit (not a glitch)
-  reg new_flit_l;  // new flit arrived
-
-  reg [6:0] rtz_data_l;  // data translated from nrz to rtz
-
-  always @(posedge CLK_IN or posedge RESET_IN)
-    if (RESET_IN)
-      dat_flit_l <= 1'b0;
-    else
-      dat_flit_l <= dat_flit;
-
-  always @(posedge CLK_IN or posedge RESET_IN)
-    if (RESET_IN)
-      eop_flit_l <= 1'b0;
-    else
-      eop_flit_l <= eop_flit;
-
-  always @(posedge CLK_IN or posedge RESET_IN)
-    if (RESET_IN)
-      bad_flit_l <= 1'b0;
-    else
-      bad_flit_l <= bad_flit;
-
-  always @(posedge CLK_IN or posedge RESET_IN)
-    if (RESET_IN)
-      new_flit_l <= 1'b0;
-    else
-      new_flit_l <= new_flit;
-
-  always @(posedge CLK_IN or posedge RESET_IN)
-    if (RESET_IN)
-      rtz_data_l <= 7'b0000000;
-    else
-      rtz_data_l <= rtz_data;
-  //---------------------------------------------------------------
 
 
   //---------------------------------------------------------------
   // decode new data flit
   //---------------------------------------------------------------
   always @(*)
-    new_data = decode_2of7 (rtz_data_l);
+    new_data = decode_2of7 (rtz_data);
 
 
   //---------------------------------------------------------------
@@ -466,19 +367,30 @@ module flit_input_if
 
 
   //-------------------------------------------------------------
+  // SpiNNaker link interface: generate SL_ACK_OUT
+  //-------------------------------------------------------------
+  always @(posedge CLK_IN or posedge RESET_IN)
+    if (RESET_IN)
+      SL_ACK_OUT <= 1'b0;
+    else
+      if (send_ack)
+        SL_ACK_OUT <= ~SL_ACK_OUT;
+
+
+  //-------------------------------------------------------------
   // send next value of SL_ACK_OUT (toggle SL_ACK_OUT)
   //-------------------------------------------------------------
   always @(*)
     case (state)
       STRT_ST:   send_ack = 1'b1;  // mimic SpiNNaker: ack on reset exit
 
-      IDLE_ST: if (new_flit_l && flt_cts)
+      IDLE_ST: if (new_flit && flt_cts)
                  send_ack = 1'b1;  //  ack new flit when ready
                else
                  send_ack = 1'b0;  //  no ack!
 
       RECV_ST: if (((dly_cnt == 0) && (ack_cnt < ack_tot))
-                    || eop_flit_l || (new_flit_l && (nf_cnt >= ack_tot))
+                    || eop_flit || (new_flit && (nf_cnt >= ack_tot))
                   )
                  send_ack = 1'b1;  //  ack new flit when ready
                else
@@ -489,10 +401,25 @@ module flit_input_if
 
 
   //-------------------------------------------------------------
+  // remember nrz 2of7 data to generate next rtz value
+  //-------------------------------------------------------------
+  always @(posedge CLK_IN)
+    case (state)
+      STRT_ST:
+          old_data_2of7 <= SL_DATA_2OF7_IN;  // remember initial data
+
+      IDLE_ST,
+      RECV_ST:
+        if (new_flit && flt_cts)
+          old_data_2of7 <= SL_DATA_2OF7_IN;  // remember incoming data
+    endcase 
+
+
+  //-------------------------------------------------------------
   // determine how many "predictive" acks should be sent
   //-------------------------------------------------------------
   always @(posedge CLK_IN)
-    casex ({(state == IDLE_ST), bad_flit_l, dat_flit_l, pkt_size})
+    casex ({(state == IDLE_ST), bad_flit, dat_flit, pkt_size})
       4'b11xx: ack_tot <= 5'd0;
       4'b1x10: ack_tot <= SPKT_FLTS;
       4'b1x11: ack_tot <= LPKT_FLTS;
@@ -533,9 +460,9 @@ module flit_input_if
     if (RESET_IN)
       nf_cnt <= 0;
     else
-      if (eop_flit_l)
+      if (eop_flit)
         nf_cnt <= 0;
-      else if (new_flit_l && flt_cts)
+      else if (new_flit && flt_cts)
         nf_cnt <= nf_cnt + 1;
 
 
@@ -543,7 +470,7 @@ module flit_input_if
   // packet deserializer interface: generate flt_data_bad
   //-------------------------------------------------------------
   always @(posedge CLK_IN)
-    flt_data_bad <= rtz_data_l;  // send rtz incoming data
+    flt_data_bad <= rtz_data;  // send rtz incoming data
 
 
   //-------------------------------------------------------------
@@ -552,7 +479,7 @@ module flit_input_if
   always @(posedge CLK_IN)
     case (state)
       IDLE_ST,
-      RECV_ST:  if (dat_flit_l && flt_cts)
+      RECV_ST:  if (dat_flit && flt_cts)
                   flt_data_bin <= new_data;  // send decoded incoming data
     endcase 
 
@@ -566,7 +493,7 @@ module flit_input_if
     else
       case (state)
         IDLE_ST,
-        RECV_ST:  if (dat_flit_l && flt_cts)
+        RECV_ST:  if (dat_flit && flt_cts)
                     flt_dat <= 1'b1;
                   else
                     flt_dat <= 1'b0;
@@ -584,7 +511,7 @@ module flit_input_if
     else
       case (state)
         IDLE_ST,
-        RECV_ST:  if (bad_flit_l && flt_cts)
+        RECV_ST:  if (bad_flit && flt_cts)
                     flt_bad <= 1'b1;
                   else
                     flt_bad <= 1'b0;
@@ -602,13 +529,47 @@ module flit_input_if
     else
       case (state)
         IDLE_ST,
-        RECV_ST:  if (eop_flit_l && flt_cts)
+        RECV_ST:  if (eop_flit && flt_cts)
                     flt_eop <= 1'b1;
                   else
                     flt_eop <= 1'b0;
 
         default:    flt_eop <= 1'b0;
       endcase 
+
+
+  //-------------------------------------------------------------
+  // deal with short (1 clock cycle) glitches
+  //-------------------------------------------------------------
+  always @(posedge CLK_IN or posedge RESET_IN)
+    if (RESET_IN)
+      err_seen <= 1'b0;  // ignore glitches during reset
+    else
+      if (err_flit && !err_seen)
+        err_seen <= 1'b1;
+      else
+        err_seen <= 1'b0;
+
+
+  //---------------------------------------------------------------
+  // error reporting (2 clock cycles -- counter runs on slower clock)
+  //---------------------------------------------------------------
+  reg gch_err_ext;  // extend error indication by 1 clock cycle
+  always @(posedge CLK_IN or posedge RESET_IN)
+    if (RESET_IN)
+      gch_err_ext <= 1'b0;
+    else
+      gch_err_ext <= GCH_ERR_OUT;
+
+  always @(posedge CLK_IN or posedge RESET_IN)
+    if (RESET_IN)
+      GCH_ERR_OUT <= 1'b0;
+    else
+      if (err_seen)
+        GCH_ERR_OUT <= 1'b1;
+      else if (gch_err_ext)
+        GCH_ERR_OUT <= 1'b0;
+  //---------------------------------------------------------------
 
 
   //-------------------------------------------------------------
@@ -620,14 +581,14 @@ module flit_input_if
     else
       case (state)
         IDLE_ST:
-          casex ({flt_cts, dat_flit_l, eop_flit_l, bad_flit_l})
+          casex ({flt_cts, dat_flit, eop_flit, bad_flit})
             4'b11xx,
             4'b1xx1: state <= RECV_ST;
 
             4'b1x1x: state <= EOPW_ST;
           endcase
 
-        RECV_ST: if (eop_flit_l)
+        RECV_ST: if (eop_flit)
                    state <= EOPW_ST;
 
         default:   state <= IDLE_ST;
@@ -685,16 +646,6 @@ module pkt_deserializer
 
   reg                     send_bad_pkt;  // send bad pkt out
   reg   [`PKT_BITS - 1:0] bad_pkt;       // bad pkt
-  reg                     bad_pkt_pty;   // bad pkt parity
-  reg               [6:0] bad_flt_dat;   // bad flit data
-  reg               [5:0] bad_flt_cnt;   // bad flit count
-  reg               [7:0] bad_flt_cyc;   // bad flit cycle
-
-  reg               [6:0] dbg_flt_dat;   // pre flit data
-  reg               [5:0] dbg_flt_cnt;   // pre flit count
-  reg               [7:0] dbg_flt_cyc;   // pre flit cycle
-
-  reg               [7:0] cycle_cnt;     // packet cycle count
 
   reg   [`PKT_BITS - 1:0] pkt_buf;   // buffer used to assemble pkt
 
@@ -823,31 +774,9 @@ module pkt_deserializer
     pkt_out = send_pkt && !pkt_busy;
 
 
-  //---------------------------------------------------------------
-  // keep track of the number of clock cycles for this packet
-  //---------------------------------------------------------------
-  always @(posedge CLK_IN or posedge RESET_IN)
-    if (RESET_IN)
-      cycle_cnt <= 0;
-    else
-      if (pkt_out)
-        cycle_cnt <= 0;                // restart cycle count for next packet
-      else                             // don't count idle or wait cycles!
-        if (state == IDLE_ST)
-          cycle_cnt <= 1;              // 1st cycle in outgoing packet
-        else if (state != WAIT_ST)
-          cycle_cnt <= cycle_cnt + 1;  // count cycle in outgoing packet
-
-
   //-------------------------------------------------------------
-  // send debug packet with bad parity if an error occured
+  // send packet with bad parity if an error occurred
   //-------------------------------------------------------------
-  wire pre_cycle = (!send_bad_pkt && (flt_dat || flt_eop));
-  wire pos_cycle = (send_bad_pkt && (cycle_cnt == (bad_flt_cyc + 1)));
-//!  wire dbg_cycle = pre_cycle;
-  wire dbg_cycle = pos_cycle;
-   
-
   always @(posedge CLK_IN or posedge RESET_IN)
     if (RESET_IN)
       send_bad_pkt <= 1'b0;
@@ -856,58 +785,9 @@ module pkt_deserializer
         send_bad_pkt <= 1'b1;
       else if (pkt_out)
         send_bad_pkt <= 1'b0;  // clear state for new packet
-        
-  always @(posedge CLK_IN)
-    if (flt_bad && !send_bad_pkt)
-      bad_flt_dat <= flt_data_bad;
-    else if (pkt_out)
-      bad_flt_dat <= 0;  // clear state for new packet
-        
-  always @(posedge CLK_IN)
-    if (flt_bad && !send_bad_pkt)
-      bad_flt_cnt <= flit_cnt;
-    else if (pkt_out)
-      bad_flt_cnt <= 0;  // clear state for new packet
-        
-  always @(posedge CLK_IN)
-    if (flt_bad && !send_bad_pkt)
-      bad_flt_cyc <= cycle_cnt;
-    else if (pkt_out)
-      bad_flt_cyc <= 8'hcc;  // clear state for new packet
-        
-  always @(posedge CLK_IN)
-    if (dbg_cycle)
-      dbg_flt_dat <= flt_data_bad;
-    else if (pkt_out)
-      dbg_flt_dat <= 0;  // clear state for new packet
-        
-  always @(posedge CLK_IN)
-    if (dbg_cycle)
-      dbg_flt_cnt <= flit_cnt;
-    else if (pkt_out)
-      dbg_flt_cnt <= 0;  // clear state for new packet
-        
-  always @(posedge CLK_IN)
-    if (dbg_cycle)
-      dbg_flt_cyc <= cycle_cnt;
-    else if (pkt_out)
-      dbg_flt_cyc <= 8'hcc;  // clear state for new packet
-        
-  always @(*)
-    bad_pkt_pty = ^(dbg_flt_cyc ^ dbg_flt_dat ^ dbg_flt_cnt
-                     ^ bad_flt_cyc ^ exp_eop ^ send_bad_pkt
-                     ^ flit_cnt ^ bad_flt_dat ^ bad_flt_cnt
-                   );
 
   always @(*)
-    bad_pkt = {bad_flt_cyc, dbg_flt_cyc,
-                1'b0, dbg_flt_dat, 2'b00, dbg_flt_cnt,
-                4'hb, 2'b00, exp_eop, send_bad_pkt,
-                2'b00, flit_cnt,
-                1'b0, bad_flt_dat,
-                2'b00, bad_flt_cnt,
-	        7'b0000001, bad_pkt_pty
-              };  // packet with wrong parity!
+    bad_pkt = {`PKT_BITS {1'b0}};  // packet with wrong parity!
 
 
   //---------------------------------------------------------------

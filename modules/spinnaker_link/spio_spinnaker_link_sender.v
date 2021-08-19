@@ -177,10 +177,10 @@ module pkt_serializer
   // constants
   //---------------------------------------------------------------
   //# Xilinx recommends one-hot state encoding
-  localparam STATE_BITS = 2;
-  localparam IDLE_ST    = 0;
-  localparam PARK_ST    = IDLE_ST + 1;
-  localparam TRAN_ST    = PARK_ST + 1;
+  localparam STATE_BITS = 3;
+  localparam IDLE_ST    = 3'b001;
+  localparam PARK_ST    = 3'b010;
+  localparam TRAN_ST    = 3'b100;
 
 
   //---------------------------------------------------------------
@@ -284,22 +284,16 @@ module pkt_serializer
   //-------------------------------------------------------------
   // flit interface: generate flt_data
   //-------------------------------------------------------------
+  //NOTE: eop updates one cycle late when going IDLE!
+  wire       feop = (state == IDLE_ST) ? 1'b0 : eop;
+  wire [3:0] fdat = (state == IDLE_ST) ? PKT_DATA_IN[3:0] : pkt_buf[3:0];
   always @(posedge CLK_IN or posedge RESET_IN)
     if (RESET_IN)
       flt_data <= 7'd0;
     else
-      case (state)
-        IDLE_ST: if (pkt_acpt && !flt_busy)
-                   flt_data <= encode_nrz_2of7 ({1'b0, PKT_DATA_IN[3:0]},
-                                                 flt_data
-                                               );  // first nibble
-
-        default: if (!flt_busy)
-                   flt_data <= encode_nrz_2of7 ({eop, pkt_buf[3:0]},
-                                                 flt_data
-                                               );  // next nibble or eop
-	                                           // first if parked
-      endcase 
+      // IDLE or PARK first nibble, else next nibble or eop
+      if (!flt_busy && (pkt_acpt || (state != IDLE_ST)))
+        flt_data <= encode_nrz_2of7 ({feop, fdat}, flt_data);
 
 
   //-------------------------------------------------------------
