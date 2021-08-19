@@ -1830,29 +1830,116 @@ generate case ({INCLUDE_PERIPH_OUTPUT_SUPPORT, INCLUDE_B2B_SUPPORT})
 		//NOTE: make unused SpiNNaker chip links not ready
                 for (i = 0; i < NUM_LINKS; i = i + 1)
                         if (i == PERIPH_OUTPUT_LINK)
-                        	// if needed add a speed adapter between the full-speed
-                        	// logic and the half-speed peripheral output link 
-                        	if (PERIPH_HALF_SPEED)
-                        		spio_link_speed_halver #( .PKT_BITS (`PKT_BITS))
-                       			spio_link_speed_halver_i( .RESET_IN (switch_reset_i)
-                       				, .SCLK_IN  (periph_usrclk2_i)
-                       				, .FCLK_IN  (b2b_usrclk2_i)
-                       				// Incoming signals (on CLK_IN)
-                       				, .DATA_IN  (sl_pkt_rxdata_i[i])
-                       				, .VLD_IN   (sl_pkt_rxvld_i[i])
-                       				, .RDY_OUT  (sl_pkt_rxrdy_i[i])
-                       				// Outgoing signals (on CLK2_IN)
-                       				, .DATA_OUT (periph_pkt_txdata_i)
-                       				, .VLD_OUT  (periph_pkt_txvld_i)
-                       				, .RDY_IN   (periph_pkt_txrdy_i)
-                       			);
-                		else
-	                                // connect available output peripheral links
-	        			begin : spinnaker_rx_link_routing_not_used
-	        				assign periph_pkt_txdata_i = sl_pkt_rxdata_i[i];
-	        				assign periph_pkt_txvld_i  = sl_pkt_rxvld_i[i];
-	        				assign sl_pkt_rxrdy_i[i]   = periph_pkt_txrdy_i;
-	        			end
+                                begin : spinnaker_rx_link_routing
+                                        localparam SO = 2;       // number of switch outputs
+                                        localparam PER_OUT = 0;  // peripheral (+ remote config) switch output
+                                        localparam LCF_OUT = 1;  // local config switch output
+
+                                        // switch output ports (which must be
+                                        // broken onto their various buses)
+                                        wire [(`PKT_BITS * SO) - 1:0] switch_out_data_i;
+                                        wire               [SO - 1:0] switch_out_vld_i;
+                                        wire               [SO - 1:0] switch_out_rdy_i;
+
+                                        wire [`PKT_BITS-1:0] fast_periph_pkt_txdata_i;
+                                        wire                 fast_periph_pkt_txvld_i;
+                                        wire                 fast_periph_pkt_txrdy_i;
+
+                                        // switch outputs disconnection status
+                                        wire [SO - 1:0] disconn_outputs_i;
+                                        assign disconn_outputs_i[PER_OUT] = !periph_handshake_complete_i;
+                                        assign disconn_outputs_i[LCF_OUT] = 1'b0;  // always available!
+
+                                        // Only match non-emergency routed multicast packets
+                                        wire is_mc_packet_i = (sl_pkt_rxdata_i[i][0+:8]  & 8'b11110000) == 8'b00000000;
+                                        wire pkey_matches_i = (sl_pkt_rxdata_i[i][8+:32] & periph_mc_mask_i) == periph_mc_key_i;
+                                        wire rkey_matches_i = (sl_pkt_rxdata_i[i][8+:32] & rc_mask_i) == rc_key_i;
+                                        wire lkey_matches_i = (sl_pkt_rxdata_i[i][8+:32] & lc_mask_i) == lc_key_i;
+
+                                        // route packets according to key/mask settings
+                                        wire periph_pkt_i = is_mc_packet_i && pkey_matches_i;
+                                        wire rconf_pkt_i  = is_mc_packet_i && rkey_matches_i;
+                                        wire lconf_pkt_i  = is_mc_packet_i && lkey_matches_i;
+
+                                        wire [SO - 1:0] route_i;
+                                        assign route_i[PER_OUT] = periph_pkt_i | rconf_pkt_i;
+                                        assign route_i[LCF_OUT] = lconf_pkt_i;
+
+                                        // drop packets whenever blocked while also being known to be disconnected.
+                                        wire drop_i = |(switch_blocked_outputs_i & disconn_outputs_i);
+
+                                        // Route packets arriving from the first bank of SpiNNaker chips.
+                                        spio_switch #( .PKT_BITS             (`PKT_BITS)
+                                                     , .NUM_PORTS            (SO)
+                                                     )
+                                        spio_switch_i( .CLK_IN               (b2b_usrclk2_i)
+                                                     , .RESET_IN             (switch_reset_i)
+                                                       // Output selection
+                                                     , .IN_OUTPUT_SELECT_IN  (route_i)
+                                                       // Input port (from SpiNNaker chips)
+                                                     , .IN_DATA_IN           (sl_pkt_rxdata_i[i])
+                                                     , .IN_VLD_IN            (sl_pkt_rxvld_i[i])
+                                                     , .IN_RDY_OUT           (sl_pkt_rxrdy_i[i])
+                                                        // Output ports
+                                                     , .OUT_DATA_OUT         (switch_out_data_i)
+                                                     , .OUT_VLD_OUT          (switch_out_vld_i)
+                                                     , .OUT_RDY_IN           (switch_out_rdy_i)
+                                                       // Output blocking status
+                                                     , .BLOCKED_OUTPUTS_OUT  (switch_blocked_outputs_i)
+                                                     , .SELECTED_OUTPUTS_OUT (switch_selected_outputs_i)
+                                                       // Force packet drop
+                                                     , .DROP_IN              (drop_i)
+                                                       // Dropped packet port
+                                                     , .DROPPED_DATA_OUT     (switch_dropped_data_i)
+                                                     , .DROPPED_OUTPUTS_OUT  (switch_dropped_outputs_i)
+                                                     , .DROPPED_VLD_OUT      (switch_dropped_vld_i)
+                                                     );
+
+                                        // connect PER_OUT switch output port to peripheral links
+                                        // use emergency routing bits to indicate peripheral/remote_config packet
+                                        //NOTE: no need to recalculate parity as 2 bits change from 0 to 1
+                                        wire [`PKT_BITS - 1:0] fpp_data_i = switch_out_data_i[PER_OUT * `PKT_BITS +: `PKT_BITS];
+                                        assign fast_periph_pkt_txdata_i =
+                                                {fpp_data_i[`PKT_BITS - 1:6], rconf_pkt_i, rconf_pkt_i, fpp_data_i[3:0]};
+
+                                        assign fast_periph_pkt_txvld_i   = switch_out_vld_i[PER_OUT];
+                                        assign switch_out_rdy_i[PER_OUT] = fast_periph_pkt_txrdy_i;
+
+                                        // connect LCF_OUT switch output port to local configuration logic
+                                        wire [`PKT_BITS-1:0] lc_pkt_txdata_i = switch_out_data_i[LCF_OUT * `PKT_BITS +: `PKT_BITS];
+                                        assign lc_pkt_tx_vld_i               = switch_out_vld_i[LCF_OUT];
+                                        assign switch_out_rdy_i[LCF_OUT]     = 1'b1;  // always ready
+
+                                        assign lc_reg_write_i      = lc_pkt_tx_vld_i;
+                                        assign lc_reg_addr_i       = lc_pkt_txdata_i[8 +: 8];
+                                        assign lc_reg_write_data_i = lc_pkt_txdata_i[40 +: 32];
+
+                                        // if needed add a speed adapter between the full-speed
+                                        // switch and the half-speed peripheral links
+                                        if (PERIPH_HALF_SPEED)
+                                                begin : peripheral_halver
+                                                        spio_link_speed_halver #( .PKT_BITS (`PKT_BITS))
+                                                        spio_link_speed_halver_i( .RESET_IN (switch_reset_i)
+                                                                                , .SCLK_IN  (periph_usrclk2_i)
+                                                                                , .FCLK_IN  (b2b_usrclk2_i)
+                                                                                  // Incoming signals (on CLK_IN)
+                                                                                , .DATA_IN  (fast_periph_pkt_txdata_i)
+                                                                                , .VLD_IN   (fast_periph_pkt_txvld_i)
+                                                                                , .RDY_OUT  (fast_periph_pkt_txrdy_i)
+                                                                                  // Outgoing signals (on CLK2_IN)
+                                                                                , .DATA_OUT (periph_pkt_txdata_i)
+                                                                                , .VLD_OUT  (periph_pkt_txvld_i)
+                                                                                , .RDY_IN   (periph_pkt_txrdy_i)
+                                                                                );
+                                                end
+                                        else
+                                                // connect switch directly to full-speed peripheral links
+                                                begin : peripheral_halver_not_used
+                                                        assign periph_pkt_txdata_i     = fast_periph_pkt_txdata_i;
+                                                        assign periph_pkt_txvld_i      = fast_periph_pkt_txvld_i;
+                                                        assign fast_periph_pkt_txrdy_i = periph_pkt_txrdy_i;
+                                                end
+                                end
                         else
                                 // signal all other SpiNNaker chip links as not ready
                                 assign sl_pkt_rxrdy_i[i] = 1'b0;
@@ -1956,7 +2043,7 @@ generate case ({INCLUDE_PERIPH_OUTPUT_SUPPORT, INCLUDE_B2B_SUPPORT})
 					assign lc_reg_write_data_i = lc_pkt_txdata_i[40 +: 32];
 
 					// if needed add a speed adapter between the full-speed
-					// switch and the half-speed peripheral links 
+					// switch and the half-speed peripheral links
 					if (PERIPH_HALF_SPEED)
 						begin : peripheral_halver
 							spio_link_speed_halver #( .PKT_BITS (`PKT_BITS))
