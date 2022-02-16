@@ -59,9 +59,9 @@ on every data line. This, of course, would be unsafe in a binary-encoded data bu
 
 #### STAC (synchronous timing/asynchronous control) operation
 
-A basic 2-flop-synchroniser-based scheme works correctly but may limit the bandwidth
+A basic 2-flop synchroniser scheme works correctly but may limit the bandwidth
 of the SpiNNaker link, due to the added latency of the synchronisers in the
-round-trip handshake. This library also provides sender and transmitter modules
+round-trip handshake. This library also provides sender and receiver modules
 that implement a more aggressive sheme, called `STAC (synchronous timing/asynchronous
 control)`, to interface to SpiNNaker asynchronous channels.
 This scheme also uses 2-flop synchronisers but is based on the `predictive handshake`
