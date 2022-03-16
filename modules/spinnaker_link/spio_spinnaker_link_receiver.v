@@ -646,16 +646,6 @@ module pkt_deserializer
 
   reg                     send_bad_pkt;  // send bad pkt out
   reg   [`PKT_BITS - 1:0] bad_pkt;       // bad pkt
-  reg                     bad_pkt_pty;   // bad pkt parity
-  reg               [6:0] bad_flt_dat;   // bad flit data
-  reg               [5:0] bad_flt_cnt;   // bad flit count
-  reg               [7:0] bad_flt_cyc;   // bad flit cycle
-
-  reg               [6:0] dbg_flt_dat;   // pre flit data
-  reg               [5:0] dbg_flt_cnt;   // pre flit count
-  reg               [7:0] dbg_flt_cyc;   // pre flit cycle
-
-  reg               [7:0] cycle_cnt;     // packet cycle count
 
   reg   [`PKT_BITS - 1:0] pkt_buf;   // buffer used to assemble pkt
 
@@ -784,31 +774,9 @@ module pkt_deserializer
     pkt_out = send_pkt && !pkt_busy;
 
 
-  //---------------------------------------------------------------
-  // keep track of the number of clock cycles for this packet
-  //---------------------------------------------------------------
-  always @(posedge CLK_IN or posedge RESET_IN)
-    if (RESET_IN)
-      cycle_cnt <= 0;
-    else
-      if (pkt_out)
-        cycle_cnt <= 0;                // restart cycle count for next packet
-      else                             // don't count idle or wait cycles!
-        if (state == IDLE_ST)
-          cycle_cnt <= 1;              // 1st cycle in outgoing packet
-        else if (state != WAIT_ST)
-          cycle_cnt <= cycle_cnt + 1;  // count cycle in outgoing packet
-
-
   //-------------------------------------------------------------
-  // send debug packet with bad parity if an error occured
+  // send packet with bad parity if an error occurred
   //-------------------------------------------------------------
-  wire pre_cycle = (!send_bad_pkt && (flt_dat || flt_eop));
-  wire pos_cycle = (send_bad_pkt && (cycle_cnt == (bad_flt_cyc + 1)));
-//!  wire dbg_cycle = pre_cycle;
-  wire dbg_cycle = pos_cycle;
-   
-
   always @(posedge CLK_IN or posedge RESET_IN)
     if (RESET_IN)
       send_bad_pkt <= 1'b0;
@@ -817,58 +785,9 @@ module pkt_deserializer
         send_bad_pkt <= 1'b1;
       else if (pkt_out)
         send_bad_pkt <= 1'b0;  // clear state for new packet
-        
-  always @(posedge CLK_IN)
-    if (flt_bad && !send_bad_pkt)
-      bad_flt_dat <= flt_data_bad;
-    else if (pkt_out)
-      bad_flt_dat <= 0;  // clear state for new packet
-        
-  always @(posedge CLK_IN)
-    if (flt_bad && !send_bad_pkt)
-      bad_flt_cnt <= flit_cnt;
-    else if (pkt_out)
-      bad_flt_cnt <= 0;  // clear state for new packet
-        
-  always @(posedge CLK_IN)
-    if (flt_bad && !send_bad_pkt)
-      bad_flt_cyc <= cycle_cnt;
-    else if (pkt_out)
-      bad_flt_cyc <= 8'hcc;  // clear state for new packet
-        
-  always @(posedge CLK_IN)
-    if (dbg_cycle)
-      dbg_flt_dat <= flt_data_bad;
-    else if (pkt_out)
-      dbg_flt_dat <= 0;  // clear state for new packet
-        
-  always @(posedge CLK_IN)
-    if (dbg_cycle)
-      dbg_flt_cnt <= flit_cnt;
-    else if (pkt_out)
-      dbg_flt_cnt <= 0;  // clear state for new packet
-        
-  always @(posedge CLK_IN)
-    if (dbg_cycle)
-      dbg_flt_cyc <= cycle_cnt;
-    else if (pkt_out)
-      dbg_flt_cyc <= 8'hcc;  // clear state for new packet
-        
-  always @(*)
-    bad_pkt_pty = ^(dbg_flt_cyc ^ dbg_flt_dat ^ dbg_flt_cnt
-                     ^ bad_flt_cyc ^ exp_eop ^ send_bad_pkt
-                     ^ flit_cnt ^ bad_flt_dat ^ bad_flt_cnt
-                   );
 
   always @(*)
-    bad_pkt = {bad_flt_cyc, dbg_flt_cyc,
-                1'b0, dbg_flt_dat, 2'b00, dbg_flt_cnt,
-                4'hb, 2'b00, exp_eop, send_bad_pkt,
-                2'b00, flit_cnt,
-                1'b0, bad_flt_dat,
-                2'b00, bad_flt_cnt,
-	        7'b0000001, bad_pkt_pty
-              };  // packet with wrong parity!
+    bad_pkt = {`PKT_BITS {1'b0}};  // packet with wrong parity!
 
 
   //---------------------------------------------------------------

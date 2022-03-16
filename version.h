@@ -22,7 +22,7 @@
 `ifndef SPIO_VERSION_H
 `define SPIO_VERSION_H
 
-`define SPIO_VER_STR      "1.0.3"
-`define SPIO_VER_NUM      32'h00010003  // 32'h00MMmmpp
+`define SPIO_VER_STR      "1.1.0"
+`define SPIO_VER_NUM      32'h00010100  // 32'h00MMmmpp
 
 `endif
