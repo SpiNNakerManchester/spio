@@ -112,6 +112,17 @@ genvar i;
 
 `include "spinnaker_fpgas_top.h"
 
+// extra peripheral routing key/mask registers
+localparam XR = 6;
+
+// number of switch outputs
+localparam SO = 2 + INCLUDE_B2B_SUPPORT;
+
+// direct switch outputs
+localparam LCF_OUT = 0;  // local config switch output
+localparam PER_OUT = 1;  // peripheral (+ remote config) switch output
+localparam B2B_OUT = 2;  // board-to-board switch output
+
 // include peripheral support that is common to peripheral input and peripheral output
 localparam INCLUDE_PERIPH_SUPPORT = INCLUDE_PERIPH_INPUT_SUPPORT | INCLUDE_PERIPH_OUTPUT_SUPPORT;
 
@@ -125,11 +136,11 @@ localparam PERIPH_OUTPUT_LINK = 15;
 // SpiNNaker link to peripheral input channel map (0 = no connection)
 //NOTE: at most 8 peripheral input channels are supported, numbered 1 - 8 below.
 localparam [(4 * NUM_LINKS) - 1:0] PERIPH_INPUT_LINKS = {
-							  4'd1, 4'd0, 4'd2, 4'd0
-							, 4'd3, 4'd0, 4'd4, 4'd0
-							, 4'd5, 4'd0, 4'd6, 4'd0
-							, 4'd7, 4'd0, 4'd8, 4'd0
-							};
+                                                          4'd1, 4'd0, 4'd2, 4'd0
+                                                        , 4'd3, 4'd0, 4'd4, 4'd0
+                                                        , 4'd5, 4'd0, 4'd6, 4'd0
+                                                        , 4'd7, 4'd0, 4'd8, 4'd0
+                                                        };
 
 // GTP internal loopback connectivity (for debugging)
 localparam    B2B_GTP_LOOPBACK = 3'b000;
@@ -150,7 +161,6 @@ wire  [7:0] rxeqmix_i;
 wire [15:0] txdiffctrl_i;
 wire [11:0] txpreemphasis_i;
 
-
 // External reset signal
 wire n_reset_i;
 wire reset_i;
@@ -170,8 +180,9 @@ wire   ring_hss_reset_i;
 // SpiNN->FPGA, Bit 1 resets link 0 FPGA->SpiNN, and so on.
 wire [31:0] spinnaker_link_reset_i;
 
-// Reset for packet arbitration/routing blocks
+// Resets for packet arbitration/routing blocks
 wire arbiter_reset_i;
+wire switch_reset_i;
 
 // Reset for LED control
 wire led_reset_i;
@@ -352,15 +363,6 @@ wire [31:0] lc_reg_write_data_i;
 wire [`CTRA_BITS-1:0] pkt_ctr_addr_i [1:0];
 wire [`CTRD_BITS-1:0] pkt_ctr_read_data_i [1:0];
 
-// Routing (spio_switch) status signals
-wire [1:0] switch_blocked_outputs_i;
-wire [1:0] switch_selected_outputs_i;
-
-// Routing (spio_switch) packet dropping port
-wire [`PKT_BITS-1:0]  switch_dropped_data_i;
-wire [1:0]            switch_dropped_outputs_i;
-wire                  switch_dropped_vld_i;
-
 // SpiNNaker (2-of-7) link enable signals, used to tristate link IO buffers and
 // hold SpiNNaker link blocks in reset. Bit 0 controls link 0 SpiNN->FPGA, Bit
 // 1 controls link 0 FPGA->SpiNN, and so on.
@@ -370,8 +372,13 @@ wire [31:0] spinnaker_link_enable_i;
 wire        periph_in_en_i;
 
 // Key/mask to match to forward MC packets to peripheral link
-wire [31:0] periph_mc_key_i;
-wire [31:0] periph_mc_mask_i;
+//NOTE: deprecated! (periph_mc_key and periph_mc_mask are aliases)
+//wire [31:0] periph_mc_key_i;
+//wire [31:0] periph_mc_mask_i;
+
+// extra Keys/masks to match to forward MC packets to peripheral link
+wire [XR*32-1:0] xper_mc_key_i;
+wire [XR*32-1:0] xper_mc_mask_i;
 
 // Key/mask set for local configuration
 wire [31:0] lc_key_i;
@@ -402,49 +409,49 @@ assign clk_reset_i = reset_i | !plllkdet_i;
 // completely reset.
 generate if (INCLUDE_B2B_SUPPORT)
 	begin : b2b_hss_reset
-		assign b2b_hss_reset_i[0] = !b2b_gtpresetdone_i[0] | !usrclks_stable_i;
-		assign b2b_hss_reset_i[1] = !b2b_gtpresetdone_i[1] | !usrclks_stable_i;
+                assign b2b_hss_reset_i[0] = !b2b_gtpresetdone_i[0] | !usrclks_stable_i;
+                assign b2b_hss_reset_i[1] = !b2b_gtpresetdone_i[1] | !usrclks_stable_i;
 	end
 endgenerate
 
 generate if (INCLUDE_PERIPH_SUPPORT)
 	begin : ring_hss_reset
-		assign periph_hss_reset_i = !periph_gtpresetdone_i | !usrclks_stable_i;
+                assign periph_hss_reset_i = !periph_gtpresetdone_i | !usrclks_stable_i;
 	end
 endgenerate
 
 generate if (INCLUDE_RING_SUPPORT)
 	begin : ring_hss_reset
-		assign ring_hss_reset_i = !ring_gtpresetdone_i | !usrclks_stable_i;
+                assign ring_hss_reset_i = !ring_gtpresetdone_i | !usrclks_stable_i;
 	end
 endgenerate
 
 // SpiNNaker link blocks can be individually reset
 generate for (i = 0; i < 32; i = i + 1)
-	begin : spinnaker_link_reset
-		assign spinnaker_link_reset_i[i] = !(usrclks_stable_i && spinnaker_link_enable_i[i]);
-	end
+        begin : spinnaker_link_reset
+                assign spinnaker_link_reset_i[i] = !(usrclks_stable_i && spinnaker_link_enable_i[i]);
+        end
 endgenerate
 
 generate if (INCLUDE_PERIPH_INPUT_SUPPORT)
  	begin : arbiter_reset
- 		assign arbiter_reset_i = !usrclks_stable_i;
+                assign arbiter_reset_i = !usrclks_stable_i;
  	end
 endgenerate
 
 generate if (INCLUDE_PERIPH_OUTPUT_SUPPORT)
 	begin : switch_reset
-		assign switch_reset_i = !usrclks_stable_i;
+                assign switch_reset_i = !usrclks_stable_i;
 	end
 endgenerate
 
-assign led_reset_i = !usrclks_stable_i;
+assign led_reset_i      = !usrclks_stable_i;
 
-assign spi_reset_i = !usrclks_stable_i;
+assign spi_reset_i      = !usrclks_stable_i;
 
 assign reg_bank_reset_i = !usrclks_stable_i;
 
-assign pkt_ctr_reset_i = !usrclks_stable_i;
+assign pkt_ctr_reset_i  = !usrclks_stable_i;
 ////////////////////////////////////////////////////////////////////////////////
 
 
@@ -477,10 +484,10 @@ wire [3:0] device_led_states_i;
 // by the status generator.
 reg [1:0] led_dim_pwm_counter_i;
 always @ (posedge led_clk_i, posedge led_reset_i)
-	if (led_reset_i)
-		led_dim_pwm_counter_i = 2'b0;
-	else
-		led_dim_pwm_counter_i = led_dim_pwm_counter_i + 1;
+        if (led_reset_i)
+                led_dim_pwm_counter_i = 2'b0;
+        else
+                led_dim_pwm_counter_i = led_dim_pwm_counter_i + 1;
 
 // Somehow share these two LEDs between all four status indicators,
 // not just the B2B links...
@@ -528,55 +535,55 @@ spio_status_led_generator_i( .CLK_IN               (led_clk_i)
 
 // Generate the activity signal for each board-to-board link
 generate if (INCLUDE_B2B_SUPPORT)
-	for (i = 0; i < 2; i = i + 1)
-		begin : b2b_activity_signal
-			assign b2b_activity_i[i] = (b2b_pkt_rxvld_i[i][0] & b2b_pkt_rxrdy_i[i][0])
-			                         | (b2b_pkt_rxvld_i[i][1] & b2b_pkt_rxrdy_i[i][1])
-			                         | (b2b_pkt_rxvld_i[i][2] & b2b_pkt_rxrdy_i[i][2])
-			                         | (b2b_pkt_rxvld_i[i][3] & b2b_pkt_rxrdy_i[i][3])
-			                         | (b2b_pkt_rxvld_i[i][4] & b2b_pkt_rxrdy_i[i][4])
-			                         | (b2b_pkt_rxvld_i[i][5] & b2b_pkt_rxrdy_i[i][5])
-			                         | (b2b_pkt_rxvld_i[i][6] & b2b_pkt_rxrdy_i[i][6])
-			                         | (b2b_pkt_rxvld_i[i][7] & b2b_pkt_rxrdy_i[i][7])
-			                         | (b2b_pkt_txvld_i[i][0] & b2b_pkt_txrdy_i[i][0])
-			                         | (b2b_pkt_txvld_i[i][1] & b2b_pkt_txrdy_i[i][1])
-			                         | (b2b_pkt_txvld_i[i][2] & b2b_pkt_txrdy_i[i][2])
-			                         | (b2b_pkt_txvld_i[i][3] & b2b_pkt_txrdy_i[i][3])
-			                         | (b2b_pkt_txvld_i[i][4] & b2b_pkt_txrdy_i[i][4])
-			                         | (b2b_pkt_txvld_i[i][5] & b2b_pkt_txrdy_i[i][5])
-			                         | (b2b_pkt_txvld_i[i][6] & b2b_pkt_txrdy_i[i][6])
-			                         | (b2b_pkt_txvld_i[i][7] & b2b_pkt_txrdy_i[i][7])
-			                         ;
-		end
+        for (i = 0; i < 2; i = i + 1)
+                begin : b2b_activity_signal
+                        assign b2b_activity_i[i] = (b2b_pkt_rxvld_i[i][0] & b2b_pkt_rxrdy_i[i][0])
+                                                 | (b2b_pkt_rxvld_i[i][1] & b2b_pkt_rxrdy_i[i][1])
+                                                 | (b2b_pkt_rxvld_i[i][2] & b2b_pkt_rxrdy_i[i][2])
+                                                 | (b2b_pkt_rxvld_i[i][3] & b2b_pkt_rxrdy_i[i][3])
+                                                 | (b2b_pkt_rxvld_i[i][4] & b2b_pkt_rxrdy_i[i][4])
+                                                 | (b2b_pkt_rxvld_i[i][5] & b2b_pkt_rxrdy_i[i][5])
+                                                 | (b2b_pkt_rxvld_i[i][6] & b2b_pkt_rxrdy_i[i][6])
+                                                 | (b2b_pkt_rxvld_i[i][7] & b2b_pkt_rxrdy_i[i][7])
+                                                 | (b2b_pkt_txvld_i[i][0] & b2b_pkt_txrdy_i[i][0])
+                                                 | (b2b_pkt_txvld_i[i][1] & b2b_pkt_txrdy_i[i][1])
+                                                 | (b2b_pkt_txvld_i[i][2] & b2b_pkt_txrdy_i[i][2])
+                                                 | (b2b_pkt_txvld_i[i][3] & b2b_pkt_txrdy_i[i][3])
+                                                 | (b2b_pkt_txvld_i[i][4] & b2b_pkt_txrdy_i[i][4])
+                                                 | (b2b_pkt_txvld_i[i][5] & b2b_pkt_txrdy_i[i][5])
+                                                 | (b2b_pkt_txvld_i[i][6] & b2b_pkt_txrdy_i[i][6])
+                                                 | (b2b_pkt_txvld_i[i][7] & b2b_pkt_txrdy_i[i][7])
+                                                 ;
+                end
 else
-	for (i = 0; i < 2; i = i + 1)
-		begin : b2b_activity_signal
-			assign b2b_activity_i[i] = 1'b0;
-		end
+        for (i = 0; i < 2; i = i + 1)
+                begin : b2b_activity_signal
+                        assign b2b_activity_i[i] = 1'b0;
+                end
 endgenerate
 
 // Generate the activity signal for the peripheral link
 generate if (INCLUDE_PERIPH_SUPPORT)
-	assign periph_activity_i = (periph_pkt_rxvld_i[0] & periph_pkt_rxrdy_i[0])
-	                         | (periph_pkt_rxvld_i[1] & periph_pkt_rxrdy_i[1])
-	                         | (periph_pkt_rxvld_i[2] & periph_pkt_rxrdy_i[2])
-	                         | (periph_pkt_rxvld_i[3] & periph_pkt_rxrdy_i[3])
-	                         | (periph_pkt_rxvld_i[4] & periph_pkt_rxrdy_i[4])
-	                         | (periph_pkt_rxvld_i[5] & periph_pkt_rxrdy_i[5])
-	                         | (periph_pkt_rxvld_i[6] & periph_pkt_rxrdy_i[6])
-	                         | (periph_pkt_rxvld_i[7] & periph_pkt_rxrdy_i[7])
-	                         | (periph_pkt_txvld_i    & periph_pkt_txrdy_i)
-	                         ;
+        assign periph_activity_i = (periph_pkt_rxvld_i[0] & periph_pkt_rxrdy_i[0])
+                                 | (periph_pkt_rxvld_i[1] & periph_pkt_rxrdy_i[1])
+                                 | (periph_pkt_rxvld_i[2] & periph_pkt_rxrdy_i[2])
+                                 | (periph_pkt_rxvld_i[3] & periph_pkt_rxrdy_i[3])
+                                 | (periph_pkt_rxvld_i[4] & periph_pkt_rxrdy_i[4])
+                                 | (periph_pkt_rxvld_i[5] & periph_pkt_rxrdy_i[5])
+                                 | (periph_pkt_rxvld_i[6] & periph_pkt_rxrdy_i[6])
+                                 | (periph_pkt_rxvld_i[7] & periph_pkt_rxrdy_i[7])
+                                 | (periph_pkt_txvld_i    & periph_pkt_txrdy_i)
+                                 ;
 else
-	assign periph_activity_i = 1'b0; 
+        assign periph_activity_i = 1'b0; 
 endgenerate
 
 // Generate the activity signal for the ring link
 generate if (INCLUDE_RING_SUPPORT)
-	//TODO: complete ring support - no activity!
-	assign ring_activity_i = 1'b0;
+        //TODO: complete ring support - no activity!
+        assign ring_activity_i = 1'b0;
 else
-	assign ring_activity_i = 1'b0;
+        assign ring_activity_i = 1'b0;
 endgenerate
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -607,41 +614,41 @@ endgenerate
 // Note that outputs are tristated to facilitate soft-disabling of individual
 // links.
 generate for (i = 0; i < 16; i = i + 1)
-	begin : sl_buffers
-		case (FPGA_SL_TYPES[(32*FPGA_ID) + (2*i)+:2])
-			HIGH_SL:
-				begin
-					// SpiNNaker -> FPGA
-					IBUF sl_in_data_buf_i [6:0] (.I(SL_INOUT[(i*16)+1 +: 7]), .O(sl_in_data_i[i]));
-					OBUFT sl_in_ack_buf_i       ( .O(SL_INOUT[(i*16)+0])
+        begin : sl_buffers
+                case (FPGA_SL_TYPES[(32*FPGA_ID) + (2*i)+:2])
+                        HIGH_SL:
+                                begin
+                                        // SpiNNaker -> FPGA
+                                        IBUF sl_in_data_buf_i [6:0] (.I(SL_INOUT[(i*16)+1 +: 7]), .O(sl_in_data_i[i]));
+                                        OBUFT sl_in_ack_buf_i       ( .O(SL_INOUT[(i*16)+0])
                                                                     , .I(sl_in_ack_i[i])
-					                            , .T(~spinnaker_link_enable_i[(i*2) + 0])
-					                            );
-					// FPGA -> SpiNNaker
-					OBUFT sl_out_data_buf_i [6:0] ( .O(SL_INOUT[(i*16)+9 +: 7])
-					                              , .I(sl_out_data_i[i])
-					                              , .T({7{~spinnaker_link_enable_i[(i*2) + 1]}})
-					                              );
-					IBUF sl_out_ack_buf_i         (.I(SL_INOUT[(i*16)+8]), .O(sl_out_ack_i[i]));
-				end
+                                                                    , .T(~spinnaker_link_enable_i[(i*2) + 0])
+                                                                    );
+                                        // FPGA -> SpiNNaker
+                                        OBUFT sl_out_data_buf_i [6:0] ( .O(SL_INOUT[(i*16)+9 +: 7])
+                                                                      , .I(sl_out_data_i[i])
+                                                                      , .T({7{~spinnaker_link_enable_i[(i*2) + 1]}})
+                                                                      );
+                                        IBUF sl_out_ack_buf_i         (.I(SL_INOUT[(i*16)+8]), .O(sl_out_ack_i[i]));
+                                end
 
-			LOW_SL:
-				begin
-					// SpiNNaker -> FPGA
-					IBUF sl_in_data_buf_i [6:0] (.I(SL_INOUT[(i*16)+9 +: 7]), .O(sl_in_data_i[i]));
-					OBUFT sl_in_ack_buf_i       ( .O(SL_INOUT[(i*16)+8])
-					                            , .I(sl_in_ack_i[i])
-					                            , .T(~spinnaker_link_enable_i[(i*2) + 0])
-					                            );
-					// FPGA -> SpiNNaker
-					OBUFT sl_out_data_buf_i [6:0] ( .O(SL_INOUT[(i*16)+1 +: 7])
-					                              , .I(sl_out_data_i[i])
-					                              , .T({7{~spinnaker_link_enable_i[(i*2) + 1]}})
-					                              );
-					IBUF sl_out_ack_buf_i         (.I(SL_INOUT[(i*16)+0]), .O(sl_out_ack_i[i]));
-				end
-		endcase
-	end
+                        LOW_SL:
+                                begin
+                                        // SpiNNaker -> FPGA
+                                        IBUF sl_in_data_buf_i [6:0] (.I(SL_INOUT[(i*16)+9 +: 7]), .O(sl_in_data_i[i]));
+                                        OBUFT sl_in_ack_buf_i       ( .O(SL_INOUT[(i*16)+8])
+                                                                    , .I(sl_in_ack_i[i])
+                                                                    , .T(~spinnaker_link_enable_i[(i*2) + 0])
+                                                                    );
+                                        // FPGA -> SpiNNaker
+                                        OBUFT sl_out_data_buf_i [6:0] ( .O(SL_INOUT[(i*16)+1 +: 7])
+                                                                      , .I(sl_out_data_i[i])
+                                                                      , .T({7{~spinnaker_link_enable_i[(i*2) + 1]}})
+                                                                      );
+                                        IBUF sl_out_ack_buf_i         (.I(SL_INOUT[(i*16)+0]), .O(sl_out_ack_i[i]));
+                                end
+                endcase
+        end
 endgenerate
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -682,48 +689,48 @@ clock_scaler_i ( .CLK_IN1  (gtpclkout_i) // 150  Mhz (Input)
                );
 
 generate if (INCLUDE_B2B_SUPPORT)
-	begin
-		assign b2b_usrclk_i  = clk_300_i;
-		assign b2b_usrclk2_i = clk_75_i;
-	end
+        begin
+                assign b2b_usrclk_i  = clk_300_i;
+                assign b2b_usrclk2_i = clk_75_i;
+        end
 else
-	begin
-		assign b2b_usrclk_i  = 1'b0;
-		assign b2b_usrclk2_i = 1'b0;
-	end
+        begin
+                assign b2b_usrclk_i  = 1'b0;
+                assign b2b_usrclk2_i = 1'b0;
+        end
 endgenerate
 
 generate case ({INCLUDE_PERIPH_SUPPORT, PERIPH_HALF_SPEED})
-		{0, 0},
-		{0, 1}:
-			begin
-				assign periph_usrclk_i  = 1'b0;
-				assign periph_usrclk2_i = 1'b0;
-			end
+                {0, 0},
+                {0, 1}:
+                        begin
+                                assign periph_usrclk_i  = 1'b0;
+                                assign periph_usrclk2_i = 1'b0;
+                        end
 
-		{1, 0}:
-			begin
-				assign periph_usrclk_i  = clk_300_i;
-				assign periph_usrclk2_i = clk_75_i;
-			end
+                {1, 0}:
+                        begin
+                                assign periph_usrclk_i  = clk_300_i;
+                                assign periph_usrclk2_i = clk_75_i;
+                        end
 
-		{1, 1}:
-			begin
-				assign periph_usrclk_i  = clk_150_i;
-				assign periph_usrclk2_i = clk_37_5_i;
-			end
+                {1, 1}:
+                        begin
+                                assign periph_usrclk_i  = clk_150_i;
+                                assign periph_usrclk2_i = clk_37_5_i;
+                        end
 endcase endgenerate
 
 generate if (INCLUDE_RING_SUPPORT)
-	begin
-		assign   ring_usrclk_i  = clk_300_i;
-		assign   ring_usrclk2_i = clk_75_i;
-	end
+        begin
+                assign   ring_usrclk_i  = clk_300_i;
+                assign   ring_usrclk2_i = clk_75_i;
+        end
 else
-	begin
-		assign   ring_usrclk_i  = 1'b0;
-		assign   ring_usrclk2_i = 1'b0;
-	end
+        begin
+                assign   ring_usrclk_i  = 1'b0;
+                assign   ring_usrclk2_i = 1'b0;
+        end
 endgenerate
 
 assign spinnaker_link_clk0_i = clk_150_i;
@@ -763,698 +770,698 @@ assign pkt_ctr_clk_i = clk_75_i;
 
 // TILE (X0_Y0)
 generate case ({NORTH_SOUTH_ON_FRONT, FPGA_ID, PERIPH_HALF_SPEED})
-	{0, 0, 0},
-	{0, 0, 1},
-	{0, 1, 0},
-	{0, 1, 1},
-	{0, 2, 0},
-	{0, 2, 1},
-	{1, 1, 0},
-	{1, 1, 1}:
-		gtp_x0_y0_bb#( .WRAPPER_SIM_GTPRESET_SPEEDUP (SIMULATION_GTPRESET_SPEEDUP)
-		             , .WRAPPER_SIMULATION           (SIMULATION)
-		             )
-		gtp_x0_y0_i  ( // TILE (X0_Y0)
-		                 // Loopback and Powerdown Ports
-		                 .TILE0_LOOPBACK0_IN         (B2B_GTP_LOOPBACK)
-		             ,   .TILE0_LOOPBACK1_IN         (B2B_GTP_LOOPBACK)
-		                 // PLL Ports
-		             ,   .TILE0_CLK00_IN             (gtpclkin_i)
-		             ,   .TILE0_CLK01_IN             (1'b0) // Uses the first block's clock, just tie-off
-		             ,   .TILE0_GTPRESET0_IN         (gtp_reset_i)
-		             ,   .TILE0_GTPRESET1_IN         (gtp_reset_i)
-		             ,   .TILE0_PLLLKDET0_OUT        (plllkdet_i)
-		             ,   .TILE0_RESETDONE0_OUT       (b2b_gtpresetdone_i[0])
-		             ,   .TILE0_RESETDONE1_OUT       (b2b_gtpresetdone_i[1])
-		                 // Receive Ports - 8b10b Decoder
-		             ,   .TILE0_RXCHARISCOMMA0_OUT   (b2b_rxchariscomma_i[0])
-		             ,   .TILE0_RXCHARISCOMMA1_OUT   (b2b_rxchariscomma_i[1])
-		             ,   .TILE0_RXCHARISK0_OUT       (b2b_rxcharisk_i[0])
-		             ,   .TILE0_RXCHARISK1_OUT       (b2b_rxcharisk_i[1])
-		             ,   .TILE0_RXDISPERR0_OUT       () // Unused
-		             ,   .TILE0_RXDISPERR1_OUT       () // Unused
-		             ,   .TILE0_RXNOTINTABLE0_OUT    () // Unused
-		             ,   .TILE0_RXNOTINTABLE1_OUT    () // Unused
-		                 // Receive Ports - Clock Correction
-		             ,   .TILE0_RXCLKCORCNT0_OUT     () // Unused
-		             ,   .TILE0_RXCLKCORCNT1_OUT     () // Unused
-		                 // Receive Ports - Comma Detection and Alignment
-		             ,   .TILE0_RXENMCOMMAALIGN0_IN  (1'b1) // Always realign
-		             ,   .TILE0_RXENMCOMMAALIGN1_IN  (1'b1) // Always realign
-		             ,   .TILE0_RXENPCOMMAALIGN0_IN  (1'b1) // Always realign
-		             ,   .TILE0_RXENPCOMMAALIGN1_IN  (1'b1) // Always realign
-		                 // Receive Ports - RX Data Path interface
-		             ,   .TILE0_RXDATA0_OUT          (b2b_rxdata_i[0])
-		             ,   .TILE0_RXDATA1_OUT          (b2b_rxdata_i[1])
-		             ,   .TILE0_RXUSRCLK0_IN         (b2b_usrclk_i)
-		             ,   .TILE0_RXUSRCLK1_IN         (b2b_usrclk_i)
-		             ,   .TILE0_RXUSRCLK20_IN        (b2b_usrclk2_i)
-		             ,   .TILE0_RXUSRCLK21_IN        (b2b_usrclk2_i)
-		                 // Receive Ports - RX Driver,OOB signalling,Coupling and Eq.,CDR
-		             ,   .TILE0_RXN0_IN              (HSS_RXN_IN[0])
-		             ,   .TILE0_RXN1_IN              (HSS_RXN_IN[1])
-		             ,   .TILE0_RXP0_IN              (HSS_RXP_IN[0])
-		             ,   .TILE0_RXP1_IN              (HSS_RXP_IN[1])
-		                 // Receive Ports - RX Loss-of-sync State Machine
-		             ,   .TILE0_RXLOSSOFSYNC0_OUT    (b2b_rxlossofsync_i[0])
-		             ,   .TILE0_RXLOSSOFSYNC1_OUT    (b2b_rxlossofsync_i[1])
-		                 // TX/RX Datapath Ports
-		             ,   .TILE0_GTPCLKOUT0_OUT       (unbuffered_gtpclkout_i)
-		             ,   .TILE0_GTPCLKOUT1_OUT       () // TILE0_GTPCLKOUT0_OUT used for everything
-		                 // Transmit Ports - 8b10b Encoder Control
-		             ,   .TILE0_TXCHARISK0_IN        (b2b_txcharisk_i[0])
-		             ,   .TILE0_TXCHARISK1_IN        (b2b_txcharisk_i[1])
-		                 // Transmit Ports - TX Data Path interface
-		             ,   .TILE0_TXDATA0_IN           (b2b_txdata_i[0])
-		             ,   .TILE0_TXDATA1_IN           (b2b_txdata_i[1])
-		             ,   .TILE0_TXUSRCLK0_IN         (b2b_usrclk_i)
-		             ,   .TILE0_TXUSRCLK1_IN         (b2b_usrclk_i)
-		             ,   .TILE0_TXUSRCLK20_IN        (b2b_usrclk2_i)
-		             ,   .TILE0_TXUSRCLK21_IN        (b2b_usrclk2_i)
-		                 // Transmit Ports - TX Driver and OOB signalling
-		             ,   .TILE0_TXN0_OUT             (HSS_TXN_OUT[0])
-		             ,   .TILE0_TXN1_OUT             (HSS_TXN_OUT[1])
-		             ,   .TILE0_TXP0_OUT             (HSS_TXP_OUT[0])
-		             ,   .TILE0_TXP1_OUT             (HSS_TXP_OUT[1])
-		                 // Analog signal generation settings
-		             ,   .TILE0_RXEQMIX0_IN          (rxeqmix_i[1:0])
-		             ,   .TILE0_RXEQMIX1_IN          (rxeqmix_i[3:2])
-		             ,   .TILE0_TXDIFFCTRL0_IN       (txdiffctrl_i[3:0])
-		             ,   .TILE0_TXDIFFCTRL1_IN       (txdiffctrl_i[7:4])
-		             ,   .TILE0_TXPREEMPHASIS0_IN    (txpreemphasis_i[2:0])
-		             ,   .TILE0_TXPREEMPHASIS1_IN    (txpreemphasis_i[5:3])
-		             );
+        {0, 0, 0},
+        {0, 0, 1},
+        {0, 1, 0},
+        {0, 1, 1},
+        {0, 2, 0},
+        {0, 2, 1},
+        {1, 1, 0},
+        {1, 1, 1}:
+                gtp_x0_y0_bb#( .WRAPPER_SIM_GTPRESET_SPEEDUP (SIMULATION_GTPRESET_SPEEDUP)
+                             , .WRAPPER_SIMULATION           (SIMULATION)
+                             )
+                gtp_x0_y0_i  ( // TILE (X0_Y0)
+                                 // Loopback and Powerdown Ports
+                                 .TILE0_LOOPBACK0_IN         (B2B_GTP_LOOPBACK)
+                             ,   .TILE0_LOOPBACK1_IN         (B2B_GTP_LOOPBACK)
+                                 // PLL Ports
+                             ,   .TILE0_CLK00_IN             (gtpclkin_i)
+                             ,   .TILE0_CLK01_IN             (1'b0) // Uses the first block's clock, just tie-off
+                             ,   .TILE0_GTPRESET0_IN         (gtp_reset_i)
+                             ,   .TILE0_GTPRESET1_IN         (gtp_reset_i)
+                             ,   .TILE0_PLLLKDET0_OUT        (plllkdet_i)
+                             ,   .TILE0_RESETDONE0_OUT       (b2b_gtpresetdone_i[0])
+                             ,   .TILE0_RESETDONE1_OUT       (b2b_gtpresetdone_i[1])
+                                 // Receive Ports - 8b10b Decoder
+                             ,   .TILE0_RXCHARISCOMMA0_OUT   (b2b_rxchariscomma_i[0])
+                             ,   .TILE0_RXCHARISCOMMA1_OUT   (b2b_rxchariscomma_i[1])
+                             ,   .TILE0_RXCHARISK0_OUT       (b2b_rxcharisk_i[0])
+                             ,   .TILE0_RXCHARISK1_OUT       (b2b_rxcharisk_i[1])
+                             ,   .TILE0_RXDISPERR0_OUT       () // Unused
+                             ,   .TILE0_RXDISPERR1_OUT       () // Unused
+                             ,   .TILE0_RXNOTINTABLE0_OUT    () // Unused
+                             ,   .TILE0_RXNOTINTABLE1_OUT    () // Unused
+                                 // Receive Ports - Clock Correction
+                             ,   .TILE0_RXCLKCORCNT0_OUT     () // Unused
+                             ,   .TILE0_RXCLKCORCNT1_OUT     () // Unused
+                                 // Receive Ports - Comma Detection and Alignment
+                             ,   .TILE0_RXENMCOMMAALIGN0_IN  (1'b1) // Always realign
+                             ,   .TILE0_RXENMCOMMAALIGN1_IN  (1'b1) // Always realign
+                             ,   .TILE0_RXENPCOMMAALIGN0_IN  (1'b1) // Always realign
+                             ,   .TILE0_RXENPCOMMAALIGN1_IN  (1'b1) // Always realign
+                                 // Receive Ports - RX Data Path interface
+                             ,   .TILE0_RXDATA0_OUT          (b2b_rxdata_i[0])
+                             ,   .TILE0_RXDATA1_OUT          (b2b_rxdata_i[1])
+                             ,   .TILE0_RXUSRCLK0_IN         (b2b_usrclk_i)
+                             ,   .TILE0_RXUSRCLK1_IN         (b2b_usrclk_i)
+                             ,   .TILE0_RXUSRCLK20_IN        (b2b_usrclk2_i)
+                             ,   .TILE0_RXUSRCLK21_IN        (b2b_usrclk2_i)
+                                 // Receive Ports - RX Driver,OOB signalling,Coupling and Eq.,CDR
+                             ,   .TILE0_RXN0_IN              (HSS_RXN_IN[0])
+                             ,   .TILE0_RXN1_IN              (HSS_RXN_IN[1])
+                             ,   .TILE0_RXP0_IN              (HSS_RXP_IN[0])
+                             ,   .TILE0_RXP1_IN              (HSS_RXP_IN[1])
+                                 // Receive Ports - RX Loss-of-sync State Machine
+                             ,   .TILE0_RXLOSSOFSYNC0_OUT    (b2b_rxlossofsync_i[0])
+                             ,   .TILE0_RXLOSSOFSYNC1_OUT    (b2b_rxlossofsync_i[1])
+                                 // TX/RX Datapath Ports
+                             ,   .TILE0_GTPCLKOUT0_OUT       (unbuffered_gtpclkout_i)
+                             ,   .TILE0_GTPCLKOUT1_OUT       () // TILE0_GTPCLKOUT0_OUT used for everything
+                                 // Transmit Ports - 8b10b Encoder Control
+                             ,   .TILE0_TXCHARISK0_IN        (b2b_txcharisk_i[0])
+                             ,   .TILE0_TXCHARISK1_IN        (b2b_txcharisk_i[1])
+                                 // Transmit Ports - TX Data Path interface
+                             ,   .TILE0_TXDATA0_IN           (b2b_txdata_i[0])
+                             ,   .TILE0_TXDATA1_IN           (b2b_txdata_i[1])
+                             ,   .TILE0_TXUSRCLK0_IN         (b2b_usrclk_i)
+                             ,   .TILE0_TXUSRCLK1_IN         (b2b_usrclk_i)
+                             ,   .TILE0_TXUSRCLK20_IN        (b2b_usrclk2_i)
+                             ,   .TILE0_TXUSRCLK21_IN        (b2b_usrclk2_i)
+                                 // Transmit Ports - TX Driver and OOB signalling
+                             ,   .TILE0_TXN0_OUT             (HSS_TXN_OUT[0])
+                             ,   .TILE0_TXN1_OUT             (HSS_TXN_OUT[1])
+                             ,   .TILE0_TXP0_OUT             (HSS_TXP_OUT[0])
+                             ,   .TILE0_TXP1_OUT             (HSS_TXP_OUT[1])
+                                 // Analog signal generation settings
+                             ,   .TILE0_RXEQMIX0_IN          (rxeqmix_i[1:0])
+                             ,   .TILE0_RXEQMIX1_IN          (rxeqmix_i[3:2])
+                             ,   .TILE0_TXDIFFCTRL0_IN       (txdiffctrl_i[3:0])
+                             ,   .TILE0_TXDIFFCTRL1_IN       (txdiffctrl_i[7:4])
+                             ,   .TILE0_TXPREEMPHASIS0_IN    (txpreemphasis_i[2:0])
+                             ,   .TILE0_TXPREEMPHASIS1_IN    (txpreemphasis_i[5:3])
+                             );
 
-	{1, 0, 0}:
-		gtp_x0_y0_bb#( .WRAPPER_SIM_GTPRESET_SPEEDUP (SIMULATION_GTPRESET_SPEEDUP)
-		             , .WRAPPER_SIMULATION           (SIMULATION)
-		             )
-		gtp_x0_y0_i  ( // TILE (X0_Y0)
-		                 // Loopback and Powerdown Ports
-		                 .TILE0_LOOPBACK0_IN         (   B2B_GTP_LOOPBACK)
-		             ,   .TILE0_LOOPBACK1_IN         (PERIPH_GTP_LOOPBACK)
-		                 // PLL Ports
-		             ,   .TILE0_CLK00_IN             (gtpclkin_i)
-		             ,   .TILE0_CLK01_IN             (1'b0) // Uses the first block's clock, just tie-off
-		             ,   .TILE0_GTPRESET0_IN         (gtp_reset_i)
-		             ,   .TILE0_GTPRESET1_IN         (gtp_reset_i)
-		             ,   .TILE0_PLLLKDET0_OUT        (plllkdet_i)
-		             ,   .TILE0_RESETDONE0_OUT       (   b2b_gtpresetdone_i[0])
-		             ,   .TILE0_RESETDONE1_OUT       (periph_gtpresetdone_i)
-		                 // Receive Ports - 8b10b Decoder
-		             ,   .TILE0_RXCHARISCOMMA0_OUT   (   b2b_rxchariscomma_i[0])
-		             ,   .TILE0_RXCHARISCOMMA1_OUT   (periph_rxchariscomma_i)
-		             ,   .TILE0_RXCHARISK0_OUT       (   b2b_rxcharisk_i[0])
-		             ,   .TILE0_RXCHARISK1_OUT       (periph_rxcharisk_i)
-		             ,   .TILE0_RXDISPERR0_OUT       () // Unused
-		             ,   .TILE0_RXDISPERR1_OUT       () // Unused
-		             ,   .TILE0_RXNOTINTABLE0_OUT    () // Unused
-		             ,   .TILE0_RXNOTINTABLE1_OUT    () // Unused
-		                 // Receive Ports - Clock Correction
-		             ,   .TILE0_RXCLKCORCNT0_OUT     () // Unused
-		             ,   .TILE0_RXCLKCORCNT1_OUT     () // Unused
-		                 // Receive Ports - Comma Detection and Alignment
-		             ,   .TILE0_RXENMCOMMAALIGN0_IN  (1'b1) // Always realign
-		             ,   .TILE0_RXENMCOMMAALIGN1_IN  (1'b1) // Always realign
-		             ,   .TILE0_RXENPCOMMAALIGN0_IN  (1'b1) // Always realign
-		             ,   .TILE0_RXENPCOMMAALIGN1_IN  (1'b1) // Always realign
-		                 // Receive Ports - RX Data Path interface
-		             ,   .TILE0_RXDATA0_OUT          (   b2b_rxdata_i[0])
-		             ,   .TILE0_RXDATA1_OUT          (periph_rxdata_i)
-		             ,   .TILE0_RXUSRCLK0_IN         (   b2b_usrclk_i)
-		             ,   .TILE0_RXUSRCLK1_IN         (periph_usrclk_i)
-		             ,   .TILE0_RXUSRCLK20_IN        (   b2b_usrclk2_i)
-		             ,   .TILE0_RXUSRCLK21_IN        (periph_usrclk2_i)
-		                 // Receive Ports - RX Driver,OOB signalling,Coupling and Eq.,CDR
-		             ,   .TILE0_RXN0_IN              (HSS_RXN_IN[0])
-		             ,   .TILE0_RXN1_IN              (HSS_RXN_IN[1])
-		             ,   .TILE0_RXP0_IN              (HSS_RXP_IN[0])
-		             ,   .TILE0_RXP1_IN              (HSS_RXP_IN[1])
-		                 // Receive Ports - RX Loss-of-sync State Machine
-		             ,   .TILE0_RXLOSSOFSYNC0_OUT    (   b2b_rxlossofsync_i[0])
-		             ,   .TILE0_RXLOSSOFSYNC1_OUT    (periph_rxlossofsync_i)
-		                 // TX/RX Datapath Ports
-		             ,   .TILE0_GTPCLKOUT0_OUT       (unbuffered_gtpclkout_i)
-		             ,   .TILE0_GTPCLKOUT1_OUT       () // TILE0_GTPCLKOUT0_OUT used for everything
-		                 // Transmit Ports - 8b10b Encoder Control
-		             ,   .TILE0_TXCHARISK0_IN        (   b2b_txcharisk_i[0])
-		             ,   .TILE0_TXCHARISK1_IN        (periph_txcharisk_i)
-		                 // Transmit Ports - TX Data Path interface
-		             ,   .TILE0_TXDATA0_IN           (   b2b_txdata_i[0])
-		             ,   .TILE0_TXDATA1_IN           (periph_txdata_i)
-		             ,   .TILE0_TXUSRCLK0_IN         (   b2b_usrclk_i)
-		             ,   .TILE0_TXUSRCLK1_IN         (periph_usrclk_i)
-		             ,   .TILE0_TXUSRCLK20_IN        (   b2b_usrclk2_i)
-		             ,   .TILE0_TXUSRCLK21_IN        (periph_usrclk2_i)
-		                 // Transmit Ports - TX Driver and OOB signalling
-		             ,   .TILE0_TXN0_OUT             (HSS_TXN_OUT[0])
-		             ,   .TILE0_TXN1_OUT             (HSS_TXN_OUT[1])
-		             ,   .TILE0_TXP0_OUT             (HSS_TXP_OUT[0])
-		             ,   .TILE0_TXP1_OUT             (HSS_TXP_OUT[1])
-		                 // Analog signal generation settings
-		             ,   .TILE0_RXEQMIX0_IN          (rxeqmix_i[1:0])
-		             ,   .TILE0_RXEQMIX1_IN          (rxeqmix_i[5:4])
-		             ,   .TILE0_TXDIFFCTRL0_IN       (txdiffctrl_i[3:0])
-		             ,   .TILE0_TXDIFFCTRL1_IN       (txdiffctrl_i[11:8])
-		             ,   .TILE0_TXPREEMPHASIS0_IN    (txpreemphasis_i[2:0])
-		             ,   .TILE0_TXPREEMPHASIS1_IN    (txpreemphasis_i[8:6])
-		             );
+        {1, 0, 0}:
+                gtp_x0_y0_bb#( .WRAPPER_SIM_GTPRESET_SPEEDUP (SIMULATION_GTPRESET_SPEEDUP)
+                             , .WRAPPER_SIMULATION           (SIMULATION)
+                             )
+                gtp_x0_y0_i  ( // TILE (X0_Y0)
+                                 // Loopback and Powerdown Ports
+                                 .TILE0_LOOPBACK0_IN         (   B2B_GTP_LOOPBACK)
+                             ,   .TILE0_LOOPBACK1_IN         (PERIPH_GTP_LOOPBACK)
+                                 // PLL Ports
+                             ,   .TILE0_CLK00_IN             (gtpclkin_i)
+                             ,   .TILE0_CLK01_IN             (1'b0) // Uses the first block's clock, just tie-off
+                             ,   .TILE0_GTPRESET0_IN         (gtp_reset_i)
+                             ,   .TILE0_GTPRESET1_IN         (gtp_reset_i)
+                             ,   .TILE0_PLLLKDET0_OUT        (plllkdet_i)
+                             ,   .TILE0_RESETDONE0_OUT       (   b2b_gtpresetdone_i[0])
+                             ,   .TILE0_RESETDONE1_OUT       (periph_gtpresetdone_i)
+                                 // Receive Ports - 8b10b Decoder
+                             ,   .TILE0_RXCHARISCOMMA0_OUT   (   b2b_rxchariscomma_i[0])
+                             ,   .TILE0_RXCHARISCOMMA1_OUT   (periph_rxchariscomma_i)
+                             ,   .TILE0_RXCHARISK0_OUT       (   b2b_rxcharisk_i[0])
+                             ,   .TILE0_RXCHARISK1_OUT       (periph_rxcharisk_i)
+                             ,   .TILE0_RXDISPERR0_OUT       () // Unused
+                             ,   .TILE0_RXDISPERR1_OUT       () // Unused
+                             ,   .TILE0_RXNOTINTABLE0_OUT    () // Unused
+                             ,   .TILE0_RXNOTINTABLE1_OUT    () // Unused
+                                 // Receive Ports - Clock Correction
+                             ,   .TILE0_RXCLKCORCNT0_OUT     () // Unused
+                             ,   .TILE0_RXCLKCORCNT1_OUT     () // Unused
+                                 // Receive Ports - Comma Detection and Alignment
+                             ,   .TILE0_RXENMCOMMAALIGN0_IN  (1'b1) // Always realign
+                             ,   .TILE0_RXENMCOMMAALIGN1_IN  (1'b1) // Always realign
+                             ,   .TILE0_RXENPCOMMAALIGN0_IN  (1'b1) // Always realign
+                             ,   .TILE0_RXENPCOMMAALIGN1_IN  (1'b1) // Always realign
+                                 // Receive Ports - RX Data Path interface
+                             ,   .TILE0_RXDATA0_OUT          (   b2b_rxdata_i[0])
+                             ,   .TILE0_RXDATA1_OUT          (periph_rxdata_i)
+                             ,   .TILE0_RXUSRCLK0_IN         (   b2b_usrclk_i)
+                             ,   .TILE0_RXUSRCLK1_IN         (periph_usrclk_i)
+                             ,   .TILE0_RXUSRCLK20_IN        (   b2b_usrclk2_i)
+                             ,   .TILE0_RXUSRCLK21_IN        (periph_usrclk2_i)
+                                 // Receive Ports - RX Driver,OOB signalling,Coupling and Eq.,CDR
+                             ,   .TILE0_RXN0_IN              (HSS_RXN_IN[0])
+                             ,   .TILE0_RXN1_IN              (HSS_RXN_IN[1])
+                             ,   .TILE0_RXP0_IN              (HSS_RXP_IN[0])
+                             ,   .TILE0_RXP1_IN              (HSS_RXP_IN[1])
+                                 // Receive Ports - RX Loss-of-sync State Machine
+                             ,   .TILE0_RXLOSSOFSYNC0_OUT    (   b2b_rxlossofsync_i[0])
+                             ,   .TILE0_RXLOSSOFSYNC1_OUT    (periph_rxlossofsync_i)
+                                 // TX/RX Datapath Ports
+                             ,   .TILE0_GTPCLKOUT0_OUT       (unbuffered_gtpclkout_i)
+                             ,   .TILE0_GTPCLKOUT1_OUT       () // TILE0_GTPCLKOUT0_OUT used for everything
+                                 // Transmit Ports - 8b10b Encoder Control
+                             ,   .TILE0_TXCHARISK0_IN        (   b2b_txcharisk_i[0])
+                             ,   .TILE0_TXCHARISK1_IN        (periph_txcharisk_i)
+                                 // Transmit Ports - TX Data Path interface
+                             ,   .TILE0_TXDATA0_IN           (   b2b_txdata_i[0])
+                             ,   .TILE0_TXDATA1_IN           (periph_txdata_i)
+                             ,   .TILE0_TXUSRCLK0_IN         (   b2b_usrclk_i)
+                             ,   .TILE0_TXUSRCLK1_IN         (periph_usrclk_i)
+                             ,   .TILE0_TXUSRCLK20_IN        (   b2b_usrclk2_i)
+                             ,   .TILE0_TXUSRCLK21_IN        (periph_usrclk2_i)
+                                 // Transmit Ports - TX Driver and OOB signalling
+                             ,   .TILE0_TXN0_OUT             (HSS_TXN_OUT[0])
+                             ,   .TILE0_TXN1_OUT             (HSS_TXN_OUT[1])
+                             ,   .TILE0_TXP0_OUT             (HSS_TXP_OUT[0])
+                             ,   .TILE0_TXP1_OUT             (HSS_TXP_OUT[1])
+                                 // Analog signal generation settings
+                             ,   .TILE0_RXEQMIX0_IN          (rxeqmix_i[1:0])
+                             ,   .TILE0_RXEQMIX1_IN          (rxeqmix_i[5:4])
+                             ,   .TILE0_TXDIFFCTRL0_IN       (txdiffctrl_i[3:0])
+                             ,   .TILE0_TXDIFFCTRL1_IN       (txdiffctrl_i[11:8])
+                             ,   .TILE0_TXPREEMPHASIS0_IN    (txpreemphasis_i[2:0])
+                             ,   .TILE0_TXPREEMPHASIS1_IN    (txpreemphasis_i[8:6])
+                             );
 
-	{1, 0, 1}:
-		gtp_x0_y0_bp#( .WRAPPER_SIM_GTPRESET_SPEEDUP (SIMULATION_GTPRESET_SPEEDUP)
-		             , .WRAPPER_SIMULATION           (SIMULATION)
-		             )
-		gtp_x0_y0_i  ( // TILE (X0_Y0)
-		                 // Loopback and Powerdown Ports
-		                 .TILE0_LOOPBACK0_IN         (   B2B_GTP_LOOPBACK)
-		             ,   .TILE0_LOOPBACK1_IN         (PERIPH_GTP_LOOPBACK)
-		                 // PLL Ports
-		             ,   .TILE0_CLK00_IN             (gtpclkin_i)
-		             ,   .TILE0_CLK01_IN             (1'b0) // Uses the first block's clock, just tie-off
-		             ,   .TILE0_GTPRESET0_IN         (gtp_reset_i)
-		             ,   .TILE0_GTPRESET1_IN         (gtp_reset_i)
-		             ,   .TILE0_PLLLKDET0_OUT        (plllkdet_i)
-		             ,   .TILE0_RESETDONE0_OUT       (   b2b_gtpresetdone_i[0])
-		             ,   .TILE0_RESETDONE1_OUT       (periph_gtpresetdone_i)
-		                 // Receive Ports - 8b10b Decoder
-		             ,   .TILE0_RXCHARISCOMMA0_OUT   (   b2b_rxchariscomma_i[0])
-		             ,   .TILE0_RXCHARISCOMMA1_OUT   (periph_rxchariscomma_i)
-		             ,   .TILE0_RXCHARISK0_OUT       (   b2b_rxcharisk_i[0])
-		             ,   .TILE0_RXCHARISK1_OUT       (periph_rxcharisk_i)
-		             ,   .TILE0_RXDISPERR0_OUT       () // Unused
-		             ,   .TILE0_RXDISPERR1_OUT       () // Unused
-		             ,   .TILE0_RXNOTINTABLE0_OUT    () // Unused
-		             ,   .TILE0_RXNOTINTABLE1_OUT    () // Unused
-		                 // Receive Ports - Clock Correction
-		             ,   .TILE0_RXCLKCORCNT0_OUT     () // Unused
-		             ,   .TILE0_RXCLKCORCNT1_OUT     () // Unused
-		                 // Receive Ports - Comma Detection and Alignment
-		             ,   .TILE0_RXENMCOMMAALIGN0_IN  (1'b1) // Always realign
-		             ,   .TILE0_RXENMCOMMAALIGN1_IN  (1'b1) // Always realign
-		             ,   .TILE0_RXENPCOMMAALIGN0_IN  (1'b1) // Always realign
-		             ,   .TILE0_RXENPCOMMAALIGN1_IN  (1'b1) // Always realign
-		                 // Receive Ports - RX Data Path interface
-		             ,   .TILE0_RXDATA0_OUT          (   b2b_rxdata_i[0])
-		             ,   .TILE0_RXDATA1_OUT          (periph_rxdata_i)
-		             ,   .TILE0_RXUSRCLK0_IN         (   b2b_usrclk_i)
-		             ,   .TILE0_RXUSRCLK1_IN         (periph_usrclk_i)
-		             ,   .TILE0_RXUSRCLK20_IN        (   b2b_usrclk2_i)
-		             ,   .TILE0_RXUSRCLK21_IN        (periph_usrclk2_i)
-		                 // Receive Ports - RX Driver,OOB signalling,Coupling and Eq.,CDR
-		             ,   .TILE0_RXN0_IN              (HSS_RXN_IN[0])
-		             ,   .TILE0_RXN1_IN              (HSS_RXN_IN[1])
-		             ,   .TILE0_RXP0_IN              (HSS_RXP_IN[0])
-		             ,   .TILE0_RXP1_IN              (HSS_RXP_IN[1])
-		                 // Receive Ports - RX Loss-of-sync State Machine
-		             ,   .TILE0_RXLOSSOFSYNC0_OUT    (   b2b_rxlossofsync_i[0])
-		             ,   .TILE0_RXLOSSOFSYNC1_OUT    (periph_rxlossofsync_i)
-		                 // TX/RX Datapath Ports
-		             ,   .TILE0_GTPCLKOUT0_OUT       (unbuffered_gtpclkout_i)
-		             ,   .TILE0_GTPCLKOUT1_OUT       () // TILE0_GTPCLKOUT0_OUT used for everything
-		                 // Transmit Ports - 8b10b Encoder Control
-		             ,   .TILE0_TXCHARISK0_IN        (   b2b_txcharisk_i[0])
-		             ,   .TILE0_TXCHARISK1_IN        (periph_txcharisk_i)
-		                 // Transmit Ports - TX Data Path interface
-		             ,   .TILE0_TXDATA0_IN           (   b2b_txdata_i[0])
-		             ,   .TILE0_TXDATA1_IN           (periph_txdata_i)
-		             ,   .TILE0_TXUSRCLK0_IN         (   b2b_usrclk_i)
-		             ,   .TILE0_TXUSRCLK1_IN         (periph_usrclk_i)
-		             ,   .TILE0_TXUSRCLK20_IN        (   b2b_usrclk2_i)
-		             ,   .TILE0_TXUSRCLK21_IN        (periph_usrclk2_i)
-		                 // Transmit Ports - TX Driver and OOB signalling
-		             ,   .TILE0_TXN0_OUT             (HSS_TXN_OUT[0])
-		             ,   .TILE0_TXN1_OUT             (HSS_TXN_OUT[1])
-		             ,   .TILE0_TXP0_OUT             (HSS_TXP_OUT[0])
-		             ,   .TILE0_TXP1_OUT             (HSS_TXP_OUT[1])
-		                 // Analog signal generation settings
-		             ,   .TILE0_RXEQMIX0_IN          (rxeqmix_i[1:0])
-		             ,   .TILE0_RXEQMIX1_IN          (rxeqmix_i[5:4])
-		             ,   .TILE0_TXDIFFCTRL0_IN       (txdiffctrl_i[3:0])
-		             ,   .TILE0_TXDIFFCTRL1_IN       (txdiffctrl_i[11:8])
-		             ,   .TILE0_TXPREEMPHASIS0_IN    (txpreemphasis_i[2:0])
-		             ,   .TILE0_TXPREEMPHASIS1_IN    (txpreemphasis_i[8:6])
-		             );
+        {1, 0, 1}:
+                gtp_x0_y0_bp#( .WRAPPER_SIM_GTPRESET_SPEEDUP (SIMULATION_GTPRESET_SPEEDUP)
+                             , .WRAPPER_SIMULATION           (SIMULATION)
+                             )
+                gtp_x0_y0_i  ( // TILE (X0_Y0)
+                                 // Loopback and Powerdown Ports
+                                 .TILE0_LOOPBACK0_IN         (   B2B_GTP_LOOPBACK)
+                             ,   .TILE0_LOOPBACK1_IN         (PERIPH_GTP_LOOPBACK)
+                                 // PLL Ports
+                             ,   .TILE0_CLK00_IN             (gtpclkin_i)
+                             ,   .TILE0_CLK01_IN             (1'b0) // Uses the first block's clock, just tie-off
+                             ,   .TILE0_GTPRESET0_IN         (gtp_reset_i)
+                             ,   .TILE0_GTPRESET1_IN         (gtp_reset_i)
+                             ,   .TILE0_PLLLKDET0_OUT        (plllkdet_i)
+                             ,   .TILE0_RESETDONE0_OUT       (   b2b_gtpresetdone_i[0])
+                             ,   .TILE0_RESETDONE1_OUT       (periph_gtpresetdone_i)
+                                 // Receive Ports - 8b10b Decoder
+                             ,   .TILE0_RXCHARISCOMMA0_OUT   (   b2b_rxchariscomma_i[0])
+                             ,   .TILE0_RXCHARISCOMMA1_OUT   (periph_rxchariscomma_i)
+                             ,   .TILE0_RXCHARISK0_OUT       (   b2b_rxcharisk_i[0])
+                             ,   .TILE0_RXCHARISK1_OUT       (periph_rxcharisk_i)
+                             ,   .TILE0_RXDISPERR0_OUT       () // Unused
+                             ,   .TILE0_RXDISPERR1_OUT       () // Unused
+                             ,   .TILE0_RXNOTINTABLE0_OUT    () // Unused
+                             ,   .TILE0_RXNOTINTABLE1_OUT    () // Unused
+                                 // Receive Ports - Clock Correction
+                             ,   .TILE0_RXCLKCORCNT0_OUT     () // Unused
+                             ,   .TILE0_RXCLKCORCNT1_OUT     () // Unused
+                                 // Receive Ports - Comma Detection and Alignment
+                             ,   .TILE0_RXENMCOMMAALIGN0_IN  (1'b1) // Always realign
+                             ,   .TILE0_RXENMCOMMAALIGN1_IN  (1'b1) // Always realign
+                             ,   .TILE0_RXENPCOMMAALIGN0_IN  (1'b1) // Always realign
+                             ,   .TILE0_RXENPCOMMAALIGN1_IN  (1'b1) // Always realign
+                                 // Receive Ports - RX Data Path interface
+                             ,   .TILE0_RXDATA0_OUT          (   b2b_rxdata_i[0])
+                             ,   .TILE0_RXDATA1_OUT          (periph_rxdata_i)
+                             ,   .TILE0_RXUSRCLK0_IN         (   b2b_usrclk_i)
+                             ,   .TILE0_RXUSRCLK1_IN         (periph_usrclk_i)
+                             ,   .TILE0_RXUSRCLK20_IN        (   b2b_usrclk2_i)
+                             ,   .TILE0_RXUSRCLK21_IN        (periph_usrclk2_i)
+                                 // Receive Ports - RX Driver,OOB signalling,Coupling and Eq.,CDR
+                             ,   .TILE0_RXN0_IN              (HSS_RXN_IN[0])
+                             ,   .TILE0_RXN1_IN              (HSS_RXN_IN[1])
+                             ,   .TILE0_RXP0_IN              (HSS_RXP_IN[0])
+                             ,   .TILE0_RXP1_IN              (HSS_RXP_IN[1])
+                                 // Receive Ports - RX Loss-of-sync State Machine
+                             ,   .TILE0_RXLOSSOFSYNC0_OUT    (   b2b_rxlossofsync_i[0])
+                             ,   .TILE0_RXLOSSOFSYNC1_OUT    (periph_rxlossofsync_i)
+                                 // TX/RX Datapath Ports
+                             ,   .TILE0_GTPCLKOUT0_OUT       (unbuffered_gtpclkout_i)
+                             ,   .TILE0_GTPCLKOUT1_OUT       () // TILE0_GTPCLKOUT0_OUT used for everything
+                                 // Transmit Ports - 8b10b Encoder Control
+                             ,   .TILE0_TXCHARISK0_IN        (   b2b_txcharisk_i[0])
+                             ,   .TILE0_TXCHARISK1_IN        (periph_txcharisk_i)
+                                 // Transmit Ports - TX Data Path interface
+                             ,   .TILE0_TXDATA0_IN           (   b2b_txdata_i[0])
+                             ,   .TILE0_TXDATA1_IN           (periph_txdata_i)
+                             ,   .TILE0_TXUSRCLK0_IN         (   b2b_usrclk_i)
+                             ,   .TILE0_TXUSRCLK1_IN         (periph_usrclk_i)
+                             ,   .TILE0_TXUSRCLK20_IN        (   b2b_usrclk2_i)
+                             ,   .TILE0_TXUSRCLK21_IN        (periph_usrclk2_i)
+                                 // Transmit Ports - TX Driver and OOB signalling
+                             ,   .TILE0_TXN0_OUT             (HSS_TXN_OUT[0])
+                             ,   .TILE0_TXN1_OUT             (HSS_TXN_OUT[1])
+                             ,   .TILE0_TXP0_OUT             (HSS_TXP_OUT[0])
+                             ,   .TILE0_TXP1_OUT             (HSS_TXP_OUT[1])
+                                 // Analog signal generation settings
+                             ,   .TILE0_RXEQMIX0_IN          (rxeqmix_i[1:0])
+                             ,   .TILE0_RXEQMIX1_IN          (rxeqmix_i[5:4])
+                             ,   .TILE0_TXDIFFCTRL0_IN       (txdiffctrl_i[3:0])
+                             ,   .TILE0_TXDIFFCTRL1_IN       (txdiffctrl_i[11:8])
+                             ,   .TILE0_TXPREEMPHASIS0_IN    (txpreemphasis_i[2:0])
+                             ,   .TILE0_TXPREEMPHASIS1_IN    (txpreemphasis_i[8:6])
+                             );
 
-	{1, 2, 0}:
-		gtp_x0_y0_bb#( .WRAPPER_SIM_GTPRESET_SPEEDUP (SIMULATION_GTPRESET_SPEEDUP)
-		             , .WRAPPER_SIMULATION           (SIMULATION)
-		             )
-		gtp_x0_y0_i  ( // TILE (X0_Y0)
-		                 // Loopback and Powerdown Ports
-		                 .TILE0_LOOPBACK0_IN         (PERIPH_GTP_LOOPBACK)
-		             ,   .TILE0_LOOPBACK1_IN         (   B2B_GTP_LOOPBACK)
-		                 // PLL Ports
-		             ,   .TILE0_CLK00_IN             (gtpclkin_i)
-		             ,   .TILE0_CLK01_IN             (1'b0) // Uses the first block's clock, just tie-off
-		             ,   .TILE0_GTPRESET0_IN         (gtp_reset_i)
-		             ,   .TILE0_GTPRESET1_IN         (gtp_reset_i)
-		             ,   .TILE0_PLLLKDET0_OUT        (plllkdet_i)
-		             ,   .TILE0_RESETDONE0_OUT       (periph_gtpresetdone_i)
-		             ,   .TILE0_RESETDONE1_OUT       (   b2b_gtpresetdone_i[1])
-		                 // Receive Ports - 8b10b Decoder
-		             ,   .TILE0_RXCHARISCOMMA0_OUT   (periph_rxchariscomma_i)
-		             ,   .TILE0_RXCHARISCOMMA1_OUT   (   b2b_rxchariscomma_i[1])
-		             ,   .TILE0_RXCHARISK0_OUT       (periph_rxcharisk_i)
-		             ,   .TILE0_RXCHARISK1_OUT       (   b2b_rxcharisk_i[1])
-		             ,   .TILE0_RXDISPERR0_OUT       () // Unused
-		             ,   .TILE0_RXDISPERR1_OUT       () // Unused
-		             ,   .TILE0_RXNOTINTABLE0_OUT    () // Unused
-		             ,   .TILE0_RXNOTINTABLE1_OUT    () // Unused
-		                 // Receive Ports - Clock Correction
-		             ,   .TILE0_RXCLKCORCNT0_OUT     () // Unused
-		             ,   .TILE0_RXCLKCORCNT1_OUT     () // Unused
-		                 // Receive Ports - Comma Detection and Alignment
-		             ,   .TILE0_RXENMCOMMAALIGN0_IN  (1'b1) // Always realign
-		             ,   .TILE0_RXENMCOMMAALIGN1_IN  (1'b1) // Always realign
-		             ,   .TILE0_RXENPCOMMAALIGN0_IN  (1'b1) // Always realign
-		             ,   .TILE0_RXENPCOMMAALIGN1_IN  (1'b1) // Always realign
-		                 // Receive Ports - RX Data Path interface
-		             ,   .TILE0_RXDATA0_OUT          (periph_rxdata_i)
-		             ,   .TILE0_RXDATA1_OUT          (   b2b_rxdata_i[1])
-		             ,   .TILE0_RXUSRCLK0_IN         (periph_usrclk_i)
-		             ,   .TILE0_RXUSRCLK1_IN         (   b2b_usrclk_i)
-		             ,   .TILE0_RXUSRCLK20_IN        (periph_usrclk2_i)
-		             ,   .TILE0_RXUSRCLK21_IN        (   b2b_usrclk2_i)
-		                 // Receive Ports - RX Driver,OOB signalling,Coupling and Eq.,CDR
-		             ,   .TILE0_RXN0_IN              (HSS_RXN_IN[0])
-		             ,   .TILE0_RXN1_IN              (HSS_RXN_IN[1])
-		             ,   .TILE0_RXP0_IN              (HSS_RXP_IN[0])
-		             ,   .TILE0_RXP1_IN              (HSS_RXP_IN[1])
-		                 // Receive Ports - RX Loss-of-sync State Machine
-		             ,   .TILE0_RXLOSSOFSYNC0_OUT    (periph_rxlossofsync_i)
-		             ,   .TILE0_RXLOSSOFSYNC1_OUT    (   b2b_rxlossofsync_i[1])
-		                 // TX/RX Datapath Ports
-		             ,   .TILE0_GTPCLKOUT0_OUT       (unbuffered_gtpclkout_i)
-		             ,   .TILE0_GTPCLKOUT1_OUT       () // TILE0_GTPCLKOUT0_OUT used for everything
-		                 // Transmit Ports - 8b10b Encoder Control
-		             ,   .TILE0_TXCHARISK0_IN        (periph_txcharisk_i)
-		             ,   .TILE0_TXCHARISK1_IN        (   b2b_txcharisk_i[1])
-		                 // Transmit Ports - TX Data Path interface
-		             ,   .TILE0_TXDATA0_IN           (periph_txdata_i)
-		             ,   .TILE0_TXDATA1_IN           (   b2b_txdata_i[1])
-		             ,   .TILE0_TXUSRCLK0_IN         (periph_usrclk_i)
-		             ,   .TILE0_TXUSRCLK1_IN         (   b2b_usrclk_i)
-		             ,   .TILE0_TXUSRCLK20_IN        (periph_usrclk2_i)
-		             ,   .TILE0_TXUSRCLK21_IN        (   b2b_usrclk2_i)
-		                 // Transmit Ports - TX Driver and OOB signalling
-		             ,   .TILE0_TXN0_OUT             (HSS_TXN_OUT[0])
-		             ,   .TILE0_TXN1_OUT             (HSS_TXN_OUT[1])
-		             ,   .TILE0_TXP0_OUT             (HSS_TXP_OUT[0])
-		             ,   .TILE0_TXP1_OUT             (HSS_TXP_OUT[1])
-		                 // Analog signal generation settings
-		             ,   .TILE0_RXEQMIX0_IN          (rxeqmix_i[5:4])
-		             ,   .TILE0_RXEQMIX1_IN          (rxeqmix_i[3:2])
-		             ,   .TILE0_TXDIFFCTRL0_IN       (txdiffctrl_i[11:8])
-		             ,   .TILE0_TXDIFFCTRL1_IN       (txdiffctrl_i[7:4])
-		             ,   .TILE0_TXPREEMPHASIS0_IN    (txpreemphasis_i[8:6])
-		             ,   .TILE0_TXPREEMPHASIS1_IN    (txpreemphasis_i[5:3])
-		             );
+        {1, 2, 0}:
+                gtp_x0_y0_bb#( .WRAPPER_SIM_GTPRESET_SPEEDUP (SIMULATION_GTPRESET_SPEEDUP)
+                             , .WRAPPER_SIMULATION           (SIMULATION)
+                             )
+                gtp_x0_y0_i  ( // TILE (X0_Y0)
+                                 // Loopback and Powerdown Ports
+                                 .TILE0_LOOPBACK0_IN         (PERIPH_GTP_LOOPBACK)
+                             ,   .TILE0_LOOPBACK1_IN         (   B2B_GTP_LOOPBACK)
+                                 // PLL Ports
+                             ,   .TILE0_CLK00_IN             (gtpclkin_i)
+                             ,   .TILE0_CLK01_IN             (1'b0) // Uses the first block's clock, just tie-off
+                             ,   .TILE0_GTPRESET0_IN         (gtp_reset_i)
+                             ,   .TILE0_GTPRESET1_IN         (gtp_reset_i)
+                             ,   .TILE0_PLLLKDET0_OUT        (plllkdet_i)
+                             ,   .TILE0_RESETDONE0_OUT       (periph_gtpresetdone_i)
+                             ,   .TILE0_RESETDONE1_OUT       (   b2b_gtpresetdone_i[1])
+                                 // Receive Ports - 8b10b Decoder
+                             ,   .TILE0_RXCHARISCOMMA0_OUT   (periph_rxchariscomma_i)
+                             ,   .TILE0_RXCHARISCOMMA1_OUT   (   b2b_rxchariscomma_i[1])
+                             ,   .TILE0_RXCHARISK0_OUT       (periph_rxcharisk_i)
+                             ,   .TILE0_RXCHARISK1_OUT       (   b2b_rxcharisk_i[1])
+                             ,   .TILE0_RXDISPERR0_OUT       () // Unused
+                             ,   .TILE0_RXDISPERR1_OUT       () // Unused
+                             ,   .TILE0_RXNOTINTABLE0_OUT    () // Unused
+                             ,   .TILE0_RXNOTINTABLE1_OUT    () // Unused
+                                 // Receive Ports - Clock Correction
+                             ,   .TILE0_RXCLKCORCNT0_OUT     () // Unused
+                             ,   .TILE0_RXCLKCORCNT1_OUT     () // Unused
+                                 // Receive Ports - Comma Detection and Alignment
+                             ,   .TILE0_RXENMCOMMAALIGN0_IN  (1'b1) // Always realign
+                             ,   .TILE0_RXENMCOMMAALIGN1_IN  (1'b1) // Always realign
+                             ,   .TILE0_RXENPCOMMAALIGN0_IN  (1'b1) // Always realign
+                             ,   .TILE0_RXENPCOMMAALIGN1_IN  (1'b1) // Always realign
+                                 // Receive Ports - RX Data Path interface
+                             ,   .TILE0_RXDATA0_OUT          (periph_rxdata_i)
+                             ,   .TILE0_RXDATA1_OUT          (   b2b_rxdata_i[1])
+                             ,   .TILE0_RXUSRCLK0_IN         (periph_usrclk_i)
+                             ,   .TILE0_RXUSRCLK1_IN         (   b2b_usrclk_i)
+                             ,   .TILE0_RXUSRCLK20_IN        (periph_usrclk2_i)
+                             ,   .TILE0_RXUSRCLK21_IN        (   b2b_usrclk2_i)
+                                 // Receive Ports - RX Driver,OOB signalling,Coupling and Eq.,CDR
+                             ,   .TILE0_RXN0_IN              (HSS_RXN_IN[0])
+                             ,   .TILE0_RXN1_IN              (HSS_RXN_IN[1])
+                             ,   .TILE0_RXP0_IN              (HSS_RXP_IN[0])
+                             ,   .TILE0_RXP1_IN              (HSS_RXP_IN[1])
+                                 // Receive Ports - RX Loss-of-sync State Machine
+                             ,   .TILE0_RXLOSSOFSYNC0_OUT    (periph_rxlossofsync_i)
+                             ,   .TILE0_RXLOSSOFSYNC1_OUT    (   b2b_rxlossofsync_i[1])
+                                 // TX/RX Datapath Ports
+                             ,   .TILE0_GTPCLKOUT0_OUT       (unbuffered_gtpclkout_i)
+                             ,   .TILE0_GTPCLKOUT1_OUT       () // TILE0_GTPCLKOUT0_OUT used for everything
+                                 // Transmit Ports - 8b10b Encoder Control
+                             ,   .TILE0_TXCHARISK0_IN        (periph_txcharisk_i)
+                             ,   .TILE0_TXCHARISK1_IN        (   b2b_txcharisk_i[1])
+                                 // Transmit Ports - TX Data Path interface
+                             ,   .TILE0_TXDATA0_IN           (periph_txdata_i)
+                             ,   .TILE0_TXDATA1_IN           (   b2b_txdata_i[1])
+                             ,   .TILE0_TXUSRCLK0_IN         (periph_usrclk_i)
+                             ,   .TILE0_TXUSRCLK1_IN         (   b2b_usrclk_i)
+                             ,   .TILE0_TXUSRCLK20_IN        (periph_usrclk2_i)
+                             ,   .TILE0_TXUSRCLK21_IN        (   b2b_usrclk2_i)
+                                 // Transmit Ports - TX Driver and OOB signalling
+                             ,   .TILE0_TXN0_OUT             (HSS_TXN_OUT[0])
+                             ,   .TILE0_TXN1_OUT             (HSS_TXN_OUT[1])
+                             ,   .TILE0_TXP0_OUT             (HSS_TXP_OUT[0])
+                             ,   .TILE0_TXP1_OUT             (HSS_TXP_OUT[1])
+                                 // Analog signal generation settings
+                             ,   .TILE0_RXEQMIX0_IN          (rxeqmix_i[5:4])
+                             ,   .TILE0_RXEQMIX1_IN          (rxeqmix_i[3:2])
+                             ,   .TILE0_TXDIFFCTRL0_IN       (txdiffctrl_i[11:8])
+                             ,   .TILE0_TXDIFFCTRL1_IN       (txdiffctrl_i[7:4])
+                             ,   .TILE0_TXPREEMPHASIS0_IN    (txpreemphasis_i[8:6])
+                             ,   .TILE0_TXPREEMPHASIS1_IN    (txpreemphasis_i[5:3])
+                             );
 
-	{1, 2, 1}:
-		gtp_x0_y0_pb#( .WRAPPER_SIM_GTPRESET_SPEEDUP (SIMULATION_GTPRESET_SPEEDUP)
-		             , .WRAPPER_SIMULATION           (SIMULATION)
-		             )
-		gtp_x0_y0_i  ( // TILE (X0_Y0)
-		                 // Loopback and Powerdown Ports
-		                 .TILE0_LOOPBACK0_IN         (PERIPH_GTP_LOOPBACK)
-		             ,   .TILE0_LOOPBACK1_IN         (   B2B_GTP_LOOPBACK)
-		                 // PLL Ports
-		             ,   .TILE0_CLK00_IN             (gtpclkin_i)
-		             ,   .TILE0_CLK01_IN             (1'b0) // Uses the first block's clock, just tie-off
-		             ,   .TILE0_GTPRESET0_IN         (gtp_reset_i)
-		             ,   .TILE0_GTPRESET1_IN         (gtp_reset_i)
-		             ,   .TILE0_PLLLKDET0_OUT        (plllkdet_i)
-		             ,   .TILE0_RESETDONE0_OUT       (periph_gtpresetdone_i)
-		             ,   .TILE0_RESETDONE1_OUT       (   b2b_gtpresetdone_i[1])
-		                 // Receive Ports - 8b10b Decoder
-		             ,   .TILE0_RXCHARISCOMMA0_OUT   (periph_rxchariscomma_i)
-		             ,   .TILE0_RXCHARISCOMMA1_OUT   (   b2b_rxchariscomma_i[1])
-		             ,   .TILE0_RXCHARISK0_OUT       (periph_rxcharisk_i)
-		             ,   .TILE0_RXCHARISK1_OUT       (   b2b_rxcharisk_i[1])
-		             ,   .TILE0_RXDISPERR0_OUT       () // Unused
-		             ,   .TILE0_RXDISPERR1_OUT       () // Unused
-		             ,   .TILE0_RXNOTINTABLE0_OUT    () // Unused
-		             ,   .TILE0_RXNOTINTABLE1_OUT    () // Unused
-		                 // Receive Ports - Clock Correction
-		             ,   .TILE0_RXCLKCORCNT0_OUT     () // Unused
-		             ,   .TILE0_RXCLKCORCNT1_OUT     () // Unused
-		                 // Receive Ports - Comma Detection and Alignment
-		             ,   .TILE0_RXENMCOMMAALIGN0_IN  (1'b1) // Always realign
-		             ,   .TILE0_RXENMCOMMAALIGN1_IN  (1'b1) // Always realign
-		             ,   .TILE0_RXENPCOMMAALIGN0_IN  (1'b1) // Always realign
-		             ,   .TILE0_RXENPCOMMAALIGN1_IN  (1'b1) // Always realign
-		                 // Receive Ports - RX Data Path interface
-		             ,   .TILE0_RXDATA0_OUT          (periph_rxdata_i)
-		             ,   .TILE0_RXDATA1_OUT          (   b2b_rxdata_i[1])
-		             ,   .TILE0_RXUSRCLK0_IN         (periph_usrclk_i)
-		             ,   .TILE0_RXUSRCLK1_IN         (   b2b_usrclk_i)
-		             ,   .TILE0_RXUSRCLK20_IN        (periph_usrclk2_i)
-		             ,   .TILE0_RXUSRCLK21_IN        (   b2b_usrclk2_i)
-		                 // Receive Ports - RX Driver,OOB signalling,Coupling and Eq.,CDR
-		             ,   .TILE0_RXN0_IN              (HSS_RXN_IN[0])
-		             ,   .TILE0_RXN1_IN              (HSS_RXN_IN[1])
-		             ,   .TILE0_RXP0_IN              (HSS_RXP_IN[0])
-		             ,   .TILE0_RXP1_IN              (HSS_RXP_IN[1])
-		                 // Receive Ports - RX Loss-of-sync State Machine
-		             ,   .TILE0_RXLOSSOFSYNC0_OUT    (periph_rxlossofsync_i)
-		             ,   .TILE0_RXLOSSOFSYNC1_OUT    (   b2b_rxlossofsync_i[1])
-		                 // TX/RX Datapath Ports
-		             ,   .TILE0_GTPCLKOUT0_OUT       (unbuffered_gtpclkout_i)
-		             ,   .TILE0_GTPCLKOUT1_OUT       () // TILE0_GTPCLKOUT0_OUT used for everything
-		                 // Transmit Ports - 8b10b Encoder Control
-		             ,   .TILE0_TXCHARISK0_IN        (periph_txcharisk_i)
-		             ,   .TILE0_TXCHARISK1_IN        (   b2b_txcharisk_i[1])
-		                 // Transmit Ports - TX Data Path interface
-		             ,   .TILE0_TXDATA0_IN           (periph_txdata_i)
-		             ,   .TILE0_TXDATA1_IN           (   b2b_txdata_i[1])
-		             ,   .TILE0_TXUSRCLK0_IN         (periph_usrclk_i)
-		             ,   .TILE0_TXUSRCLK1_IN         (   b2b_usrclk_i)
-		             ,   .TILE0_TXUSRCLK20_IN        (periph_usrclk2_i)
-		             ,   .TILE0_TXUSRCLK21_IN        (   b2b_usrclk2_i)
-		                 // Transmit Ports - TX Driver and OOB signalling
-		             ,   .TILE0_TXN0_OUT             (HSS_TXN_OUT[0])
-		             ,   .TILE0_TXN1_OUT             (HSS_TXN_OUT[1])
-		             ,   .TILE0_TXP0_OUT             (HSS_TXP_OUT[0])
-		             ,   .TILE0_TXP1_OUT             (HSS_TXP_OUT[1])
-		                 // Analog signal generation settings
-		             ,   .TILE0_RXEQMIX0_IN          (rxeqmix_i[5:4])
-		             ,   .TILE0_RXEQMIX1_IN          (rxeqmix_i[3:2])
-		             ,   .TILE0_TXDIFFCTRL0_IN       (txdiffctrl_i[11:8])
-		             ,   .TILE0_TXDIFFCTRL1_IN       (txdiffctrl_i[7:4])
-		             ,   .TILE0_TXPREEMPHASIS0_IN    (txpreemphasis_i[8:6])
-		             ,   .TILE0_TXPREEMPHASIS1_IN    (txpreemphasis_i[5:3])
-		             );
+        {1, 2, 1}:
+                gtp_x0_y0_pb#( .WRAPPER_SIM_GTPRESET_SPEEDUP (SIMULATION_GTPRESET_SPEEDUP)
+                             , .WRAPPER_SIMULATION           (SIMULATION)
+                             )
+                gtp_x0_y0_i  ( // TILE (X0_Y0)
+                                 // Loopback and Powerdown Ports
+                                 .TILE0_LOOPBACK0_IN         (PERIPH_GTP_LOOPBACK)
+                             ,   .TILE0_LOOPBACK1_IN         (   B2B_GTP_LOOPBACK)
+                                 // PLL Ports
+                             ,   .TILE0_CLK00_IN             (gtpclkin_i)
+                             ,   .TILE0_CLK01_IN             (1'b0) // Uses the first block's clock, just tie-off
+                             ,   .TILE0_GTPRESET0_IN         (gtp_reset_i)
+                             ,   .TILE0_GTPRESET1_IN         (gtp_reset_i)
+                             ,   .TILE0_PLLLKDET0_OUT        (plllkdet_i)
+                             ,   .TILE0_RESETDONE0_OUT       (periph_gtpresetdone_i)
+                             ,   .TILE0_RESETDONE1_OUT       (   b2b_gtpresetdone_i[1])
+                                 // Receive Ports - 8b10b Decoder
+                             ,   .TILE0_RXCHARISCOMMA0_OUT   (periph_rxchariscomma_i)
+                             ,   .TILE0_RXCHARISCOMMA1_OUT   (   b2b_rxchariscomma_i[1])
+                             ,   .TILE0_RXCHARISK0_OUT       (periph_rxcharisk_i)
+                             ,   .TILE0_RXCHARISK1_OUT       (   b2b_rxcharisk_i[1])
+                             ,   .TILE0_RXDISPERR0_OUT       () // Unused
+                             ,   .TILE0_RXDISPERR1_OUT       () // Unused
+                             ,   .TILE0_RXNOTINTABLE0_OUT    () // Unused
+                             ,   .TILE0_RXNOTINTABLE1_OUT    () // Unused
+                                 // Receive Ports - Clock Correction
+                             ,   .TILE0_RXCLKCORCNT0_OUT     () // Unused
+                             ,   .TILE0_RXCLKCORCNT1_OUT     () // Unused
+                                 // Receive Ports - Comma Detection and Alignment
+                             ,   .TILE0_RXENMCOMMAALIGN0_IN  (1'b1) // Always realign
+                             ,   .TILE0_RXENMCOMMAALIGN1_IN  (1'b1) // Always realign
+                             ,   .TILE0_RXENPCOMMAALIGN0_IN  (1'b1) // Always realign
+                             ,   .TILE0_RXENPCOMMAALIGN1_IN  (1'b1) // Always realign
+                                 // Receive Ports - RX Data Path interface
+                             ,   .TILE0_RXDATA0_OUT          (periph_rxdata_i)
+                             ,   .TILE0_RXDATA1_OUT          (   b2b_rxdata_i[1])
+                             ,   .TILE0_RXUSRCLK0_IN         (periph_usrclk_i)
+                             ,   .TILE0_RXUSRCLK1_IN         (   b2b_usrclk_i)
+                             ,   .TILE0_RXUSRCLK20_IN        (periph_usrclk2_i)
+                             ,   .TILE0_RXUSRCLK21_IN        (   b2b_usrclk2_i)
+                                 // Receive Ports - RX Driver,OOB signalling,Coupling and Eq.,CDR
+                             ,   .TILE0_RXN0_IN              (HSS_RXN_IN[0])
+                             ,   .TILE0_RXN1_IN              (HSS_RXN_IN[1])
+                             ,   .TILE0_RXP0_IN              (HSS_RXP_IN[0])
+                             ,   .TILE0_RXP1_IN              (HSS_RXP_IN[1])
+                                 // Receive Ports - RX Loss-of-sync State Machine
+                             ,   .TILE0_RXLOSSOFSYNC0_OUT    (periph_rxlossofsync_i)
+                             ,   .TILE0_RXLOSSOFSYNC1_OUT    (   b2b_rxlossofsync_i[1])
+                                 // TX/RX Datapath Ports
+                             ,   .TILE0_GTPCLKOUT0_OUT       (unbuffered_gtpclkout_i)
+                             ,   .TILE0_GTPCLKOUT1_OUT       () // TILE0_GTPCLKOUT0_OUT used for everything
+                                 // Transmit Ports - 8b10b Encoder Control
+                             ,   .TILE0_TXCHARISK0_IN        (periph_txcharisk_i)
+                             ,   .TILE0_TXCHARISK1_IN        (   b2b_txcharisk_i[1])
+                                 // Transmit Ports - TX Data Path interface
+                             ,   .TILE0_TXDATA0_IN           (periph_txdata_i)
+                             ,   .TILE0_TXDATA1_IN           (   b2b_txdata_i[1])
+                             ,   .TILE0_TXUSRCLK0_IN         (periph_usrclk_i)
+                             ,   .TILE0_TXUSRCLK1_IN         (   b2b_usrclk_i)
+                             ,   .TILE0_TXUSRCLK20_IN        (periph_usrclk2_i)
+                             ,   .TILE0_TXUSRCLK21_IN        (   b2b_usrclk2_i)
+                                 // Transmit Ports - TX Driver and OOB signalling
+                             ,   .TILE0_TXN0_OUT             (HSS_TXN_OUT[0])
+                             ,   .TILE0_TXN1_OUT             (HSS_TXN_OUT[1])
+                             ,   .TILE0_TXP0_OUT             (HSS_TXP_OUT[0])
+                             ,   .TILE0_TXP1_OUT             (HSS_TXP_OUT[1])
+                                 // Analog signal generation settings
+                             ,   .TILE0_RXEQMIX0_IN          (rxeqmix_i[5:4])
+                             ,   .TILE0_RXEQMIX1_IN          (rxeqmix_i[3:2])
+                             ,   .TILE0_TXDIFFCTRL0_IN       (txdiffctrl_i[11:8])
+                             ,   .TILE0_TXDIFFCTRL1_IN       (txdiffctrl_i[7:4])
+                             ,   .TILE0_TXPREEMPHASIS0_IN    (txpreemphasis_i[8:6])
+                             ,   .TILE0_TXPREEMPHASIS1_IN    (txpreemphasis_i[5:3])
+                             );
 endcase endgenerate
 
 // TILE (X1_Y0)
 generate case ({NORTH_SOUTH_ON_FRONT, FPGA_ID, PERIPH_HALF_SPEED})
-	{0, 0, 0},
-	{0, 1, 0},
-	{0, 2, 0},
-	{1, 1, 0}:
-		gtp_x1_y0_br#( .WRAPPER_SIM_GTPRESET_SPEEDUP (SIMULATION_GTPRESET_SPEEDUP)
-		             , .WRAPPER_SIMULATION           (SIMULATION)
-		             )
-		gtp_x1_y0_i  ( // TILE (X1_Y0)
-		                 // Loopback and Powerdown Ports
-		                 .TILE0_LOOPBACK0_IN         (PERIPH_GTP_LOOPBACK) // Not loopback mode
-		             ,   .TILE0_LOOPBACK1_IN         (  RING_GTP_LOOPBACK) // Not loopback mode
-		                 // PLL Ports
-		             ,   .TILE0_CLK00_IN             (gtpclkin_i)
-		             ,   .TILE0_CLK01_IN             (1'b0) // Uses the first block's clock, just tie-off
-		             ,   .TILE0_GTPRESET0_IN         (gtp_reset_i)
-		             ,   .TILE0_GTPRESET1_IN         (gtp_reset_i)
-		             ,   .TILE0_PLLLKDET0_OUT        ()
-		             ,   .TILE0_RESETDONE0_OUT       (periph_gtpresetdone_i)
-		             ,   .TILE0_RESETDONE1_OUT       (  ring_gtpresetdone_i)
-		                 // Receive Ports - 8b10b Decoder
-		             ,   .TILE0_RXCHARISCOMMA0_OUT   (periph_rxchariscomma_i)
-		             ,   .TILE0_RXCHARISCOMMA1_OUT   (  ring_rxchariscomma_i)
-		             ,   .TILE0_RXCHARISK0_OUT       (periph_rxcharisk_i)
-		             ,   .TILE0_RXCHARISK1_OUT       (  ring_rxcharisk_i)
-		             ,   .TILE0_RXDISPERR0_OUT       () // Unused
-		             ,   .TILE0_RXDISPERR1_OUT       () // Unused
-		             ,   .TILE0_RXNOTINTABLE0_OUT    () // Unused
-		             ,   .TILE0_RXNOTINTABLE1_OUT    () // Unused
-		                 // Receive Ports - Clock Correction
-		             ,   .TILE0_RXCLKCORCNT0_OUT     () // Unused
-		             ,   .TILE0_RXCLKCORCNT1_OUT     () // Unused
-		                 // Receive Ports - Comma Detection and Alignment
-		             ,   .TILE0_RXENMCOMMAALIGN0_IN  (1'b1) // Always realign
-		             ,   .TILE0_RXENMCOMMAALIGN1_IN  (1'b1) // Always realign
-		             ,   .TILE0_RXENPCOMMAALIGN0_IN  (1'b1) // Always realign
-		             ,   .TILE0_RXENPCOMMAALIGN1_IN  (1'b1) // Always realign
-		                 // Receive Ports - RX Data Path interface
-		             ,   .TILE0_RXDATA0_OUT          (periph_rxdata_i)
-		             ,   .TILE0_RXDATA1_OUT          (  ring_rxdata_i)
-		             ,   .TILE0_RXUSRCLK0_IN         (periph_usrclk_i)
-		             ,   .TILE0_RXUSRCLK1_IN         (  ring_usrclk_i)
-		             ,   .TILE0_RXUSRCLK20_IN        (periph_usrclk2_i)
-		             ,   .TILE0_RXUSRCLK21_IN        (  ring_usrclk2_i)
-		                 // Receive Ports - RX Driver,OOB signalling,Coupling and Eq.,CDR
-		             ,   .TILE0_RXN0_IN              (HSS_RXN_IN[2])
-		             ,   .TILE0_RXN1_IN              (HSS_RXN_IN[3])
-		             ,   .TILE0_RXP0_IN              (HSS_RXP_IN[2])
-		             ,   .TILE0_RXP1_IN              (HSS_RXP_IN[3])
-		                 // Receive Ports - RX Loss-of-sync State Machine
-		             ,   .TILE0_RXLOSSOFSYNC0_OUT    (periph_rxlossofsync_i)
-		             ,   .TILE0_RXLOSSOFSYNC1_OUT    (  ring_rxlossofsync_i)
-		                 // TX/RX Datapath Ports
-		             ,   .TILE0_GTPCLKOUT0_OUT       () // TILE0_GTPCLKOUT0_OUT used for everything
-		             ,   .TILE0_GTPCLKOUT1_OUT       () // TILE0_GTPCLKOUT0_OUT used for everything
-		                 // Transmit Ports - 8b10b Encoder Control
-		             ,   .TILE0_TXCHARISK0_IN        (periph_txcharisk_i)
-		             ,   .TILE0_TXCHARISK1_IN        (  ring_txcharisk_i)
-		                 // Transmit Ports - TX Data Path interface
-		             ,   .TILE0_TXDATA0_IN           (periph_txdata_i)
-		             ,   .TILE0_TXDATA1_IN           (  ring_txdata_i)
-		             ,   .TILE0_TXUSRCLK0_IN         (periph_usrclk_i)
-		             ,   .TILE0_TXUSRCLK1_IN         (  ring_usrclk_i)
-		             ,   .TILE0_TXUSRCLK20_IN        (periph_usrclk2_i)
-		             ,   .TILE0_TXUSRCLK21_IN        (  ring_usrclk2_i)
-		                 // Transmit Ports - TX Driver and OOB signalling
-		             ,   .TILE0_TXN0_OUT             (HSS_TXN_OUT[2])
-		             ,   .TILE0_TXN1_OUT             (HSS_TXN_OUT[3])
-		             ,   .TILE0_TXP0_OUT             (HSS_TXP_OUT[2])
-		             ,   .TILE0_TXP1_OUT             (HSS_TXP_OUT[3])
-		                 // Analog signal generation settings
-		             ,   .TILE0_RXEQMIX0_IN          (rxeqmix_i[5:4])
-		             ,   .TILE0_RXEQMIX1_IN          (rxeqmix_i[7:6])
-		             ,   .TILE0_TXDIFFCTRL0_IN       (txdiffctrl_i[11:8])
-		             ,   .TILE0_TXDIFFCTRL1_IN       (txdiffctrl_i[15:12])
-		             ,   .TILE0_TXPREEMPHASIS0_IN    (txpreemphasis_i[8:6])
-		             ,   .TILE0_TXPREEMPHASIS1_IN    (txpreemphasis_i[11:9])
-		             );
+        {0, 0, 0},
+        {0, 1, 0},
+        {0, 2, 0},
+        {1, 1, 0}:
+                gtp_x1_y0_br#( .WRAPPER_SIM_GTPRESET_SPEEDUP (SIMULATION_GTPRESET_SPEEDUP)
+                             , .WRAPPER_SIMULATION           (SIMULATION)
+                             )
+                gtp_x1_y0_i  ( // TILE (X1_Y0)
+                                 // Loopback and Powerdown Ports
+                                 .TILE0_LOOPBACK0_IN         (PERIPH_GTP_LOOPBACK) // Not loopback mode
+                             ,   .TILE0_LOOPBACK1_IN         (  RING_GTP_LOOPBACK) // Not loopback mode
+                                 // PLL Ports
+                             ,   .TILE0_CLK00_IN             (gtpclkin_i)
+                             ,   .TILE0_CLK01_IN             (1'b0) // Uses the first block's clock, just tie-off
+                             ,   .TILE0_GTPRESET0_IN         (gtp_reset_i)
+                             ,   .TILE0_GTPRESET1_IN         (gtp_reset_i)
+                             ,   .TILE0_PLLLKDET0_OUT        ()
+                             ,   .TILE0_RESETDONE0_OUT       (periph_gtpresetdone_i)
+                             ,   .TILE0_RESETDONE1_OUT       (  ring_gtpresetdone_i)
+                                 // Receive Ports - 8b10b Decoder
+                             ,   .TILE0_RXCHARISCOMMA0_OUT   (periph_rxchariscomma_i)
+                             ,   .TILE0_RXCHARISCOMMA1_OUT   (  ring_rxchariscomma_i)
+                             ,   .TILE0_RXCHARISK0_OUT       (periph_rxcharisk_i)
+                             ,   .TILE0_RXCHARISK1_OUT       (  ring_rxcharisk_i)
+                             ,   .TILE0_RXDISPERR0_OUT       () // Unused
+                             ,   .TILE0_RXDISPERR1_OUT       () // Unused
+                             ,   .TILE0_RXNOTINTABLE0_OUT    () // Unused
+                             ,   .TILE0_RXNOTINTABLE1_OUT    () // Unused
+                                 // Receive Ports - Clock Correction
+                             ,   .TILE0_RXCLKCORCNT0_OUT     () // Unused
+                             ,   .TILE0_RXCLKCORCNT1_OUT     () // Unused
+                                 // Receive Ports - Comma Detection and Alignment
+                             ,   .TILE0_RXENMCOMMAALIGN0_IN  (1'b1) // Always realign
+                             ,   .TILE0_RXENMCOMMAALIGN1_IN  (1'b1) // Always realign
+                             ,   .TILE0_RXENPCOMMAALIGN0_IN  (1'b1) // Always realign
+                             ,   .TILE0_RXENPCOMMAALIGN1_IN  (1'b1) // Always realign
+                                 // Receive Ports - RX Data Path interface
+                             ,   .TILE0_RXDATA0_OUT          (periph_rxdata_i)
+                             ,   .TILE0_RXDATA1_OUT          (  ring_rxdata_i)
+                             ,   .TILE0_RXUSRCLK0_IN         (periph_usrclk_i)
+                             ,   .TILE0_RXUSRCLK1_IN         (  ring_usrclk_i)
+                             ,   .TILE0_RXUSRCLK20_IN        (periph_usrclk2_i)
+                             ,   .TILE0_RXUSRCLK21_IN        (  ring_usrclk2_i)
+                                 // Receive Ports - RX Driver,OOB signalling,Coupling and Eq.,CDR
+                             ,   .TILE0_RXN0_IN              (HSS_RXN_IN[2])
+                             ,   .TILE0_RXN1_IN              (HSS_RXN_IN[3])
+                             ,   .TILE0_RXP0_IN              (HSS_RXP_IN[2])
+                             ,   .TILE0_RXP1_IN              (HSS_RXP_IN[3])
+                                 // Receive Ports - RX Loss-of-sync State Machine
+                             ,   .TILE0_RXLOSSOFSYNC0_OUT    (periph_rxlossofsync_i)
+                             ,   .TILE0_RXLOSSOFSYNC1_OUT    (  ring_rxlossofsync_i)
+                                 // TX/RX Datapath Ports
+                             ,   .TILE0_GTPCLKOUT0_OUT       () // TILE0_GTPCLKOUT0_OUT used for everything
+                             ,   .TILE0_GTPCLKOUT1_OUT       () // TILE0_GTPCLKOUT0_OUT used for everything
+                                 // Transmit Ports - 8b10b Encoder Control
+                             ,   .TILE0_TXCHARISK0_IN        (periph_txcharisk_i)
+                             ,   .TILE0_TXCHARISK1_IN        (  ring_txcharisk_i)
+                                 // Transmit Ports - TX Data Path interface
+                             ,   .TILE0_TXDATA0_IN           (periph_txdata_i)
+                             ,   .TILE0_TXDATA1_IN           (  ring_txdata_i)
+                             ,   .TILE0_TXUSRCLK0_IN         (periph_usrclk_i)
+                             ,   .TILE0_TXUSRCLK1_IN         (  ring_usrclk_i)
+                             ,   .TILE0_TXUSRCLK20_IN        (periph_usrclk2_i)
+                             ,   .TILE0_TXUSRCLK21_IN        (  ring_usrclk2_i)
+                                 // Transmit Ports - TX Driver and OOB signalling
+                             ,   .TILE0_TXN0_OUT             (HSS_TXN_OUT[2])
+                             ,   .TILE0_TXN1_OUT             (HSS_TXN_OUT[3])
+                             ,   .TILE0_TXP0_OUT             (HSS_TXP_OUT[2])
+                             ,   .TILE0_TXP1_OUT             (HSS_TXP_OUT[3])
+                                 // Analog signal generation settings
+                             ,   .TILE0_RXEQMIX0_IN          (rxeqmix_i[5:4])
+                             ,   .TILE0_RXEQMIX1_IN          (rxeqmix_i[7:6])
+                             ,   .TILE0_TXDIFFCTRL0_IN       (txdiffctrl_i[11:8])
+                             ,   .TILE0_TXDIFFCTRL1_IN       (txdiffctrl_i[15:12])
+                             ,   .TILE0_TXPREEMPHASIS0_IN    (txpreemphasis_i[8:6])
+                             ,   .TILE0_TXPREEMPHASIS1_IN    (txpreemphasis_i[11:9])
+                             );
 
-	{0, 0, 1},
-	{0, 1, 1},
-	{0, 2, 1},
-	{1, 1, 1}:
-		gtp_x1_y0_pr#( .WRAPPER_SIM_GTPRESET_SPEEDUP (SIMULATION_GTPRESET_SPEEDUP)
-		             , .WRAPPER_SIMULATION           (SIMULATION)
-		             )
-		gtp_x1_y0_i  ( // TILE (X1_Y0)
-		                 // Loopback and Powerdown Ports
-		                 .TILE0_LOOPBACK0_IN         (PERIPH_GTP_LOOPBACK) // Not loopback mode
-		             ,   .TILE0_LOOPBACK1_IN         (  RING_GTP_LOOPBACK) // Not loopback mode
-		                 // PLL Ports
-		             ,   .TILE0_CLK00_IN             (gtpclkin_i)
-		             ,   .TILE0_CLK01_IN             (1'b0) // Uses the first block's clock, just tie-off
-		             ,   .TILE0_GTPRESET0_IN         (gtp_reset_i)
-		             ,   .TILE0_GTPRESET1_IN         (gtp_reset_i)
-		             ,   .TILE0_PLLLKDET0_OUT        ()
-		             ,   .TILE0_RESETDONE0_OUT       (periph_gtpresetdone_i)
-		             ,   .TILE0_RESETDONE1_OUT       (  ring_gtpresetdone_i)
-		                 // Receive Ports - 8b10b Decoder
-		             ,   .TILE0_RXCHARISCOMMA0_OUT   (periph_rxchariscomma_i)
-		             ,   .TILE0_RXCHARISCOMMA1_OUT   (  ring_rxchariscomma_i)
-		             ,   .TILE0_RXCHARISK0_OUT       (periph_rxcharisk_i)
-		             ,   .TILE0_RXCHARISK1_OUT       (  ring_rxcharisk_i)
-		             ,   .TILE0_RXDISPERR0_OUT       () // Unused
-		             ,   .TILE0_RXDISPERR1_OUT       () // Unused
-		             ,   .TILE0_RXNOTINTABLE0_OUT    () // Unused
-		             ,   .TILE0_RXNOTINTABLE1_OUT    () // Unused
-		                 // Receive Ports - Clock Correction
-		             ,   .TILE0_RXCLKCORCNT0_OUT     () // Unused
-		             ,   .TILE0_RXCLKCORCNT1_OUT     () // Unused
-		                 // Receive Ports - Comma Detection and Alignment
-		             ,   .TILE0_RXENMCOMMAALIGN0_IN  (1'b1) // Always realign
-		             ,   .TILE0_RXENMCOMMAALIGN1_IN  (1'b1) // Always realign
-		             ,   .TILE0_RXENPCOMMAALIGN0_IN  (1'b1) // Always realign
-		             ,   .TILE0_RXENPCOMMAALIGN1_IN  (1'b1) // Always realign
-		                 // Receive Ports - RX Data Path interface
-		             ,   .TILE0_RXDATA0_OUT          (periph_rxdata_i)
-		             ,   .TILE0_RXDATA1_OUT          (  ring_rxdata_i)
-		             ,   .TILE0_RXUSRCLK0_IN         (periph_usrclk_i)
-		             ,   .TILE0_RXUSRCLK1_IN         (  ring_usrclk_i)
-		             ,   .TILE0_RXUSRCLK20_IN        (periph_usrclk2_i)
-		             ,   .TILE0_RXUSRCLK21_IN        (  ring_usrclk2_i)
-		                 // Receive Ports - RX Driver,OOB signalling,Coupling and Eq.,CDR
-		             ,   .TILE0_RXN0_IN              (HSS_RXN_IN[2])
-		             ,   .TILE0_RXN1_IN              (HSS_RXN_IN[3])
-		             ,   .TILE0_RXP0_IN              (HSS_RXP_IN[2])
-		             ,   .TILE0_RXP1_IN              (HSS_RXP_IN[3])
-		                 // Receive Ports - RX Loss-of-sync State Machine
-		             ,   .TILE0_RXLOSSOFSYNC0_OUT    (periph_rxlossofsync_i)
-		             ,   .TILE0_RXLOSSOFSYNC1_OUT    (  ring_rxlossofsync_i)
-		                 // TX/RX Datapath Ports
-		             ,   .TILE0_GTPCLKOUT0_OUT       () // TILE0_GTPCLKOUT0_OUT used for everything
-		             ,   .TILE0_GTPCLKOUT1_OUT       () // TILE0_GTPCLKOUT0_OUT used for everything
-		                 // Transmit Ports - 8b10b Encoder Control
-		             ,   .TILE0_TXCHARISK0_IN        (periph_txcharisk_i)
-		             ,   .TILE0_TXCHARISK1_IN        (  ring_txcharisk_i)
-		                 // Transmit Ports - TX Data Path interface
-		             ,   .TILE0_TXDATA0_IN           (periph_txdata_i)
-		             ,   .TILE0_TXDATA1_IN           (  ring_txdata_i)
-		             ,   .TILE0_TXUSRCLK0_IN         (periph_usrclk_i)
-		             ,   .TILE0_TXUSRCLK1_IN         (  ring_usrclk_i)
-		             ,   .TILE0_TXUSRCLK20_IN        (periph_usrclk2_i)
-		             ,   .TILE0_TXUSRCLK21_IN        (  ring_usrclk2_i)
-		                 // Transmit Ports - TX Driver and OOB signalling
-		             ,   .TILE0_TXN0_OUT             (HSS_TXN_OUT[2])
-		             ,   .TILE0_TXN1_OUT             (HSS_TXN_OUT[3])
-		             ,   .TILE0_TXP0_OUT             (HSS_TXP_OUT[2])
-		             ,   .TILE0_TXP1_OUT             (HSS_TXP_OUT[3])
-		                 // Analog signal generation settings
-		             ,   .TILE0_RXEQMIX0_IN          (rxeqmix_i[5:4])
-		             ,   .TILE0_RXEQMIX1_IN          (rxeqmix_i[7:6])
-		             ,   .TILE0_TXDIFFCTRL0_IN       (txdiffctrl_i[11:8])
-		             ,   .TILE0_TXDIFFCTRL1_IN       (txdiffctrl_i[15:12])
-		             ,   .TILE0_TXPREEMPHASIS0_IN    (txpreemphasis_i[8:6])
-		             ,   .TILE0_TXPREEMPHASIS1_IN    (txpreemphasis_i[11:9])
-		            );
+        {0, 0, 1},
+        {0, 1, 1},
+        {0, 2, 1},
+        {1, 1, 1}:
+                gtp_x1_y0_pr#( .WRAPPER_SIM_GTPRESET_SPEEDUP (SIMULATION_GTPRESET_SPEEDUP)
+                             , .WRAPPER_SIMULATION           (SIMULATION)
+                             )
+                gtp_x1_y0_i  ( // TILE (X1_Y0)
+                                 // Loopback and Powerdown Ports
+                                 .TILE0_LOOPBACK0_IN         (PERIPH_GTP_LOOPBACK) // Not loopback mode
+                             ,   .TILE0_LOOPBACK1_IN         (  RING_GTP_LOOPBACK) // Not loopback mode
+                                 // PLL Ports
+                             ,   .TILE0_CLK00_IN             (gtpclkin_i)
+                             ,   .TILE0_CLK01_IN             (1'b0) // Uses the first block's clock, just tie-off
+                             ,   .TILE0_GTPRESET0_IN         (gtp_reset_i)
+                             ,   .TILE0_GTPRESET1_IN         (gtp_reset_i)
+                             ,   .TILE0_PLLLKDET0_OUT        ()
+                             ,   .TILE0_RESETDONE0_OUT       (periph_gtpresetdone_i)
+                             ,   .TILE0_RESETDONE1_OUT       (  ring_gtpresetdone_i)
+                                 // Receive Ports - 8b10b Decoder
+                             ,   .TILE0_RXCHARISCOMMA0_OUT   (periph_rxchariscomma_i)
+                             ,   .TILE0_RXCHARISCOMMA1_OUT   (  ring_rxchariscomma_i)
+                             ,   .TILE0_RXCHARISK0_OUT       (periph_rxcharisk_i)
+                             ,   .TILE0_RXCHARISK1_OUT       (  ring_rxcharisk_i)
+                             ,   .TILE0_RXDISPERR0_OUT       () // Unused
+                             ,   .TILE0_RXDISPERR1_OUT       () // Unused
+                             ,   .TILE0_RXNOTINTABLE0_OUT    () // Unused
+                             ,   .TILE0_RXNOTINTABLE1_OUT    () // Unused
+                                 // Receive Ports - Clock Correction
+                             ,   .TILE0_RXCLKCORCNT0_OUT     () // Unused
+                             ,   .TILE0_RXCLKCORCNT1_OUT     () // Unused
+                                 // Receive Ports - Comma Detection and Alignment
+                             ,   .TILE0_RXENMCOMMAALIGN0_IN  (1'b1) // Always realign
+                             ,   .TILE0_RXENMCOMMAALIGN1_IN  (1'b1) // Always realign
+                             ,   .TILE0_RXENPCOMMAALIGN0_IN  (1'b1) // Always realign
+                             ,   .TILE0_RXENPCOMMAALIGN1_IN  (1'b1) // Always realign
+                                 // Receive Ports - RX Data Path interface
+                             ,   .TILE0_RXDATA0_OUT          (periph_rxdata_i)
+                             ,   .TILE0_RXDATA1_OUT          (  ring_rxdata_i)
+                             ,   .TILE0_RXUSRCLK0_IN         (periph_usrclk_i)
+                             ,   .TILE0_RXUSRCLK1_IN         (  ring_usrclk_i)
+                             ,   .TILE0_RXUSRCLK20_IN        (periph_usrclk2_i)
+                             ,   .TILE0_RXUSRCLK21_IN        (  ring_usrclk2_i)
+                                 // Receive Ports - RX Driver,OOB signalling,Coupling and Eq.,CDR
+                             ,   .TILE0_RXN0_IN              (HSS_RXN_IN[2])
+                             ,   .TILE0_RXN1_IN              (HSS_RXN_IN[3])
+                             ,   .TILE0_RXP0_IN              (HSS_RXP_IN[2])
+                             ,   .TILE0_RXP1_IN              (HSS_RXP_IN[3])
+                                 // Receive Ports - RX Loss-of-sync State Machine
+                             ,   .TILE0_RXLOSSOFSYNC0_OUT    (periph_rxlossofsync_i)
+                             ,   .TILE0_RXLOSSOFSYNC1_OUT    (  ring_rxlossofsync_i)
+                                 // TX/RX Datapath Ports
+                             ,   .TILE0_GTPCLKOUT0_OUT       () // TILE0_GTPCLKOUT0_OUT used for everything
+                             ,   .TILE0_GTPCLKOUT1_OUT       () // TILE0_GTPCLKOUT0_OUT used for everything
+                                 // Transmit Ports - 8b10b Encoder Control
+                             ,   .TILE0_TXCHARISK0_IN        (periph_txcharisk_i)
+                             ,   .TILE0_TXCHARISK1_IN        (  ring_txcharisk_i)
+                                 // Transmit Ports - TX Data Path interface
+                             ,   .TILE0_TXDATA0_IN           (periph_txdata_i)
+                             ,   .TILE0_TXDATA1_IN           (  ring_txdata_i)
+                             ,   .TILE0_TXUSRCLK0_IN         (periph_usrclk_i)
+                             ,   .TILE0_TXUSRCLK1_IN         (  ring_usrclk_i)
+                             ,   .TILE0_TXUSRCLK20_IN        (periph_usrclk2_i)
+                             ,   .TILE0_TXUSRCLK21_IN        (  ring_usrclk2_i)
+                                 // Transmit Ports - TX Driver and OOB signalling
+                             ,   .TILE0_TXN0_OUT             (HSS_TXN_OUT[2])
+                             ,   .TILE0_TXN1_OUT             (HSS_TXN_OUT[3])
+                             ,   .TILE0_TXP0_OUT             (HSS_TXP_OUT[2])
+                             ,   .TILE0_TXP1_OUT             (HSS_TXP_OUT[3])
+                                 // Analog signal generation settings
+                             ,   .TILE0_RXEQMIX0_IN          (rxeqmix_i[5:4])
+                             ,   .TILE0_RXEQMIX1_IN          (rxeqmix_i[7:6])
+                             ,   .TILE0_TXDIFFCTRL0_IN       (txdiffctrl_i[11:8])
+                             ,   .TILE0_TXDIFFCTRL1_IN       (txdiffctrl_i[15:12])
+                             ,   .TILE0_TXPREEMPHASIS0_IN    (txpreemphasis_i[8:6])
+                             ,   .TILE0_TXPREEMPHASIS1_IN    (txpreemphasis_i[11:9])
+                            );
 
-	{1, 0, 0},
-	{1, 0, 1}:
-		gtp_x1_y0_br#( .WRAPPER_SIM_GTPRESET_SPEEDUP (SIMULATION_GTPRESET_SPEEDUP)
-		             , .WRAPPER_SIMULATION           (SIMULATION)
-		             )
-		gtp_x1_y0_i  ( // TILE (X1_Y0)
-		                 // Loopback and Powerdown Ports
-		                 .TILE0_LOOPBACK0_IN         ( B2B_GTP_LOOPBACK) // Not loopback mode
-		             ,   .TILE0_LOOPBACK1_IN         (RING_GTP_LOOPBACK) // Not loopback mode
-		                 // PLL Ports
-		             ,   .TILE0_CLK00_IN             (gtpclkin_i)
-		             ,   .TILE0_CLK01_IN             (1'b0) // Uses the first block's clock, just tie-off
-		             ,   .TILE0_GTPRESET0_IN         (gtp_reset_i)
-		             ,   .TILE0_GTPRESET1_IN         (gtp_reset_i)
-		             ,   .TILE0_PLLLKDET0_OUT        ()
-		             ,   .TILE0_RESETDONE0_OUT       ( b2b_gtpresetdone_i[1])
-		             ,   .TILE0_RESETDONE1_OUT       (ring_gtpresetdone_i)
-		                 // Receive Ports - 8b10b Decoder
-		             ,   .TILE0_RXCHARISCOMMA0_OUT   ( b2b_rxchariscomma_i[1])
-		             ,   .TILE0_RXCHARISCOMMA1_OUT   (ring_rxchariscomma_i)
-		             ,   .TILE0_RXCHARISK0_OUT       ( b2b_rxcharisk_i[1])
-		             ,   .TILE0_RXCHARISK1_OUT       (ring_rxcharisk_i)
-		             ,   .TILE0_RXDISPERR0_OUT       () // Unused
-		             ,   .TILE0_RXDISPERR1_OUT       () // Unused
-		             ,   .TILE0_RXNOTINTABLE0_OUT    () // Unused
-		             ,   .TILE0_RXNOTINTABLE1_OUT    () // Unused
-		                 // Receive Ports - Clock Correction
-		             ,   .TILE0_RXCLKCORCNT0_OUT     () // Unused
-		             ,   .TILE0_RXCLKCORCNT1_OUT     () // Unused
-		                 // Receive Ports - Comma Detection and Alignment
-		             ,   .TILE0_RXENMCOMMAALIGN0_IN  (1'b1) // Always realign
-		             ,   .TILE0_RXENMCOMMAALIGN1_IN  (1'b1) // Always realign
-		             ,   .TILE0_RXENPCOMMAALIGN0_IN  (1'b1) // Always realign
-		             ,   .TILE0_RXENPCOMMAALIGN1_IN  (1'b1) // Always realign
-		                 // Receive Ports - RX Data Path interface
-		             ,   .TILE0_RXDATA0_OUT          ( b2b_rxdata_i[1])
-		             ,   .TILE0_RXDATA1_OUT          (ring_rxdata_i)
-		             ,   .TILE0_RXUSRCLK0_IN         ( b2b_usrclk_i)
-		             ,   .TILE0_RXUSRCLK1_IN         (ring_usrclk_i)
-		             ,   .TILE0_RXUSRCLK20_IN        ( b2b_usrclk2_i)
-		             ,   .TILE0_RXUSRCLK21_IN        (ring_usrclk2_i)
-		                 // Receive Ports - RX Driver,OOB signalling,Coupling and Eq.,CDR
-		             ,   .TILE0_RXN0_IN              (HSS_RXN_IN[2])
-		             ,   .TILE0_RXN1_IN              (HSS_RXN_IN[3])
-		             ,   .TILE0_RXP0_IN              (HSS_RXP_IN[2])
-		             ,   .TILE0_RXP1_IN              (HSS_RXP_IN[3])
-		                 // Receive Ports - RX Loss-of-sync State Machine
-		             ,   .TILE0_RXLOSSOFSYNC0_OUT    ( b2b_rxlossofsync_i[1])
-		             ,   .TILE0_RXLOSSOFSYNC1_OUT    (ring_rxlossofsync_i)
-		                 // TX/RX Datapath Ports
-		             ,   .TILE0_GTPCLKOUT0_OUT       () // TILE0_GTPCLKOUT0_OUT used for everything
-		             ,   .TILE0_GTPCLKOUT1_OUT       () // TILE0_GTPCLKOUT0_OUT used for everything
-		                 // Transmit Ports - 8b10b Encoder Control
-		             ,   .TILE0_TXCHARISK0_IN        ( b2b_txcharisk_i[1])
-		             ,   .TILE0_TXCHARISK1_IN        (ring_txcharisk_i)
-		                 // Transmit Ports - TX Data Path interface
-		             ,   .TILE0_TXDATA0_IN           ( b2b_txdata_i[1])
-		             ,   .TILE0_TXDATA1_IN           (ring_txdata_i)
-		             ,   .TILE0_TXUSRCLK0_IN         ( b2b_usrclk_i)
-		             ,   .TILE0_TXUSRCLK1_IN         (ring_usrclk_i)
-		             ,   .TILE0_TXUSRCLK20_IN        ( b2b_usrclk2_i)
-		             ,   .TILE0_TXUSRCLK21_IN        (ring_usrclk2_i)
-		                 // Transmit Ports - TX Driver and OOB signalling
-		             ,   .TILE0_TXN0_OUT             (HSS_TXN_OUT[2])
-		             ,   .TILE0_TXN1_OUT             (HSS_TXN_OUT[3])
-		             ,   .TILE0_TXP0_OUT             (HSS_TXP_OUT[2])
-		             ,   .TILE0_TXP1_OUT             (HSS_TXP_OUT[3])
-		                 // Analog signal generation settings
-		             ,   .TILE0_RXEQMIX0_IN          (rxeqmix_i[3:2])
-		             ,   .TILE0_RXEQMIX1_IN          (rxeqmix_i[7:6])
-		             ,   .TILE0_TXDIFFCTRL0_IN       (txdiffctrl_i[7:4])
-		             ,   .TILE0_TXDIFFCTRL1_IN       (txdiffctrl_i[15:12])
-		             ,   .TILE0_TXPREEMPHASIS0_IN    (txpreemphasis_i[5:3])
-		             ,   .TILE0_TXPREEMPHASIS1_IN    (txpreemphasis_i[11:9])
-		            );
+        {1, 0, 0},
+        {1, 0, 1}:
+                gtp_x1_y0_br#( .WRAPPER_SIM_GTPRESET_SPEEDUP (SIMULATION_GTPRESET_SPEEDUP)
+                             , .WRAPPER_SIMULATION           (SIMULATION)
+                             )
+                gtp_x1_y0_i  ( // TILE (X1_Y0)
+                                 // Loopback and Powerdown Ports
+                                 .TILE0_LOOPBACK0_IN         ( B2B_GTP_LOOPBACK) // Not loopback mode
+                             ,   .TILE0_LOOPBACK1_IN         (RING_GTP_LOOPBACK) // Not loopback mode
+                                 // PLL Ports
+                             ,   .TILE0_CLK00_IN             (gtpclkin_i)
+                             ,   .TILE0_CLK01_IN             (1'b0) // Uses the first block's clock, just tie-off
+                             ,   .TILE0_GTPRESET0_IN         (gtp_reset_i)
+                             ,   .TILE0_GTPRESET1_IN         (gtp_reset_i)
+                             ,   .TILE0_PLLLKDET0_OUT        ()
+                             ,   .TILE0_RESETDONE0_OUT       ( b2b_gtpresetdone_i[1])
+                             ,   .TILE0_RESETDONE1_OUT       (ring_gtpresetdone_i)
+                                 // Receive Ports - 8b10b Decoder
+                             ,   .TILE0_RXCHARISCOMMA0_OUT   ( b2b_rxchariscomma_i[1])
+                             ,   .TILE0_RXCHARISCOMMA1_OUT   (ring_rxchariscomma_i)
+                             ,   .TILE0_RXCHARISK0_OUT       ( b2b_rxcharisk_i[1])
+                             ,   .TILE0_RXCHARISK1_OUT       (ring_rxcharisk_i)
+                             ,   .TILE0_RXDISPERR0_OUT       () // Unused
+                             ,   .TILE0_RXDISPERR1_OUT       () // Unused
+                             ,   .TILE0_RXNOTINTABLE0_OUT    () // Unused
+                             ,   .TILE0_RXNOTINTABLE1_OUT    () // Unused
+                                 // Receive Ports - Clock Correction
+                             ,   .TILE0_RXCLKCORCNT0_OUT     () // Unused
+                             ,   .TILE0_RXCLKCORCNT1_OUT     () // Unused
+                                 // Receive Ports - Comma Detection and Alignment
+                             ,   .TILE0_RXENMCOMMAALIGN0_IN  (1'b1) // Always realign
+                             ,   .TILE0_RXENMCOMMAALIGN1_IN  (1'b1) // Always realign
+                             ,   .TILE0_RXENPCOMMAALIGN0_IN  (1'b1) // Always realign
+                             ,   .TILE0_RXENPCOMMAALIGN1_IN  (1'b1) // Always realign
+                                 // Receive Ports - RX Data Path interface
+                             ,   .TILE0_RXDATA0_OUT          ( b2b_rxdata_i[1])
+                             ,   .TILE0_RXDATA1_OUT          (ring_rxdata_i)
+                             ,   .TILE0_RXUSRCLK0_IN         ( b2b_usrclk_i)
+                             ,   .TILE0_RXUSRCLK1_IN         (ring_usrclk_i)
+                             ,   .TILE0_RXUSRCLK20_IN        ( b2b_usrclk2_i)
+                             ,   .TILE0_RXUSRCLK21_IN        (ring_usrclk2_i)
+                                 // Receive Ports - RX Driver,OOB signalling,Coupling and Eq.,CDR
+                             ,   .TILE0_RXN0_IN              (HSS_RXN_IN[2])
+                             ,   .TILE0_RXN1_IN              (HSS_RXN_IN[3])
+                             ,   .TILE0_RXP0_IN              (HSS_RXP_IN[2])
+                             ,   .TILE0_RXP1_IN              (HSS_RXP_IN[3])
+                                 // Receive Ports - RX Loss-of-sync State Machine
+                             ,   .TILE0_RXLOSSOFSYNC0_OUT    ( b2b_rxlossofsync_i[1])
+                             ,   .TILE0_RXLOSSOFSYNC1_OUT    (ring_rxlossofsync_i)
+                                 // TX/RX Datapath Ports
+                             ,   .TILE0_GTPCLKOUT0_OUT       () // TILE0_GTPCLKOUT0_OUT used for everything
+                             ,   .TILE0_GTPCLKOUT1_OUT       () // TILE0_GTPCLKOUT0_OUT used for everything
+                                 // Transmit Ports - 8b10b Encoder Control
+                             ,   .TILE0_TXCHARISK0_IN        ( b2b_txcharisk_i[1])
+                             ,   .TILE0_TXCHARISK1_IN        (ring_txcharisk_i)
+                                 // Transmit Ports - TX Data Path interface
+                             ,   .TILE0_TXDATA0_IN           ( b2b_txdata_i[1])
+                             ,   .TILE0_TXDATA1_IN           (ring_txdata_i)
+                             ,   .TILE0_TXUSRCLK0_IN         ( b2b_usrclk_i)
+                             ,   .TILE0_TXUSRCLK1_IN         (ring_usrclk_i)
+                             ,   .TILE0_TXUSRCLK20_IN        ( b2b_usrclk2_i)
+                             ,   .TILE0_TXUSRCLK21_IN        (ring_usrclk2_i)
+                                 // Transmit Ports - TX Driver and OOB signalling
+                             ,   .TILE0_TXN0_OUT             (HSS_TXN_OUT[2])
+                             ,   .TILE0_TXN1_OUT             (HSS_TXN_OUT[3])
+                             ,   .TILE0_TXP0_OUT             (HSS_TXP_OUT[2])
+                             ,   .TILE0_TXP1_OUT             (HSS_TXP_OUT[3])
+                                 // Analog signal generation settings
+                             ,   .TILE0_RXEQMIX0_IN          (rxeqmix_i[3:2])
+                             ,   .TILE0_RXEQMIX1_IN          (rxeqmix_i[7:6])
+                             ,   .TILE0_TXDIFFCTRL0_IN       (txdiffctrl_i[7:4])
+                             ,   .TILE0_TXDIFFCTRL1_IN       (txdiffctrl_i[15:12])
+                             ,   .TILE0_TXPREEMPHASIS0_IN    (txpreemphasis_i[5:3])
+                             ,   .TILE0_TXPREEMPHASIS1_IN    (txpreemphasis_i[11:9])
+                            );
 
-	{1, 2, 0},
-	{1, 2, 1}:
-		gtp_x1_y0_br#( .WRAPPER_SIM_GTPRESET_SPEEDUP (SIMULATION_GTPRESET_SPEEDUP)
-		             , .WRAPPER_SIMULATION           (SIMULATION)
-		             )
-		gtp_x1_y0_i  ( // TILE (X1_Y0)
-		                 // Loopback and Powerdown Ports
-		                 .TILE0_LOOPBACK0_IN         ( B2B_GTP_LOOPBACK) // Not loopback mode
-		             ,   .TILE0_LOOPBACK1_IN         (RING_GTP_LOOPBACK) // Not loopback mode
-		                 // PLL Ports
-		             ,   .TILE0_CLK00_IN             (gtpclkin_i)
-		             ,   .TILE0_CLK01_IN             (1'b0) // Uses the first block's clock, just tie-off
-		             ,   .TILE0_GTPRESET0_IN         (gtp_reset_i)
-		             ,   .TILE0_GTPRESET1_IN         (gtp_reset_i)
-		             ,   .TILE0_PLLLKDET0_OUT        ()
-		             ,   .TILE0_RESETDONE0_OUT       ( b2b_gtpresetdone_i[0])
-		             ,   .TILE0_RESETDONE1_OUT       (ring_gtpresetdone_i)
-		                 // Receive Ports - 8b10b Decoder
-		             ,   .TILE0_RXCHARISCOMMA0_OUT   ( b2b_rxchariscomma_i[0])
-		             ,   .TILE0_RXCHARISCOMMA1_OUT   (ring_rxchariscomma_i)
-		             ,   .TILE0_RXCHARISK0_OUT       ( b2b_rxcharisk_i[0])
-		             ,   .TILE0_RXCHARISK1_OUT       (ring_rxcharisk_i)
-		             ,   .TILE0_RXDISPERR0_OUT       () // Unused
-		             ,   .TILE0_RXDISPERR1_OUT       () // Unused
-		             ,   .TILE0_RXNOTINTABLE0_OUT    () // Unused
-		             ,   .TILE0_RXNOTINTABLE1_OUT    () // Unused
-		                 // Receive Ports - Clock Correction
-		             ,   .TILE0_RXCLKCORCNT0_OUT     () // Unused
-		             ,   .TILE0_RXCLKCORCNT1_OUT     () // Unused
-		                 // Receive Ports - Comma Detection and Alignment
-		             ,   .TILE0_RXENMCOMMAALIGN0_IN  (1'b1) // Always realign
-		             ,   .TILE0_RXENMCOMMAALIGN1_IN  (1'b1) // Always realign
-		             ,   .TILE0_RXENPCOMMAALIGN0_IN  (1'b1) // Always realign
-		             ,   .TILE0_RXENPCOMMAALIGN1_IN  (1'b1) // Always realign
-		                 // Receive Ports - RX Data Path interface
-		             ,   .TILE0_RXDATA0_OUT          ( b2b_rxdata_i[0])
-		             ,   .TILE0_RXDATA1_OUT          (ring_rxdata_i)
-		             ,   .TILE0_RXUSRCLK0_IN         ( b2b_usrclk_i)
-		             ,   .TILE0_RXUSRCLK1_IN         (ring_usrclk_i)
-		             ,   .TILE0_RXUSRCLK20_IN        ( b2b_usrclk2_i)
-		             ,   .TILE0_RXUSRCLK21_IN        (ring_usrclk2_i)
-		                 // Receive Ports - RX Driver,OOB signalling,Coupling and Eq.,CDR
-		             ,   .TILE0_RXN0_IN              (HSS_RXN_IN[2])
-		             ,   .TILE0_RXN1_IN              (HSS_RXN_IN[3])
-		             ,   .TILE0_RXP0_IN              (HSS_RXP_IN[2])
-		             ,   .TILE0_RXP1_IN              (HSS_RXP_IN[3])
-		                 // Receive Ports - RX Loss-of-sync State Machine
-		             ,   .TILE0_RXLOSSOFSYNC0_OUT    ( b2b_rxlossofsync_i[0])
-		             ,   .TILE0_RXLOSSOFSYNC1_OUT    (ring_rxlossofsync_i)
-		                 // TX/RX Datapath Ports
-		             ,   .TILE0_GTPCLKOUT0_OUT       () // TILE0_GTPCLKOUT0_OUT used for everything
-		             ,   .TILE0_GTPCLKOUT1_OUT       () // TILE0_GTPCLKOUT0_OUT used for everything
-		                 // Transmit Ports - 8b10b Encoder Control
-		             ,   .TILE0_TXCHARISK0_IN        ( b2b_txcharisk_i[0])
-		             ,   .TILE0_TXCHARISK1_IN        (ring_txcharisk_i)
-		                 // Transmit Ports - TX Data Path interface
-		             ,   .TILE0_TXDATA0_IN           ( b2b_txdata_i[0])
-		             ,   .TILE0_TXDATA1_IN           (ring_txdata_i)
-		             ,   .TILE0_TXUSRCLK0_IN         ( b2b_usrclk_i)
-		             ,   .TILE0_TXUSRCLK1_IN         (ring_usrclk_i)
-		             ,   .TILE0_TXUSRCLK20_IN        ( b2b_usrclk2_i)
-		             ,   .TILE0_TXUSRCLK21_IN        (ring_usrclk2_i)
-		                 // Transmit Ports - TX Driver and OOB signalling
-		             ,   .TILE0_TXN0_OUT             (HSS_TXN_OUT[2])
-		             ,   .TILE0_TXN1_OUT             (HSS_TXN_OUT[3])
-		             ,   .TILE0_TXP0_OUT             (HSS_TXP_OUT[2])
-		             ,   .TILE0_TXP1_OUT             (HSS_TXP_OUT[3])
-		                 // Analog signal generation settings
-		             ,   .TILE0_RXEQMIX0_IN          (rxeqmix_i[1:0])
-		             ,   .TILE0_RXEQMIX1_IN          (rxeqmix_i[7:6])
-		             ,   .TILE0_TXDIFFCTRL0_IN       (txdiffctrl_i[3:0])
-		             ,   .TILE0_TXDIFFCTRL1_IN       (txdiffctrl_i[15:12])
-		             ,   .TILE0_TXPREEMPHASIS0_IN    (txpreemphasis_i[2:0])
-		             ,   .TILE0_TXPREEMPHASIS1_IN    (txpreemphasis_i[11:9])
-		            );
+        {1, 2, 0},
+        {1, 2, 1}:
+                gtp_x1_y0_br#( .WRAPPER_SIM_GTPRESET_SPEEDUP (SIMULATION_GTPRESET_SPEEDUP)
+                             , .WRAPPER_SIMULATION           (SIMULATION)
+                             )
+                gtp_x1_y0_i  ( // TILE (X1_Y0)
+                                 // Loopback and Powerdown Ports
+                                 .TILE0_LOOPBACK0_IN         ( B2B_GTP_LOOPBACK) // Not loopback mode
+                             ,   .TILE0_LOOPBACK1_IN         (RING_GTP_LOOPBACK) // Not loopback mode
+                                 // PLL Ports
+                             ,   .TILE0_CLK00_IN             (gtpclkin_i)
+                             ,   .TILE0_CLK01_IN             (1'b0) // Uses the first block's clock, just tie-off
+                             ,   .TILE0_GTPRESET0_IN         (gtp_reset_i)
+                             ,   .TILE0_GTPRESET1_IN         (gtp_reset_i)
+                             ,   .TILE0_PLLLKDET0_OUT        ()
+                             ,   .TILE0_RESETDONE0_OUT       ( b2b_gtpresetdone_i[0])
+                             ,   .TILE0_RESETDONE1_OUT       (ring_gtpresetdone_i)
+                                 // Receive Ports - 8b10b Decoder
+                             ,   .TILE0_RXCHARISCOMMA0_OUT   ( b2b_rxchariscomma_i[0])
+                             ,   .TILE0_RXCHARISCOMMA1_OUT   (ring_rxchariscomma_i)
+                             ,   .TILE0_RXCHARISK0_OUT       ( b2b_rxcharisk_i[0])
+                             ,   .TILE0_RXCHARISK1_OUT       (ring_rxcharisk_i)
+                             ,   .TILE0_RXDISPERR0_OUT       () // Unused
+                             ,   .TILE0_RXDISPERR1_OUT       () // Unused
+                             ,   .TILE0_RXNOTINTABLE0_OUT    () // Unused
+                             ,   .TILE0_RXNOTINTABLE1_OUT    () // Unused
+                                 // Receive Ports - Clock Correction
+                             ,   .TILE0_RXCLKCORCNT0_OUT     () // Unused
+                             ,   .TILE0_RXCLKCORCNT1_OUT     () // Unused
+                                 // Receive Ports - Comma Detection and Alignment
+                             ,   .TILE0_RXENMCOMMAALIGN0_IN  (1'b1) // Always realign
+                             ,   .TILE0_RXENMCOMMAALIGN1_IN  (1'b1) // Always realign
+                             ,   .TILE0_RXENPCOMMAALIGN0_IN  (1'b1) // Always realign
+                             ,   .TILE0_RXENPCOMMAALIGN1_IN  (1'b1) // Always realign
+                                 // Receive Ports - RX Data Path interface
+                             ,   .TILE0_RXDATA0_OUT          ( b2b_rxdata_i[0])
+                             ,   .TILE0_RXDATA1_OUT          (ring_rxdata_i)
+                             ,   .TILE0_RXUSRCLK0_IN         ( b2b_usrclk_i)
+                             ,   .TILE0_RXUSRCLK1_IN         (ring_usrclk_i)
+                             ,   .TILE0_RXUSRCLK20_IN        ( b2b_usrclk2_i)
+                             ,   .TILE0_RXUSRCLK21_IN        (ring_usrclk2_i)
+                                 // Receive Ports - RX Driver,OOB signalling,Coupling and Eq.,CDR
+                             ,   .TILE0_RXN0_IN              (HSS_RXN_IN[2])
+                             ,   .TILE0_RXN1_IN              (HSS_RXN_IN[3])
+                             ,   .TILE0_RXP0_IN              (HSS_RXP_IN[2])
+                             ,   .TILE0_RXP1_IN              (HSS_RXP_IN[3])
+                                 // Receive Ports - RX Loss-of-sync State Machine
+                             ,   .TILE0_RXLOSSOFSYNC0_OUT    ( b2b_rxlossofsync_i[0])
+                             ,   .TILE0_RXLOSSOFSYNC1_OUT    (ring_rxlossofsync_i)
+                                 // TX/RX Datapath Ports
+                             ,   .TILE0_GTPCLKOUT0_OUT       () // TILE0_GTPCLKOUT0_OUT used for everything
+                             ,   .TILE0_GTPCLKOUT1_OUT       () // TILE0_GTPCLKOUT0_OUT used for everything
+                                 // Transmit Ports - 8b10b Encoder Control
+                             ,   .TILE0_TXCHARISK0_IN        ( b2b_txcharisk_i[0])
+                             ,   .TILE0_TXCHARISK1_IN        (ring_txcharisk_i)
+                                 // Transmit Ports - TX Data Path interface
+                             ,   .TILE0_TXDATA0_IN           ( b2b_txdata_i[0])
+                             ,   .TILE0_TXDATA1_IN           (ring_txdata_i)
+                             ,   .TILE0_TXUSRCLK0_IN         ( b2b_usrclk_i)
+                             ,   .TILE0_TXUSRCLK1_IN         (ring_usrclk_i)
+                             ,   .TILE0_TXUSRCLK20_IN        ( b2b_usrclk2_i)
+                             ,   .TILE0_TXUSRCLK21_IN        (ring_usrclk2_i)
+                                 // Transmit Ports - TX Driver and OOB signalling
+                             ,   .TILE0_TXN0_OUT             (HSS_TXN_OUT[2])
+                             ,   .TILE0_TXN1_OUT             (HSS_TXN_OUT[3])
+                             ,   .TILE0_TXP0_OUT             (HSS_TXP_OUT[2])
+                             ,   .TILE0_TXP1_OUT             (HSS_TXP_OUT[3])
+                                 // Analog signal generation settings
+                             ,   .TILE0_RXEQMIX0_IN          (rxeqmix_i[1:0])
+                             ,   .TILE0_RXEQMIX1_IN          (rxeqmix_i[7:6])
+                             ,   .TILE0_TXDIFFCTRL0_IN       (txdiffctrl_i[3:0])
+                             ,   .TILE0_TXDIFFCTRL1_IN       (txdiffctrl_i[15:12])
+                             ,   .TILE0_TXPREEMPHASIS0_IN    (txpreemphasis_i[2:0])
+                             ,   .TILE0_TXPREEMPHASIS1_IN    (txpreemphasis_i[11:9])
+                            );
 endcase endgenerate
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1465,94 +1472,94 @@ endcase endgenerate
 
 // Connect boards together in the system.
 generate if (INCLUDE_B2B_SUPPORT)
-	for (i = 0; i < 2; i = i + 1)
-		begin : b2b_hss_multiplexers
-			spio_hss_multiplexer#( .CLOCK_CORRECTION_INTERVAL      (B2B_CLOCK_CORRECTION_INTERVAL)
-			                     , .CLOCK_CORRECTION_INTERVAL_BITS (B2B_CLOCK_CORRECTION_INTERVAL_BITS)
-			                     , .NUM_HANDSHAKES                 (B2B_NUM_HANDSHAKES)
-			                     , .NUM_HANDSHAKES_BITS            (B2B_NUM_HANDSHAKES_BITS)
-			                     )
-			b2b_hss_multiplexer_i( .CLK_IN                         (b2b_usrclk2_i)
-			                     , .RESET_IN                       (b2b_hss_reset_i[i])
-			                       // Status Signals
-			                     , .HANDSHAKE_COMPLETE_OUT         (b2b_handshake_complete_i[i])
-			                     , .VERSION_MISMATCH_OUT           (b2b_version_mismatch_i[i])
-			                       // High-Speed-Serial Interface
-			                     , .RXDATA_IN                      (b2b_rxdata_i[i])
-			                     , .RXCHARISCOMMA_IN               (b2b_rxchariscomma_i[i])
-			                     , .RXCHARISK_IN                   (b2b_rxcharisk_i[i])
-			                     , .RXLOSSOFSYNC_IN                (b2b_rxlossofsync_i[i])
-			                     , .TXDATA_OUT                     (b2b_txdata_i[i])
-			                     , .TXCHARISK_OUT                  (b2b_txcharisk_i[i])
-			                       // Packet interface
-			                     , .TX_PKT0_DATA_IN                (b2b_pkt_txdata_i[i][i ? 7 : 0])
-			                     , .TX_PKT0_VLD_IN                 (b2b_pkt_txvld_i[i][i ? 7 : 0])
-			                     , .TX_PKT0_RDY_OUT                (b2b_pkt_txrdy_i[i][i ? 7 : 0])
-			                     , .TX_PKT1_DATA_IN                (b2b_pkt_txdata_i[i][i ? 6 : 1])
-			                     , .TX_PKT1_VLD_IN                 (b2b_pkt_txvld_i[i][i ? 6 : 1])
-			                     , .TX_PKT1_RDY_OUT                (b2b_pkt_txrdy_i[i][i ? 6 : 1])
-			                     , .TX_PKT2_DATA_IN                (b2b_pkt_txdata_i[i][i ? 5 : 2])
-			                     , .TX_PKT2_VLD_IN                 (b2b_pkt_txvld_i[i][i ? 5 : 2])
-			                     , .TX_PKT2_RDY_OUT                (b2b_pkt_txrdy_i[i][i ? 5 : 2])
-			                     , .TX_PKT3_DATA_IN                (b2b_pkt_txdata_i[i][i ? 4 : 3])
-			                     , .TX_PKT3_VLD_IN                 (b2b_pkt_txvld_i[i][i ? 4 : 3])
-			                     , .TX_PKT3_RDY_OUT                (b2b_pkt_txrdy_i[i][i ? 4 : 3])
-			                     , .TX_PKT4_DATA_IN                (b2b_pkt_txdata_i[i][i ? 3 : 4])
-			                     , .TX_PKT4_VLD_IN                 (b2b_pkt_txvld_i[i][i ? 3 : 4])
-			                     , .TX_PKT4_RDY_OUT                (b2b_pkt_txrdy_i[i][i ? 3 : 4])
-			                     , .TX_PKT5_DATA_IN                (b2b_pkt_txdata_i[i][i ? 2 : 5])
-			                     , .TX_PKT5_VLD_IN                 (b2b_pkt_txvld_i[i][i ? 2 : 5])
-			                     , .TX_PKT5_RDY_OUT                (b2b_pkt_txrdy_i[i][i ? 2 : 5])
-			                     , .TX_PKT6_DATA_IN                (b2b_pkt_txdata_i[i][i ? 1 : 6])
-			                     , .TX_PKT6_VLD_IN                 (b2b_pkt_txvld_i[i][i ? 1 : 6])
-			                     , .TX_PKT6_RDY_OUT                (b2b_pkt_txrdy_i[i][i ? 1 : 6])
-			                     , .TX_PKT7_DATA_IN                (b2b_pkt_txdata_i[i][i ? 0 : 7])
-			                     , .TX_PKT7_VLD_IN                 (b2b_pkt_txvld_i[i][i ? 0 : 7])
-			                     , .TX_PKT7_RDY_OUT                (b2b_pkt_txrdy_i[i][i ? 0 : 7])
-			                     , .RX_PKT0_DATA_OUT               (b2b_pkt_rxdata_i[i][i ? 7 : 0])
-			                     , .RX_PKT0_VLD_OUT                (b2b_pkt_rxvld_i[i][i ? 7 : 0])
-			                     , .RX_PKT0_RDY_IN                 (b2b_pkt_rxrdy_i[i][i ? 7 : 0])
-			                     , .RX_PKT1_DATA_OUT               (b2b_pkt_rxdata_i[i][i ? 6 : 1])
-			                     , .RX_PKT1_VLD_OUT                (b2b_pkt_rxvld_i[i][i ? 6 : 1])
-			                     , .RX_PKT1_RDY_IN                 (b2b_pkt_rxrdy_i[i][i ? 6 : 1])
-			                     , .RX_PKT2_DATA_OUT               (b2b_pkt_rxdata_i[i][i ? 5 : 2])
-			                     , .RX_PKT2_VLD_OUT                (b2b_pkt_rxvld_i[i][i ? 5 : 2])
-			                     , .RX_PKT2_RDY_IN                 (b2b_pkt_rxrdy_i[i][i ? 5 : 2])
-			                     , .RX_PKT3_DATA_OUT               (b2b_pkt_rxdata_i[i][i ? 4 : 3])
-			                     , .RX_PKT3_VLD_OUT                (b2b_pkt_rxvld_i[i][i ? 4 : 3])
-			                     , .RX_PKT3_RDY_IN                 (b2b_pkt_rxrdy_i[i][i ? 4 : 3])
-			                     , .RX_PKT4_DATA_OUT               (b2b_pkt_rxdata_i[i][i ? 3 : 4])
-			                     , .RX_PKT4_VLD_OUT                (b2b_pkt_rxvld_i[i][i ? 3 : 4])
-			                     , .RX_PKT4_RDY_IN                 (b2b_pkt_rxrdy_i[i][i ? 3 : 4])
-			                     , .RX_PKT5_DATA_OUT               (b2b_pkt_rxdata_i[i][i ? 2 : 5])
-			                     , .RX_PKT5_VLD_OUT                (b2b_pkt_rxvld_i[i][i ? 2 : 5])
-			                     , .RX_PKT5_RDY_IN                 (b2b_pkt_rxrdy_i[i][i ? 2 : 5])
-			                     , .RX_PKT6_DATA_OUT               (b2b_pkt_rxdata_i[i][i ? 1 : 6])
-			                     , .RX_PKT6_VLD_OUT                (b2b_pkt_rxvld_i[i][i ? 1 : 6])
-			                     , .RX_PKT6_RDY_IN                 (b2b_pkt_rxrdy_i[i][i ? 1 : 6])
-			                     , .RX_PKT7_DATA_OUT               (b2b_pkt_rxdata_i[i][i ? 0 : 7])
-			                     , .RX_PKT7_VLD_OUT                (b2b_pkt_rxvld_i[i][i ? 0 : 7])
-			                     , .RX_PKT7_RDY_IN                 (b2b_pkt_rxrdy_i[i][i ? 0 : 7])
-			                       // top-level control inputs
-			                     , .SCRMBL_IDL_DAT                 (scrmbl_idl_dat_i[i])
-			                       // High-level protocol performance counters
-			                     , .REG_WRITE_IN                   (b2b_reg_write_i[i])
-			                     , .REG_ADDR_IN                    (b2b_reg_addr_i[i])
-			                     , .REG_READ_DATA_OUT              (b2b_reg_read_data_i[i])
-			                     , .REG_WRITE_DATA_IN              (b2b_reg_write_data_i[i])
-			                     );
-		end
+        for (i = 0; i < 2; i = i + 1)
+                begin : b2b_hss_multiplexers
+                        spio_hss_multiplexer#( .CLOCK_CORRECTION_INTERVAL      (B2B_CLOCK_CORRECTION_INTERVAL)
+                                             , .CLOCK_CORRECTION_INTERVAL_BITS (B2B_CLOCK_CORRECTION_INTERVAL_BITS)
+                                             , .NUM_HANDSHAKES                 (B2B_NUM_HANDSHAKES)
+                                             , .NUM_HANDSHAKES_BITS            (B2B_NUM_HANDSHAKES_BITS)
+                                             )
+                        b2b_hss_multiplexer_i( .CLK_IN                         (b2b_usrclk2_i)
+                                             , .RESET_IN                       (b2b_hss_reset_i[i])
+                                               // Status Signals
+                                             , .HANDSHAKE_COMPLETE_OUT         (b2b_handshake_complete_i[i])
+                                             , .VERSION_MISMATCH_OUT           (b2b_version_mismatch_i[i])
+                                               // High-Speed-Serial Interface
+                                             , .RXDATA_IN                      (b2b_rxdata_i[i])
+                                             , .RXCHARISCOMMA_IN               (b2b_rxchariscomma_i[i])
+                                             , .RXCHARISK_IN                   (b2b_rxcharisk_i[i])
+                                             , .RXLOSSOFSYNC_IN                (b2b_rxlossofsync_i[i])
+                                             , .TXDATA_OUT                     (b2b_txdata_i[i])
+                                             , .TXCHARISK_OUT                  (b2b_txcharisk_i[i])
+                                               // Packet interface
+                                             , .TX_PKT0_DATA_IN                (b2b_pkt_txdata_i[i][i ? 7 : 0])
+                                             , .TX_PKT0_VLD_IN                 (b2b_pkt_txvld_i[i][i ? 7 : 0])
+                                             , .TX_PKT0_RDY_OUT                (b2b_pkt_txrdy_i[i][i ? 7 : 0])
+                                             , .TX_PKT1_DATA_IN                (b2b_pkt_txdata_i[i][i ? 6 : 1])
+                                             , .TX_PKT1_VLD_IN                 (b2b_pkt_txvld_i[i][i ? 6 : 1])
+                                             , .TX_PKT1_RDY_OUT                (b2b_pkt_txrdy_i[i][i ? 6 : 1])
+                                             , .TX_PKT2_DATA_IN                (b2b_pkt_txdata_i[i][i ? 5 : 2])
+                                             , .TX_PKT2_VLD_IN                 (b2b_pkt_txvld_i[i][i ? 5 : 2])
+                                             , .TX_PKT2_RDY_OUT                (b2b_pkt_txrdy_i[i][i ? 5 : 2])
+                                             , .TX_PKT3_DATA_IN                (b2b_pkt_txdata_i[i][i ? 4 : 3])
+                                             , .TX_PKT3_VLD_IN                 (b2b_pkt_txvld_i[i][i ? 4 : 3])
+                                             , .TX_PKT3_RDY_OUT                (b2b_pkt_txrdy_i[i][i ? 4 : 3])
+                                             , .TX_PKT4_DATA_IN                (b2b_pkt_txdata_i[i][i ? 3 : 4])
+                                             , .TX_PKT4_VLD_IN                 (b2b_pkt_txvld_i[i][i ? 3 : 4])
+                                             , .TX_PKT4_RDY_OUT                (b2b_pkt_txrdy_i[i][i ? 3 : 4])
+                                             , .TX_PKT5_DATA_IN                (b2b_pkt_txdata_i[i][i ? 2 : 5])
+                                             , .TX_PKT5_VLD_IN                 (b2b_pkt_txvld_i[i][i ? 2 : 5])
+                                             , .TX_PKT5_RDY_OUT                (b2b_pkt_txrdy_i[i][i ? 2 : 5])
+                                             , .TX_PKT6_DATA_IN                (b2b_pkt_txdata_i[i][i ? 1 : 6])
+                                             , .TX_PKT6_VLD_IN                 (b2b_pkt_txvld_i[i][i ? 1 : 6])
+                                             , .TX_PKT6_RDY_OUT                (b2b_pkt_txrdy_i[i][i ? 1 : 6])
+                                             , .TX_PKT7_DATA_IN                (b2b_pkt_txdata_i[i][i ? 0 : 7])
+                                             , .TX_PKT7_VLD_IN                 (b2b_pkt_txvld_i[i][i ? 0 : 7])
+                                             , .TX_PKT7_RDY_OUT                (b2b_pkt_txrdy_i[i][i ? 0 : 7])
+                                             , .RX_PKT0_DATA_OUT               (b2b_pkt_rxdata_i[i][i ? 7 : 0])
+                                             , .RX_PKT0_VLD_OUT                (b2b_pkt_rxvld_i[i][i ? 7 : 0])
+                                             , .RX_PKT0_RDY_IN                 (b2b_pkt_rxrdy_i[i][i ? 7 : 0])
+                                             , .RX_PKT1_DATA_OUT               (b2b_pkt_rxdata_i[i][i ? 6 : 1])
+                                             , .RX_PKT1_VLD_OUT                (b2b_pkt_rxvld_i[i][i ? 6 : 1])
+                                             , .RX_PKT1_RDY_IN                 (b2b_pkt_rxrdy_i[i][i ? 6 : 1])
+                                             , .RX_PKT2_DATA_OUT               (b2b_pkt_rxdata_i[i][i ? 5 : 2])
+                                             , .RX_PKT2_VLD_OUT                (b2b_pkt_rxvld_i[i][i ? 5 : 2])
+                                             , .RX_PKT2_RDY_IN                 (b2b_pkt_rxrdy_i[i][i ? 5 : 2])
+                                             , .RX_PKT3_DATA_OUT               (b2b_pkt_rxdata_i[i][i ? 4 : 3])
+                                             , .RX_PKT3_VLD_OUT                (b2b_pkt_rxvld_i[i][i ? 4 : 3])
+                                             , .RX_PKT3_RDY_IN                 (b2b_pkt_rxrdy_i[i][i ? 4 : 3])
+                                             , .RX_PKT4_DATA_OUT               (b2b_pkt_rxdata_i[i][i ? 3 : 4])
+                                             , .RX_PKT4_VLD_OUT                (b2b_pkt_rxvld_i[i][i ? 3 : 4])
+                                             , .RX_PKT4_RDY_IN                 (b2b_pkt_rxrdy_i[i][i ? 3 : 4])
+                                             , .RX_PKT5_DATA_OUT               (b2b_pkt_rxdata_i[i][i ? 2 : 5])
+                                             , .RX_PKT5_VLD_OUT                (b2b_pkt_rxvld_i[i][i ? 2 : 5])
+                                             , .RX_PKT5_RDY_IN                 (b2b_pkt_rxrdy_i[i][i ? 2 : 5])
+                                             , .RX_PKT6_DATA_OUT               (b2b_pkt_rxdata_i[i][i ? 1 : 6])
+                                             , .RX_PKT6_VLD_OUT                (b2b_pkt_rxvld_i[i][i ? 1 : 6])
+                                             , .RX_PKT6_RDY_IN                 (b2b_pkt_rxrdy_i[i][i ? 1 : 6])
+                                             , .RX_PKT7_DATA_OUT               (b2b_pkt_rxdata_i[i][i ? 0 : 7])
+                                             , .RX_PKT7_VLD_OUT                (b2b_pkt_rxvld_i[i][i ? 0 : 7])
+                                             , .RX_PKT7_RDY_IN                 (b2b_pkt_rxrdy_i[i][i ? 0 : 7])
+                                               // top-level control inputs
+                                             , .SCRMBL_IDL_DAT                 (scrmbl_idl_dat_i[i])
+                                               // High-level protocol performance counters
+                                             , .REG_WRITE_IN                   (b2b_reg_write_i[i])
+                                             , .REG_ADDR_IN                    (b2b_reg_addr_i[i])
+                                             , .REG_READ_DATA_OUT              (b2b_reg_read_data_i[i])
+                                             , .REG_WRITE_DATA_IN              (b2b_reg_write_data_i[i])
+                                             );
+                end
 else
-	for (i = 0; i < 2; i = i + 1)
-		begin : b2b_hss_not_supported
-			// invalidate status signals
-			assign b2b_handshake_complete_i[i] = 1'b0;
-			assign b2b_version_mismatch_i[i]   = 1'b0;
+        for (i = 0; i < 2; i = i + 1)
+                begin : b2b_hss_not_supported
+                        // invalidate status signals
+                        assign b2b_handshake_complete_i[i] = 1'b0;
+                        assign b2b_version_mismatch_i[i]   = 1'b0;
 
-			// invalidate data in register bank
-			assign b2b_reg_read_data_i[i] =
+                        // invalidate data in register bank
+                        assign b2b_reg_read_data_i[i] =
                                 (b2b_reg_addr_i[i] == `VERS_REG) ? 32'hdead_dead : 32'd0;
-		end
+                end
 endgenerate
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1563,90 +1570,90 @@ endgenerate
 
 // Connect to peripherals
 generate if (INCLUDE_PERIPH_SUPPORT)
-	begin
+        begin
                 wire [`PKT_BITS-1:0] pregate_pkt_rxdata_i [`NUM_CHANS-1:0];
-		wire                 pregate_pkt_rxvld_i  [`NUM_CHANS - 1:0];
-		wire                 pregate_pkt_rxrdy_i  [`NUM_CHANS - 1:0];
+                wire                 pregate_pkt_rxvld_i  [`NUM_CHANS - 1:0];
+                wire                 pregate_pkt_rxrdy_i  [`NUM_CHANS - 1:0];
 
-		spio_hss_multiplexer   #( .NUM_INPUT_CHANS                (PERIPH_NUM_OUTPUT_CHANS)
-	        	                , .CLOCK_CORRECTION_INTERVAL      (PERIPH_CLOCK_CORRECTION_INTERVAL)
-	        	                , .CLOCK_CORRECTION_INTERVAL_BITS (PERIPH_CLOCK_CORRECTION_INTERVAL_BITS)
-	                	        , .NUM_HANDSHAKES                 (PERIPH_NUM_HANDSHAKES)
-	                        	, .NUM_HANDSHAKES_BITS            (PERIPH_NUM_HANDSHAKES_BITS)
-		                        )
-		periph_hss_multiplexer_i( .CLK_IN                         (periph_usrclk2_i)
-		                        , .RESET_IN                       (periph_hss_reset_i)
-	                                  // Status Signals
-	                                , .HANDSHAKE_COMPLETE_OUT         (periph_handshake_complete_i)
-	                                , .VERSION_MISMATCH_OUT           (periph_version_mismatch_i)
-		                          // High-Speed-Serial Interface
-		                        , .RXDATA_IN                      (periph_rxdata_i)
-		                        , .RXCHARISCOMMA_IN               (periph_rxchariscomma_i)
-	                                , .RXCHARISK_IN                   (periph_rxcharisk_i)
-	                                , .RXLOSSOFSYNC_IN                (periph_rxlossofsync_i)
-	                                , .TXDATA_OUT                     (periph_txdata_i)
-		                        , .TXCHARISK_OUT                  (periph_txcharisk_i)
-		                          // Packet interface
-		                        , .TX_PKT0_DATA_IN                (periph_pkt_txdata_i)
-	                                , .TX_PKT0_VLD_IN                 (periph_pkt_txvld_i)
-	                                , .TX_PKT0_RDY_OUT                (periph_pkt_txrdy_i)
-	                                , .TX_PKT1_DATA_IN                ()
-		                        , .TX_PKT1_VLD_IN                 (1'b0)
-		                        , .TX_PKT1_RDY_OUT                ()
-		                        , .TX_PKT2_DATA_IN                ()
-	                                , .TX_PKT2_VLD_IN                 (1'b0)
-	                                , .TX_PKT2_RDY_OUT                ()
-	                                , .TX_PKT3_DATA_IN                ()
-		                        , .TX_PKT3_VLD_IN                 (1'b0)
-		                        , .TX_PKT3_RDY_OUT                ()
-		                        , .TX_PKT4_DATA_IN                ()
-	                                , .TX_PKT4_VLD_IN                 (1'b0)
-	                                , .TX_PKT4_RDY_OUT                ()
-	                                , .TX_PKT5_DATA_IN                ()
-		                        , .TX_PKT5_VLD_IN                 (1'b0)
-		                        , .TX_PKT5_RDY_OUT                ()
-		                        , .TX_PKT6_DATA_IN                ()
-	                                , .TX_PKT6_VLD_IN                 (1'b0)
-	                                , .TX_PKT6_RDY_OUT                ()
-	                                , .TX_PKT7_DATA_IN                ()
-		                        , .TX_PKT7_VLD_IN                 (1'b0)
-		                        , .TX_PKT7_RDY_OUT                ()
-		                        , .RX_PKT0_DATA_OUT               (pregate_pkt_rxdata_i[0])
-	                                , .RX_PKT0_VLD_OUT                (pregate_pkt_rxvld_i[0])
-	                                , .RX_PKT0_RDY_IN                 (pregate_pkt_rxrdy_i[0])
-	                                , .RX_PKT1_DATA_OUT               (pregate_pkt_rxdata_i[1])
-		                        , .RX_PKT1_VLD_OUT                (pregate_pkt_rxvld_i[1])
-		                        , .RX_PKT1_RDY_IN                 (pregate_pkt_rxrdy_i[1])
-		                        , .RX_PKT2_DATA_OUT               (pregate_pkt_rxdata_i[2])
-	                                , .RX_PKT2_VLD_OUT                (pregate_pkt_rxvld_i[2])
-	                                , .RX_PKT2_RDY_IN                 (pregate_pkt_rxrdy_i[2])
-	                                , .RX_PKT3_DATA_OUT               (pregate_pkt_rxdata_i[3])
-		                        , .RX_PKT3_VLD_OUT                (pregate_pkt_rxvld_i[3])
-		                        , .RX_PKT3_RDY_IN                 (pregate_pkt_rxrdy_i[3])
-		                        , .RX_PKT4_DATA_OUT               (pregate_pkt_rxdata_i[4])
-	                                , .RX_PKT4_VLD_OUT                (pregate_pkt_rxvld_i[4])
-	                                , .RX_PKT4_RDY_IN                 (pregate_pkt_rxrdy_i[4])
-	                                , .RX_PKT5_DATA_OUT               (pregate_pkt_rxdata_i[5])
-		                        , .RX_PKT5_VLD_OUT                (pregate_pkt_rxvld_i[5])
-		                        , .RX_PKT5_RDY_IN                 (pregate_pkt_rxrdy_i[5])
-		                        , .RX_PKT6_DATA_OUT               (pregate_pkt_rxdata_i[6])
-	                                , .RX_PKT6_VLD_OUT                (pregate_pkt_rxvld_i[6])
-	                                , .RX_PKT6_RDY_IN                 (pregate_pkt_rxrdy_i[6])
-	                                , .RX_PKT7_DATA_OUT               (pregate_pkt_rxdata_i[7])
-		                        , .RX_PKT7_VLD_OUT                (pregate_pkt_rxvld_i[7])
-		                        , .RX_PKT7_RDY_IN                 (pregate_pkt_rxrdy_i[7])
-		                          // top-level control inputs
-			                , .SCRMBL_IDL_DAT                 (scrmbl_idl_dat_i[2])
-		                          // High-level protocol performance counters
-	                                , .REG_WRITE_IN                   (periph_reg_write_i)
-	                                , .REG_ADDR_IN                    (periph_reg_addr_i)
-	                                , .REG_READ_DATA_OUT              (periph_reg_read_data_i)
-		                        , .REG_WRITE_DATA_IN              (periph_reg_write_data_i)
-		                        );
+                spio_hss_multiplexer   #( .NUM_INPUT_CHANS                (PERIPH_NUM_OUTPUT_CHANS)
+                                        , .CLOCK_CORRECTION_INTERVAL      (PERIPH_CLOCK_CORRECTION_INTERVAL)
+                                        , .CLOCK_CORRECTION_INTERVAL_BITS (PERIPH_CLOCK_CORRECTION_INTERVAL_BITS)
+                                        , .NUM_HANDSHAKES                 (PERIPH_NUM_HANDSHAKES)
+                                        , .NUM_HANDSHAKES_BITS            (PERIPH_NUM_HANDSHAKES_BITS)
+                                        )
+                periph_hss_multiplexer_i( .CLK_IN                         (periph_usrclk2_i)
+                                        , .RESET_IN                       (periph_hss_reset_i)
+                                          // Status Signals
+                                        , .HANDSHAKE_COMPLETE_OUT         (periph_handshake_complete_i)
+                                        , .VERSION_MISMATCH_OUT           (periph_version_mismatch_i)
+                                          // High-Speed-Serial Interface
+                                        , .RXDATA_IN                      (periph_rxdata_i)
+                                        , .RXCHARISCOMMA_IN               (periph_rxchariscomma_i)
+                                        , .RXCHARISK_IN                   (periph_rxcharisk_i)
+                                        , .RXLOSSOFSYNC_IN                (periph_rxlossofsync_i)
+                                        , .TXDATA_OUT                     (periph_txdata_i)
+                                        , .TXCHARISK_OUT                  (periph_txcharisk_i)
+                                          // Packet interface
+                                        , .TX_PKT0_DATA_IN                (periph_pkt_txdata_i)
+                                        , .TX_PKT0_VLD_IN                 (periph_pkt_txvld_i)
+                                        , .TX_PKT0_RDY_OUT                (periph_pkt_txrdy_i)
+                                        , .TX_PKT1_DATA_IN                ()
+                                        , .TX_PKT1_VLD_IN                 (1'b0)
+                                        , .TX_PKT1_RDY_OUT                ()
+                                        , .TX_PKT2_DATA_IN                ()
+                                        , .TX_PKT2_VLD_IN                 (1'b0)
+                                        , .TX_PKT2_RDY_OUT                ()
+                                        , .TX_PKT3_DATA_IN                ()
+                                        , .TX_PKT3_VLD_IN                 (1'b0)
+                                        , .TX_PKT3_RDY_OUT                ()
+                                        , .TX_PKT4_DATA_IN                ()
+                                        , .TX_PKT4_VLD_IN                 (1'b0)
+                                        , .TX_PKT4_RDY_OUT                ()
+                                        , .TX_PKT5_DATA_IN                ()
+                                        , .TX_PKT5_VLD_IN                 (1'b0)
+                                        , .TX_PKT5_RDY_OUT                ()
+                                        , .TX_PKT6_DATA_IN                ()
+                                        , .TX_PKT6_VLD_IN                 (1'b0)
+                                        , .TX_PKT6_RDY_OUT                ()
+                                        , .TX_PKT7_DATA_IN                ()
+                                        , .TX_PKT7_VLD_IN                 (1'b0)
+                                        , .TX_PKT7_RDY_OUT                ()
+                                        , .RX_PKT0_DATA_OUT               (pregate_pkt_rxdata_i[0])
+                                        , .RX_PKT0_VLD_OUT                (pregate_pkt_rxvld_i[0])
+                                        , .RX_PKT0_RDY_IN                 (pregate_pkt_rxrdy_i[0])
+                                        , .RX_PKT1_DATA_OUT               (pregate_pkt_rxdata_i[1])
+                                        , .RX_PKT1_VLD_OUT                (pregate_pkt_rxvld_i[1])
+                                        , .RX_PKT1_RDY_IN                 (pregate_pkt_rxrdy_i[1])
+                                        , .RX_PKT2_DATA_OUT               (pregate_pkt_rxdata_i[2])
+                                        , .RX_PKT2_VLD_OUT                (pregate_pkt_rxvld_i[2])
+                                        , .RX_PKT2_RDY_IN                 (pregate_pkt_rxrdy_i[2])
+                                        , .RX_PKT3_DATA_OUT               (pregate_pkt_rxdata_i[3])
+                                        , .RX_PKT3_VLD_OUT                (pregate_pkt_rxvld_i[3])
+                                        , .RX_PKT3_RDY_IN                 (pregate_pkt_rxrdy_i[3])
+                                        , .RX_PKT4_DATA_OUT               (pregate_pkt_rxdata_i[4])
+                                        , .RX_PKT4_VLD_OUT                (pregate_pkt_rxvld_i[4])
+                                        , .RX_PKT4_RDY_IN                 (pregate_pkt_rxrdy_i[4])
+                                        , .RX_PKT5_DATA_OUT               (pregate_pkt_rxdata_i[5])
+                                        , .RX_PKT5_VLD_OUT                (pregate_pkt_rxvld_i[5])
+                                        , .RX_PKT5_RDY_IN                 (pregate_pkt_rxrdy_i[5])
+                                        , .RX_PKT6_DATA_OUT               (pregate_pkt_rxdata_i[6])
+                                        , .RX_PKT6_VLD_OUT                (pregate_pkt_rxvld_i[6])
+                                        , .RX_PKT6_RDY_IN                 (pregate_pkt_rxrdy_i[6])
+                                        , .RX_PKT7_DATA_OUT               (pregate_pkt_rxdata_i[7])
+                                        , .RX_PKT7_VLD_OUT                (pregate_pkt_rxvld_i[7])
+                                        , .RX_PKT7_RDY_IN                 (pregate_pkt_rxrdy_i[7])
+                                          // top-level control inputs
+                                        , .SCRMBL_IDL_DAT                 (scrmbl_idl_dat_i[2])
+                                          // High-level protocol performance counters
+                                        , .REG_WRITE_IN                   (periph_reg_write_i)
+                                        , .REG_ADDR_IN                    (periph_reg_addr_i)
+                                        , .REG_READ_DATA_OUT              (periph_reg_read_data_i)
+                                        , .REG_WRITE_DATA_IN              (periph_reg_write_data_i)
+                                        );
 
-		for (i = 0; i < `NUM_CHANS; i = i + 1)
-			begin
-				// gate peripheral input vld/rdy signals with peripheral input enable
+                for (i = 0; i < `NUM_CHANS; i = i + 1)
+                        begin : periph_pkt_rxdata
+                                // gate peripheral input vld/rdy signals with peripheral input enable
                                 //NOTE: ER bits used to indicate config packet (bit[5:4] == 2'b11)
                                 wire config_pkt = pregate_pkt_rxdata_i[i][4];
 
@@ -1656,24 +1663,24 @@ generate if (INCLUDE_PERIPH_SUPPORT)
                                         {pregate_pkt_rxdata_i[i][`PKT_BITS - 1:6], 2'b00, pregate_pkt_rxdata_i[i][3:0]};
 
                                 // let config packets through always
-				assign periph_pkt_rxvld_i[i] = pregate_pkt_rxvld_i[i]
+                                assign periph_pkt_rxvld_i[i] = pregate_pkt_rxvld_i[i]
                                         & (periph_in_en_i | config_pkt);
 
                                 // drop non-config packets if peripherals not enabled
                                 assign pregate_pkt_rxrdy_i[i] = periph_pkt_rxrdy_i[i]
                                         | (!periph_in_en_i & !config_pkt);
-			end
-	end
+                        end
+        end
 else
-	begin : periph_hss_not_supported
-		// invalidate status signals
-		assign periph_handshake_complete_i = 1'b0;
-		assign periph_version_mismatch_i   = 1'b0;
+        begin : periph_hss_not_supported
+                // invalidate status signals
+                assign periph_handshake_complete_i = 1'b0;
+                assign periph_version_mismatch_i   = 1'b0;
 
-		// invalidate data in register bank
-		assign periph_reg_read_data_i =
+                // invalidate data in register bank
+                assign periph_reg_read_data_i =
                         (periph_reg_addr_i == `VERS_REG) ? 32'hdead_dead : 32'd0;
-	end
+        end
 endgenerate
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1684,25 +1691,25 @@ endgenerate
 
 // TODO: Develop ring-network protocol and complete ring support
 generate if (INCLUDE_RING_SUPPORT)
-	begin : ring_hss_support
-		// invalidate status signals
-		assign ring_handshake_complete_i = 1'b0;
-		assign ring_version_mismatch_i   = 1'b0;
+        begin : ring_hss_support
+                // invalidate status signals
+                assign ring_handshake_complete_i = 1'b0;
+                assign ring_version_mismatch_i   = 1'b0;
 
-		// invalidate data in register bank
-		assign ring_reg_read_data_i =
+                // invalidate data in register bank
+                assign ring_reg_read_data_i =
                         (ring_reg_addr_i == `VERS_REG) ? 32'hdead_dead : 32'd0;
-	end
+        end
 else
-	begin : ring_hss_not_supported
-		// invalidate status signals
-		assign ring_handshake_complete_i = 1'b0;
-		assign ring_version_mismatch_i   = 1'b0;
+        begin : ring_hss_not_supported
+                // invalidate status signals
+                assign ring_handshake_complete_i = 1'b0;
+                assign ring_version_mismatch_i   = 1'b0;
 
-		// invalidate data in register bank
-		assign ring_reg_read_data_i =
+                // invalidate data in register bank
+                assign ring_reg_read_data_i =
                         (ring_reg_addr_i == `VERS_REG) ? 32'hdead_dead : 32'd0;
-	end
+        end
 endgenerate
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1714,78 +1721,78 @@ endgenerate
 
 // SpiNNaker link to packet interface conversion
 generate for (i = 0; i < 16; i = i + 1)
-	begin : spinnaker_link_interface
-		// SpiNNaker link (synchronous) fast clock packet interfaces
-		wire [`PKT_BITS-1:0] slfc_pkt_rxdata_i;
-		wire                 slfc_pkt_rxvld_i;
-		wire                 slfc_pkt_rxrdy_i;
-		wire [`PKT_BITS-1:0] slfc_pkt_txdata_i;
-		wire                 slfc_pkt_txvld_i;
-		wire                 slfc_pkt_txrdy_i;
+        begin : spinnaker_link_interface
+                // SpiNNaker link (synchronous) fast clock packet interfaces
+                wire [`PKT_BITS-1:0] slfc_pkt_rxdata_i;
+                wire                 slfc_pkt_rxvld_i;
+                wire                 slfc_pkt_rxrdy_i;
+                wire [`PKT_BITS-1:0] slfc_pkt_txdata_i;
+                wire                 slfc_pkt_txvld_i;
+                wire                 slfc_pkt_txrdy_i;
 
 
-		// FPGA -> SpiNNaker
-		spio_spinnaker_link_sender #( .SL_NUM           (SPIN_LINK_NUM[(48*FPGA_ID) + (3*i)+:3]))
-		spio_spinnaker_link_sender_i( .CLK_IN           (spinnaker_link_clk0_i)
-		                            , .RESET_IN         (spinnaker_link_reset_i[(i*2) + 1])
-		                              // link error interface
-		                            , .ACK_ERR_OUT      (sl_tx_ack_err_i[i])
-		                            , .TMO_ERR_OUT      (sl_tx_tmo_err_i[i])
-		                              // Synchronous packet interface
-		                            , .PKT_DATA_IN      (slfc_pkt_txdata_i)
-		                            , .PKT_VLD_IN       (slfc_pkt_txvld_i)
-		                            , .PKT_RDY_OUT      (slfc_pkt_txrdy_i)
-		                              // SpiNNaker link asynchronous interface
-		                            , .SL_DATA_2OF7_OUT (sl_out_data_i[i])
-		                            , .SL_ACK_IN        (sl_out_ack_i[i])
-		                            );
+                // FPGA -> SpiNNaker
+                spio_spinnaker_link_sender #( .SL_NUM           (SPIN_LINK_NUM[(48*FPGA_ID) + (3*i)+:3]))
+                spio_spinnaker_link_sender_i( .CLK_IN           (spinnaker_link_clk0_i)
+                                            , .RESET_IN         (spinnaker_link_reset_i[(i*2) + 1])
+                                              // link error interface
+                                            , .ACK_ERR_OUT      (sl_tx_ack_err_i[i])
+                                            , .TMO_ERR_OUT      (sl_tx_tmo_err_i[i])
+                                              // Synchronous packet interface
+                                            , .PKT_DATA_IN      (slfc_pkt_txdata_i)
+                                            , .PKT_VLD_IN       (slfc_pkt_txvld_i)
+                                            , .PKT_RDY_OUT      (slfc_pkt_txrdy_i)
+                                              // SpiNNaker link asynchronous interface
+                                            , .SL_DATA_2OF7_OUT (sl_out_data_i[i])
+                                            , .SL_ACK_IN        (sl_out_ack_i[i])
+                                            );
 
-		// SpiNNaker -> FPGA
-		spio_spinnaker_link_receiver
-		spio_spinnaker_link_receiver_i( .CLK_IN           (spinnaker_link_clk0_i)
-		                              , .RESET_IN         (spinnaker_link_reset_i[(i*2) + 0])
-		                                // link error interface
-		                              , .FLT_ERR_OUT      (sl_rx_flt_err_i[i])
-		                              , .FRM_ERR_OUT      (sl_rx_frm_err_i[i])
-		                              , .GCH_ERR_OUT      (sl_rx_gch_err_i[i])
-		                                // SpiNNaker link asynchronous interface
-		                              , .SL_DATA_2OF7_IN  (sl_in_data_i[i])
-		                              , .SL_ACK_OUT       (sl_in_ack_i[i])
-		                                // Synchronous packet interface
-		                              , .PKT_DATA_OUT     (slfc_pkt_rxdata_i)
-		                              , .PKT_VLD_OUT      (slfc_pkt_rxvld_i)
-		                              , .PKT_RDY_IN       (slfc_pkt_rxrdy_i)
-		                              );
+                // SpiNNaker -> FPGA
+                spio_spinnaker_link_receiver
+                spio_spinnaker_link_receiver_i( .CLK_IN           (spinnaker_link_clk0_i)
+                                              , .RESET_IN         (spinnaker_link_reset_i[(i*2) + 0])
+                                                // link error interface
+                                              , .FLT_ERR_OUT      (sl_rx_flt_err_i[i])
+                                              , .FRM_ERR_OUT      (sl_rx_frm_err_i[i])
+                                              , .GCH_ERR_OUT      (sl_rx_gch_err_i[i])
+                                                // SpiNNaker link asynchronous interface
+                                              , .SL_DATA_2OF7_IN  (sl_in_data_i[i])
+                                              , .SL_ACK_OUT       (sl_in_ack_i[i])
+                                                // Synchronous packet interface
+                                              , .PKT_DATA_OUT     (slfc_pkt_rxdata_i)
+                                              , .PKT_VLD_OUT      (slfc_pkt_rxvld_i)
+                                              , .PKT_RDY_IN       (slfc_pkt_rxrdy_i)
+                                              );
 
-		// speed adapters (fast clock <-> normal clock)
-		spio_link_speed_halver #( .PKT_BITS (`PKT_BITS))
-		spio_link_speed_halver_i( .RESET_IN (spinnaker_link_reset_i[(i*2) + 0])
-					, .SCLK_IN  (spinnaker_link_clk1_i)
-					, .FCLK_IN  (spinnaker_link_clk0_i)
-					  // Incoming signals (on FCLK_IN)
-					, .DATA_IN  (slfc_pkt_rxdata_i)
-					, .VLD_IN   (slfc_pkt_rxvld_i)
-					, .RDY_OUT  (slfc_pkt_rxrdy_i)
-					  // Outgoing signals (on SCLK_IN)
-					, .DATA_OUT (sl_pkt_rxdata_i[i])
-					, .VLD_OUT  (sl_pkt_rxvld_i[i])
-					, .RDY_IN   (sl_pkt_rxrdy_i[i])
-					);
+                // speed adapters (fast clock <-> normal clock)
+                spio_link_speed_halver #( .PKT_BITS (`PKT_BITS))
+                spio_link_speed_halver_i( .RESET_IN (spinnaker_link_reset_i[(i*2) + 0])
+                                        , .SCLK_IN  (spinnaker_link_clk1_i)
+                                        , .FCLK_IN  (spinnaker_link_clk0_i)
+                                          // Incoming signals (on FCLK_IN)
+                                        , .DATA_IN  (slfc_pkt_rxdata_i)
+                                        , .VLD_IN   (slfc_pkt_rxvld_i)
+                                        , .RDY_OUT  (slfc_pkt_rxrdy_i)
+                                          // Outgoing signals (on SCLK_IN)
+                                        , .DATA_OUT (sl_pkt_rxdata_i[i])
+                                        , .VLD_OUT  (sl_pkt_rxvld_i[i])
+                                        , .RDY_IN   (sl_pkt_rxrdy_i[i])
+                                        );
 
-		spio_link_speed_doubler #( .PKT_BITS (`PKT_BITS))
-		spio_link_speed_doubler_i( .RESET_IN (spinnaker_link_reset_i[(i*2) + 1])
-					 , .SCLK_IN  (spinnaker_link_clk1_i)
-					 , .FCLK_IN  (spinnaker_link_clk0_i)
-					   // Incoming signals (on SCLK_IN)
-					 , .DATA_IN  (sl_pkt_txdata_i[i])
-					 , .VLD_IN   (sl_pkt_txvld_i[i])
-					 , .RDY_OUT  (sl_pkt_txrdy_i[i])
-					  // Outgoing signals (on FCLK_IN)
-					 , .DATA_OUT (slfc_pkt_txdata_i)
-					 , .VLD_OUT  (slfc_pkt_txvld_i)
-					 , .RDY_IN   (slfc_pkt_txrdy_i)
-					 );
-	end
+                spio_link_speed_doubler #( .PKT_BITS (`PKT_BITS))
+                spio_link_speed_doubler_i( .RESET_IN (spinnaker_link_reset_i[(i*2) + 1])
+                                         , .SCLK_IN  (spinnaker_link_clk1_i)
+                                         , .FCLK_IN  (spinnaker_link_clk0_i)
+                                           // Incoming signals (on SCLK_IN)
+                                         , .DATA_IN  (sl_pkt_txdata_i[i])
+                                         , .VLD_IN   (sl_pkt_txvld_i[i])
+                                         , .RDY_OUT  (sl_pkt_txrdy_i[i])
+                                          // Outgoing signals (on FCLK_IN)
+                                         , .DATA_OUT (slfc_pkt_txdata_i)
+                                         , .VLD_OUT  (slfc_pkt_txvld_i)
+                                         , .RDY_IN   (slfc_pkt_txrdy_i)
+                                         );
+        end
 endgenerate
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1797,416 +1804,334 @@ endgenerate
 //TODO: add support for ring HSSL
 ////////////////////////////////////////////////////////////////////////////////
 
-//NOTE: Route all packets to board-to-board link rather than peripheral link
-// except those with certain keys when peripheral output is included.
+// route all packets to board-to-board link rather than peripheral link except
+// those matching peripheral key/mask registers when peripheral output is included.
+wire [XR-1:0] mc_match_i;
+reg     [2:0] enc_match_i;
+wire          pkey_matches_i;
+wire          is_mc_packet_i;
+wire          rkey_matches_i;
+wire          lkey_matches_i;
+wire          periph_pkt_i;
+wire          rconf_pkt_i;
+wire          lconf_pkt_i;
+
+wire          [`PKT_BITS-1:0] fast_periph_pkt_txdata_i;
+wire                          fast_periph_pkt_txvld_i;
+wire                          fast_periph_pkt_txrdy_i;
+
+wire               [SO - 1:0] disconn_outputs_i;
+wire               [SO - 1:0] route_i;
+
+// switch output ports (which must be broken onto their various buses)
+wire [(`PKT_BITS * SO) - 1:0] switch_out_data_i;
+wire               [SO - 1:0] switch_out_vld_i;
+wire               [SO - 1:0] switch_out_rdy_i;
+
+// Routing (spio_switch) status signals
+wire               [SO - 1:0] switch_blocked_outputs_i;
+wire               [SO - 1:0] switch_selected_outputs_i;
+
+// Routing (spio_switch) packet dropping port
+wire          [`PKT_BITS-1:0] switch_dropped_data_i;
+wire               [SO - 1:0] switch_dropped_outputs_i;
+wire                          switch_dropped_vld_i;
+
+generate if (INCLUDE_PERIPH_OUTPUT_SUPPORT)
+        begin
+                // compare packet routing key to all routing registers
+                for (i = 0; i < XR; i = i + 1)
+                        begin : periph_mc_match
+                                assign mc_match_i[i] = (sl_pkt_rxdata_i[PERIPH_OUTPUT_LINK][8+:32] & xper_mc_mask_i[i*32+:32]) == xper_mc_key_i[i*32+:32];
+                        end
+
+                // priority encode match register
+                always @(*)
+                        casex ({{(8-XR){1'b0}}, mc_match_i})
+                                8'bxxxxxxx1: enc_match_i = 0;
+                                8'bxxxxxx10: enc_match_i = 1;
+                                8'bxxxxx100: enc_match_i = 2;
+                                8'bxxxx1000: enc_match_i = 3;
+                                8'bxxx10000: enc_match_i = 4;
+                                8'bxx100000: enc_match_i = 5;
+                                8'bx1000000: enc_match_i = 6;
+                                8'b10000000: enc_match_i = 7;
+                                default:     enc_match_i = 0;
+                endcase
+
+                // indicate peripheral mc hit if any XR register matches
+                assign pkey_matches_i = |mc_match_i;
+                
+                // match non-emergency routed multicast packets
+                assign is_mc_packet_i = (sl_pkt_rxdata_i[PERIPH_OUTPUT_LINK][0+:8]  & 8'b11110000) == 8'b00000000;
+                
+                // match remote configuration routing keys
+                assign rkey_matches_i = (sl_pkt_rxdata_i[PERIPH_OUTPUT_LINK][8+:32] & rc_mask_i) == rc_key_i;
+                
+                // match local configuration rotuing keys
+                assign lkey_matches_i = (sl_pkt_rxdata_i[PERIPH_OUTPUT_LINK][8+:32] & lc_mask_i) == lc_key_i;
+                
+                // route packets according to key/mask settings
+                assign periph_pkt_i = is_mc_packet_i && pkey_matches_i;
+                assign rconf_pkt_i  = is_mc_packet_i && rkey_matches_i;
+                assign lconf_pkt_i  = is_mc_packet_i && lkey_matches_i;
+
+                // switch outputs disconnection status
+                assign disconn_outputs_i[LCF_OUT] = 1'b0;  // always available!
+                assign disconn_outputs_i[PER_OUT] = !periph_handshake_complete_i;
+
+                // route packets
+                assign route_i[LCF_OUT] = lconf_pkt_i;
+                assign route_i[PER_OUT] = periph_pkt_i | rconf_pkt_i;
+
+                // drop packets whenever blocked while also being known to be disconnected.
+                wire drop_i = |(switch_blocked_outputs_i & disconn_outputs_i);
+
+                // Route packets arriving from the first bank of SpiNNaker chips.
+                spio_switch #( .PKT_BITS             (`PKT_BITS)
+                             , .NUM_PORTS            (SO)
+                             )
+                spio_switch_i( .CLK_IN               (b2b_usrclk2_i)
+                             , .RESET_IN             (switch_reset_i)
+                               // Output selection
+                             , .IN_OUTPUT_SELECT_IN  (route_i)
+                               // Input port (from SpiNNaker chips)
+                             , .IN_DATA_IN           (sl_pkt_rxdata_i[PERIPH_OUTPUT_LINK])
+                             , .IN_VLD_IN            (sl_pkt_rxvld_i[PERIPH_OUTPUT_LINK])
+                             , .IN_RDY_OUT           (sl_pkt_rxrdy_i[PERIPH_OUTPUT_LINK])
+                               // Output ports
+                             , .OUT_DATA_OUT         (switch_out_data_i)
+                             , .OUT_VLD_OUT          (switch_out_vld_i)
+                             , .OUT_RDY_IN           (switch_out_rdy_i)
+                               // Output blocking status
+                             , .BLOCKED_OUTPUTS_OUT  (switch_blocked_outputs_i)
+                             , .SELECTED_OUTPUTS_OUT (switch_selected_outputs_i)
+                               // Force packet drop
+                             , .DROP_IN              (drop_i)
+                               // Dropped packet port
+                             , .DROPPED_DATA_OUT     (switch_dropped_data_i)
+                             , .DROPPED_OUTPUTS_OUT  (switch_dropped_outputs_i)
+                             , .DROPPED_VLD_OUT      (switch_dropped_vld_i)
+                             );
+
+                // connect LCF_OUT switch output port to local configuration logic
+                wire [`PKT_BITS-1:0] lc_pkt_txdata_i;
+                assign lc_pkt_txdata_i           = switch_out_data_i[LCF_OUT * `PKT_BITS +: `PKT_BITS];
+                assign lc_pkt_tx_vld_i           = switch_out_vld_i[LCF_OUT];
+                assign switch_out_rdy_i[LCF_OUT] = 1'b1;  // always ready
+
+                assign lc_reg_write_i      = lc_pkt_tx_vld_i;
+                assign lc_reg_addr_i       = lc_pkt_txdata_i[8 +: 8];
+                assign lc_reg_write_data_i = lc_pkt_txdata_i[40 +: 32];
+
+                // connect PER_OUT switch output port to peripheral links
+                //NOTE1: use ER lsb to indicate peripheral/remote_config packet
+                //NOTE2: use type and ER msb to indicate peripheral register match
+                //NOTE3: need to recalculate parity as 4 bits change (from 0)
+                wire [`PKT_BITS - 1:0] fpp_data_i;
+                wire new_parity_i;
+                assign fpp_data_i   = switch_out_data_i[PER_OUT * `PKT_BITS +: `PKT_BITS];
+                assign new_parity_i = ^enc_match_i ^ rconf_pkt_i ^ fpp_data_i[1];
+
+                assign fast_periph_pkt_txdata_i  = {fpp_data_i[`PKT_BITS - 1:8], enc_match_i, rconf_pkt_i, fpp_data_i[3:1], new_parity_i};
+                assign fast_periph_pkt_txvld_i   = switch_out_vld_i[PER_OUT];
+                assign switch_out_rdy_i[PER_OUT] = fast_periph_pkt_txrdy_i;
+
+                // connect B2B_OUT switch output port to board-to-board links
+                if (INCLUDE_B2B_SUPPORT)
+                        begin
+                                assign disconn_outputs_i[B2B_OUT] = !b2b_handshake_complete_i[i / `NUM_CHANS];
+                                assign route_i[B2B_OUT] = !periph_pkt_i && !rconf_pkt_i && !lconf_pkt_i;
+
+                                assign b2b_pkt_txdata_i[PERIPH_OUTPUT_LINK / `NUM_CHANS][PERIPH_OUTPUT_LINK % `NUM_CHANS] = switch_out_data_i[B2B_OUT * `PKT_BITS +: `PKT_BITS];
+                                assign b2b_pkt_txvld_i[PERIPH_OUTPUT_LINK / `NUM_CHANS][PERIPH_OUTPUT_LINK % `NUM_CHANS]  = switch_out_vld_i[B2B_OUT];
+                                assign switch_out_rdy_i[B2B_OUT] = b2b_pkt_txrdy_i[PERIPH_OUTPUT_LINK / `NUM_CHANS][PERIPH_OUTPUT_LINK % `NUM_CHANS];
+                        end
+
+                // if needed add a speed adapter between the full-speed
+                // switch and the half-speed peripheral links
+                if (PERIPH_HALF_SPEED)
+                        begin : peripheral_halver
+                                spio_link_speed_halver #( .PKT_BITS (`PKT_BITS))
+                                spio_link_speed_halver_i( .RESET_IN (switch_reset_i)
+                                                        , .SCLK_IN  (periph_usrclk2_i)
+                                                        , .FCLK_IN  (b2b_usrclk2_i)
+                                                          // Incoming signals (on CLK_IN)
+                                                        , .DATA_IN  (fast_periph_pkt_txdata_i)
+                                                        , .VLD_IN   (fast_periph_pkt_txvld_i)
+                                                        , .RDY_OUT  (fast_periph_pkt_txrdy_i)
+                                                          // Outgoing signals (on CLK2_IN)
+                                                        , .DATA_OUT (periph_pkt_txdata_i)
+                                                        , .VLD_OUT  (periph_pkt_txvld_i)
+                                                        , .RDY_IN   (periph_pkt_txrdy_i)
+                                                        );
+                        end
+                else
+                        // connect switch directly to full-speed peripheral links
+                        begin : peripheral_halver_not_used
+                                assign periph_pkt_txdata_i     = fast_periph_pkt_txdata_i;
+                                assign periph_pkt_txvld_i      = fast_periph_pkt_txvld_i;
+                                assign fast_periph_pkt_txrdy_i = periph_pkt_txrdy_i;
+                        end
+        end
+endgenerate
+
 generate case ({INCLUDE_PERIPH_OUTPUT_SUPPORT, INCLUDE_B2B_SUPPORT})
-	{0, 0}:
-		begin
-			// signal peripheral link as not valid
-			assign periph_pkt_txvld_i = 1'b0;
+        {0, 0}:
+                begin
+                        // signal peripheral link as not valid
+                        assign periph_pkt_txvld_i = 1'b0;
 
-			// signal all SpiNNaker chip links as not ready
-			//NOTE: this case is not useful!
-			for (i = 0; i < NUM_LINKS; i = i + 1)
-				assign sl_pkt_rxrdy_i[i] = 1'b0;
-		end
-
-	{0, 1}:
-		begin
-			// signal peripheral link as not valid
-			assign periph_pkt_txvld_i = 1'b0;
-
-			// connect the SpiNNaker chip links directly to the board-to-board links
-			for (i = 0; i < NUM_LINKS; i = i + 1)
-				begin : spinnaker_rx_link_routing_not_used
-					assign b2b_pkt_txdata_i[i / `NUM_CHANS][i % `NUM_CHANS] = sl_pkt_rxdata_i[i];
-					assign b2b_pkt_txvld_i[i / `NUM_CHANS][i % `NUM_CHANS]  = sl_pkt_rxvld_i[i];
-					assign sl_pkt_rxrdy_i[i] = b2b_pkt_txrdy_i[i / `NUM_CHANS][i % `NUM_CHANS];
-				end
-		end
-
-	{1, 0}:
-		// connect the SpiNNaker chip links to output peripheral links
-		//NOTE: make unused SpiNNaker chip links not ready
-                for (i = 0; i < NUM_LINKS; i = i + 1)
-                        if (i == PERIPH_OUTPUT_LINK)
-                                begin : spinnaker_rx_link_routing
-                                        localparam SO = 2;       // number of switch outputs
-                                        localparam PER_OUT = 0;  // peripheral (+ remote config) switch output
-                                        localparam LCF_OUT = 1;  // local config switch output
-
-                                        // switch output ports (which must be
-                                        // broken onto their various buses)
-                                        wire [(`PKT_BITS * SO) - 1:0] switch_out_data_i;
-                                        wire               [SO - 1:0] switch_out_vld_i;
-                                        wire               [SO - 1:0] switch_out_rdy_i;
-
-                                        wire [`PKT_BITS-1:0] fast_periph_pkt_txdata_i;
-                                        wire                 fast_periph_pkt_txvld_i;
-                                        wire                 fast_periph_pkt_txrdy_i;
-
-                                        // switch outputs disconnection status
-                                        wire [SO - 1:0] disconn_outputs_i;
-                                        assign disconn_outputs_i[PER_OUT] = !periph_handshake_complete_i;
-                                        assign disconn_outputs_i[LCF_OUT] = 1'b0;  // always available!
-
-                                        // Only match non-emergency routed multicast packets
-                                        wire is_mc_packet_i = (sl_pkt_rxdata_i[i][0+:8]  & 8'b11110000) == 8'b00000000;
-                                        wire pkey_matches_i = (sl_pkt_rxdata_i[i][8+:32] & periph_mc_mask_i) == periph_mc_key_i;
-                                        wire rkey_matches_i = (sl_pkt_rxdata_i[i][8+:32] & rc_mask_i) == rc_key_i;
-                                        wire lkey_matches_i = (sl_pkt_rxdata_i[i][8+:32] & lc_mask_i) == lc_key_i;
-
-                                        // route packets according to key/mask settings
-                                        wire periph_pkt_i = is_mc_packet_i && pkey_matches_i;
-                                        wire rconf_pkt_i  = is_mc_packet_i && rkey_matches_i;
-                                        wire lconf_pkt_i  = is_mc_packet_i && lkey_matches_i;
-
-                                        wire [SO - 1:0] route_i;
-                                        assign route_i[PER_OUT] = periph_pkt_i | rconf_pkt_i;
-                                        assign route_i[LCF_OUT] = lconf_pkt_i;
-
-                                        // drop packets whenever blocked while also being known to be disconnected.
-                                        wire drop_i = |(switch_blocked_outputs_i & disconn_outputs_i);
-
-                                        // Route packets arriving from the first bank of SpiNNaker chips.
-                                        spio_switch #( .PKT_BITS             (`PKT_BITS)
-                                                     , .NUM_PORTS            (SO)
-                                                     )
-                                        spio_switch_i( .CLK_IN               (b2b_usrclk2_i)
-                                                     , .RESET_IN             (switch_reset_i)
-                                                       // Output selection
-                                                     , .IN_OUTPUT_SELECT_IN  (route_i)
-                                                       // Input port (from SpiNNaker chips)
-                                                     , .IN_DATA_IN           (sl_pkt_rxdata_i[i])
-                                                     , .IN_VLD_IN            (sl_pkt_rxvld_i[i])
-                                                     , .IN_RDY_OUT           (sl_pkt_rxrdy_i[i])
-                                                        // Output ports
-                                                     , .OUT_DATA_OUT         (switch_out_data_i)
-                                                     , .OUT_VLD_OUT          (switch_out_vld_i)
-                                                     , .OUT_RDY_IN           (switch_out_rdy_i)
-                                                       // Output blocking status
-                                                     , .BLOCKED_OUTPUTS_OUT  (switch_blocked_outputs_i)
-                                                     , .SELECTED_OUTPUTS_OUT (switch_selected_outputs_i)
-                                                       // Force packet drop
-                                                     , .DROP_IN              (drop_i)
-                                                       // Dropped packet port
-                                                     , .DROPPED_DATA_OUT     (switch_dropped_data_i)
-                                                     , .DROPPED_OUTPUTS_OUT  (switch_dropped_outputs_i)
-                                                     , .DROPPED_VLD_OUT      (switch_dropped_vld_i)
-                                                     );
-
-                                        // connect PER_OUT switch output port to peripheral links
-                                        // use emergency routing bits to indicate peripheral/remote_config packet
-                                        //NOTE: no need to recalculate parity as 2 bits change from 0 to 1
-                                        wire [`PKT_BITS - 1:0] fpp_data_i = switch_out_data_i[PER_OUT * `PKT_BITS +: `PKT_BITS];
-                                        assign fast_periph_pkt_txdata_i =
-                                                {fpp_data_i[`PKT_BITS - 1:6], rconf_pkt_i, rconf_pkt_i, fpp_data_i[3:0]};
-
-                                        assign fast_periph_pkt_txvld_i   = switch_out_vld_i[PER_OUT];
-                                        assign switch_out_rdy_i[PER_OUT] = fast_periph_pkt_txrdy_i;
-
-                                        // connect LCF_OUT switch output port to local configuration logic
-                                        wire [`PKT_BITS-1:0] lc_pkt_txdata_i = switch_out_data_i[LCF_OUT * `PKT_BITS +: `PKT_BITS];
-                                        assign lc_pkt_tx_vld_i               = switch_out_vld_i[LCF_OUT];
-                                        assign switch_out_rdy_i[LCF_OUT]     = 1'b1;  // always ready
-
-                                        assign lc_reg_write_i      = lc_pkt_tx_vld_i;
-                                        assign lc_reg_addr_i       = lc_pkt_txdata_i[8 +: 8];
-                                        assign lc_reg_write_data_i = lc_pkt_txdata_i[40 +: 32];
-
-                                        // if needed add a speed adapter between the full-speed
-                                        // switch and the half-speed peripheral links
-                                        if (PERIPH_HALF_SPEED)
-                                                begin : peripheral_halver
-                                                        spio_link_speed_halver #( .PKT_BITS (`PKT_BITS))
-                                                        spio_link_speed_halver_i( .RESET_IN (switch_reset_i)
-                                                                                , .SCLK_IN  (periph_usrclk2_i)
-                                                                                , .FCLK_IN  (b2b_usrclk2_i)
-                                                                                  // Incoming signals (on CLK_IN)
-                                                                                , .DATA_IN  (fast_periph_pkt_txdata_i)
-                                                                                , .VLD_IN   (fast_periph_pkt_txvld_i)
-                                                                                , .RDY_OUT  (fast_periph_pkt_txrdy_i)
-                                                                                  // Outgoing signals (on CLK2_IN)
-                                                                                , .DATA_OUT (periph_pkt_txdata_i)
-                                                                                , .VLD_OUT  (periph_pkt_txvld_i)
-                                                                                , .RDY_IN   (periph_pkt_txrdy_i)
-                                                                                );
-                                                end
-                                        else
-                                                // connect switch directly to full-speed peripheral links
-                                                begin : peripheral_halver_not_used
-                                                        assign periph_pkt_txdata_i     = fast_periph_pkt_txdata_i;
-                                                        assign periph_pkt_txvld_i      = fast_periph_pkt_txvld_i;
-                                                        assign fast_periph_pkt_txrdy_i = periph_pkt_txrdy_i;
-                                                end
+                        // signal all SpiNNaker chip links as not ready
+                        //NOTE: this case is not useful!
+                        for (i = 0; i < NUM_LINKS; i = i + 1)
+                                begin : spinnaker_rx_link_routing_not_used
+                                        assign sl_pkt_rxrdy_i[i] = 1'b0;
                                 end
-                        else
-                                // signal all other SpiNNaker chip links as not ready
-                                assign sl_pkt_rxrdy_i[i] = 1'b0;
+                end
 
-	{1, 1}:
-                // route incoming packets to board-to-board or peripheral links
+        {0, 1}:
+                begin
+                        // signal peripheral link as not valid
+                        assign periph_pkt_txvld_i = 1'b0;
+
+                        // connect the SpiNNaker chip links directly to the board-to-board links
+                        for (i = 0; i < NUM_LINKS; i = i + 1)
+                                begin : spinnaker_rx_link_routing_not_used
+                                        assign b2b_pkt_txdata_i[i / `NUM_CHANS][i % `NUM_CHANS] = sl_pkt_rxdata_i[i];
+                                        assign b2b_pkt_txvld_i[i / `NUM_CHANS][i % `NUM_CHANS]  = sl_pkt_rxvld_i[i];
+                                        assign sl_pkt_rxrdy_i[i] = b2b_pkt_txrdy_i[i / `NUM_CHANS][i % `NUM_CHANS];
+                                end
+                end
+
+        {1, 0}:
+                // make non-peripheral-output SpiNNaker chip links not ready
                 for (i = 0; i < NUM_LINKS; i = i + 1)
-			// route to available output peripheral links
-                        if (i == PERIPH_OUTPUT_LINK)
-				begin : spinnaker_rx_link_routing
-					localparam SO = 3;       // number of switch outputs
-					localparam B2B_OUT = 0;  // board-to-board switch output
-					localparam PER_OUT = 1;  // peripheral (+ remote config) switch output
-					localparam LCF_OUT = 2;  // local config switch output
+                        begin : spinnaker_rx_link_routing_not_used
+                                if (i != PERIPH_OUTPUT_LINK)
+                                        assign sl_pkt_rxrdy_i[i] = 1'b0;
+                        end
 
-					// switch output ports (which must be
-					// broken onto their various buses)
-					wire [(`PKT_BITS * SO) - 1:0] switch_out_data_i;
-					wire               [SO - 1:0] switch_out_vld_i;
-					wire               [SO - 1:0] switch_out_rdy_i;
-
-					wire [`PKT_BITS-1:0] fast_periph_pkt_txdata_i;
-					wire                 fast_periph_pkt_txvld_i;
-					wire                 fast_periph_pkt_txrdy_i;
-
-					// switch outputs disconnection status
-					wire [SO - 1:0] disconn_outputs_i;
-					assign disconn_outputs_i[B2B_OUT] = !b2b_handshake_complete_i[i / `NUM_CHANS];
-					assign disconn_outputs_i[PER_OUT] = !periph_handshake_complete_i;
-					assign disconn_outputs_i[LCF_OUT] = 1'b0;  // always available!
-
-					// Only match non-emergency routed multicast packets
-					wire is_mc_packet_i = (sl_pkt_rxdata_i[i][0+:8]  & 8'b11110000) == 8'b00000000;
-					wire pkey_matches_i = (sl_pkt_rxdata_i[i][8+:32] & periph_mc_mask_i) == periph_mc_key_i;
-					wire rkey_matches_i = (sl_pkt_rxdata_i[i][8+:32] & rc_mask_i) == rc_key_i;
-					wire lkey_matches_i = (sl_pkt_rxdata_i[i][8+:32] & lc_mask_i) == lc_key_i;
-
-					// route packets according to key/mask settings
-					wire periph_pkt_i = is_mc_packet_i && pkey_matches_i;
-					wire rconf_pkt_i  = is_mc_packet_i && rkey_matches_i;
-					wire lconf_pkt_i  = is_mc_packet_i && lkey_matches_i;
-					wire b2b_pkt_i    = !periph_pkt_i && !rconf_pkt_i && !lconf_pkt_i;
-
-					wire [SO - 1:0] route_i;
-					assign route_i[B2B_OUT] = b2b_pkt_i;
-					assign route_i[PER_OUT] = periph_pkt_i | rconf_pkt_i;
-					assign route_i[LCF_OUT] = lconf_pkt_i;
-
-					// drop packets whenever blocked while also being known to be disconnected.
-					wire drop_i = |(switch_blocked_outputs_i & disconn_outputs_i);
-
-					// Route packets arriving from the first bank of SpiNNaker chips.
-					spio_switch #( .PKT_BITS             (`PKT_BITS)
-						     , .NUM_PORTS            (SO)
-						     )
-					spio_switch_i( .CLK_IN               (b2b_usrclk2_i)
-						     , .RESET_IN             (switch_reset_i)
-						       // Output selection
-						     , .IN_OUTPUT_SELECT_IN  (route_i)
-						       // Input port (from SpiNNaker chips)
-						     , .IN_DATA_IN           (sl_pkt_rxdata_i[i])
-						     , .IN_VLD_IN            (sl_pkt_rxvld_i[i])
-						     , .IN_RDY_OUT           (sl_pkt_rxrdy_i[i])
-						       // Output ports
-						     , .OUT_DATA_OUT         (switch_out_data_i)
-						     , .OUT_VLD_OUT          (switch_out_vld_i)
-						     , .OUT_RDY_IN           (switch_out_rdy_i)
-						       // Output blocking status
-						     , .BLOCKED_OUTPUTS_OUT  (switch_blocked_outputs_i)
-						     , .SELECTED_OUTPUTS_OUT (switch_selected_outputs_i)
-						       // Force packet drop
-						     , .DROP_IN              (drop_i)
-						       // Dropped packet port
-						     , .DROPPED_DATA_OUT     (switch_dropped_data_i)
-						     , .DROPPED_OUTPUTS_OUT  (switch_dropped_outputs_i)
-						     , .DROPPED_VLD_OUT      (switch_dropped_vld_i)
-						     );
-
-					// connect B2B_OUT switch output port to board-to-board links
-					assign b2b_pkt_txdata_i[i / `NUM_CHANS][i % `NUM_CHANS] = switch_out_data_i[B2B_OUT * `PKT_BITS +: `PKT_BITS];
-					assign b2b_pkt_txvld_i[i / `NUM_CHANS][i % `NUM_CHANS]  = switch_out_vld_i[B2B_OUT];
-					assign switch_out_rdy_i[B2B_OUT] = b2b_pkt_txrdy_i[i / `NUM_CHANS][i % `NUM_CHANS];
-
-					// connect PER_OUT switch output port to peripheral links
-					// use emergency routing bits to indicate peripheral/remote_config packet
-					//NOTE: no need to recalculate parity as 2 bits change from 0 to 1
-                                        wire [`PKT_BITS - 1:0] fpp_data_i = switch_out_data_i[PER_OUT * `PKT_BITS +: `PKT_BITS];
-                                        assign fast_periph_pkt_txdata_i =
-                                                {fpp_data_i[`PKT_BITS - 1:6], rconf_pkt_i, rconf_pkt_i, fpp_data_i[3:0]};
-
-					assign fast_periph_pkt_txvld_i   = switch_out_vld_i[PER_OUT];
-					assign switch_out_rdy_i[PER_OUT] = fast_periph_pkt_txrdy_i;
-
-					// connect LCF_OUT switch output port to local configuration logic
-					wire [`PKT_BITS-1:0] lc_pkt_txdata_i = switch_out_data_i[LCF_OUT * `PKT_BITS +: `PKT_BITS];
-					assign lc_pkt_tx_vld_i               = switch_out_vld_i[LCF_OUT];
-					assign switch_out_rdy_i[LCF_OUT]     = 1'b1;  // always ready
-
-					assign lc_reg_write_i      = lc_pkt_tx_vld_i;
-					assign lc_reg_addr_i       = lc_pkt_txdata_i[8 +: 8];
-					assign lc_reg_write_data_i = lc_pkt_txdata_i[40 +: 32];
-
-					// if needed add a speed adapter between the full-speed
-					// switch and the half-speed peripheral links
-					if (PERIPH_HALF_SPEED)
-						begin : peripheral_halver
-							spio_link_speed_halver #( .PKT_BITS (`PKT_BITS))
-							spio_link_speed_halver_i( .RESET_IN (switch_reset_i)
-										, .SCLK_IN  (periph_usrclk2_i)
-										, .FCLK_IN  (b2b_usrclk2_i)
-										  // Incoming signals (on CLK_IN)
-										, .DATA_IN  (fast_periph_pkt_txdata_i)
-										, .VLD_IN   (fast_periph_pkt_txvld_i)
-										, .RDY_OUT  (fast_periph_pkt_txrdy_i)
-										  // Outgoing signals (on CLK2_IN)
-										, .DATA_OUT (periph_pkt_txdata_i)
-										, .VLD_OUT  (periph_pkt_txvld_i)
-										, .RDY_IN   (periph_pkt_txrdy_i)
-										);
-						end
-					else
-						// connect switch directly to full-speed peripheral links
-						begin : peripheral_halver_not_used
-							assign periph_pkt_txdata_i     = fast_periph_pkt_txdata_i;
-							assign periph_pkt_txvld_i      = fast_periph_pkt_txvld_i;
-							assign fast_periph_pkt_txrdy_i = periph_pkt_txrdy_i;
-						end
-				end
-                        else
-				// connect the SpiNNaker chip links directly to the board-to-board links
-				begin : spinnaker_rx_link_routing_not_used
-					assign b2b_pkt_txdata_i[i / `NUM_CHANS][i % `NUM_CHANS] = sl_pkt_rxdata_i[i];
-					assign b2b_pkt_txvld_i[i / `NUM_CHANS][i % `NUM_CHANS]  = sl_pkt_rxvld_i[i];
-					assign sl_pkt_rxrdy_i[i] = b2b_pkt_txrdy_i[i / `NUM_CHANS][i % `NUM_CHANS];
-				end
+        {1, 1}:
+                // connect non-periipheral-output SpiNNaker chip links to board-to-board links
+                for (i = 0; i < NUM_LINKS; i = i + 1)
+                        begin : non_peripheral_input
+                                if (i != PERIPH_OUTPUT_LINK)
+                                        begin : spinnaker_rx_link_routing_not_used
+                                                assign b2b_pkt_txdata_i[i / `NUM_CHANS][i % `NUM_CHANS] = sl_pkt_rxdata_i[i];
+                                                assign b2b_pkt_txvld_i[i / `NUM_CHANS][i % `NUM_CHANS]  = sl_pkt_rxvld_i[i];
+                                                assign sl_pkt_rxrdy_i[i] = b2b_pkt_txrdy_i[i / `NUM_CHANS][i % `NUM_CHANS];
+                                        end
+                        end
 endcase endgenerate
 ////////////////////////////////////////////////////////////////////////////////
 
 
 ////////////////////////////////////////////////////////////////////////////////
-// Arbitration between packets from high-speed channels to SpiNNaker chips
-//TODO: add support for routing incoming packets to ring HSSL
+// Arbitration between peripheral and b2b packets going to SpiNNaker chip links
+//TODO: add support for ring HSSL
 ////////////////////////////////////////////////////////////////////////////////
 
-// arbitrate between peripheral and b2b packets going to SpiNNaker chip links
 generate case ({INCLUDE_PERIPH_INPUT_SUPPORT, INCLUDE_B2B_SUPPORT})
-	{0, 0}:
-		// invalidate all SpiNNaker chip links
-		//NOTE: this case is not useful!
-		for (i = 0; i < NUM_LINKS; i = i + 1)
-			begin : spinnaker_tx_link_arbitration_not_used
-				// signal peripheral links as not ready
-				if (PERIPH_INPUT_LINKS[(4 * i) +: 4])
-					assign periph_pkt_rxrdy_i[PERIPH_INPUT_LINKS[(4 * i) +: 4] - 1] = 1'b0;
+        {0, 0}:
+                // invalidate all SpiNNaker chip links
+                //NOTE: this case is not useful!
+                for (i = 0; i < NUM_LINKS; i = i + 1)
+                        begin : spinnaker_tx_link_arbitration_not_used
+                                // signal peripheral links as not ready
+                                if (PERIPH_INPUT_LINKS[(4 * i) +: 4])
+                                        assign periph_pkt_rxrdy_i[PERIPH_INPUT_LINKS[(4 * i) +: 4] - 1] = 1'b0;
 
-				// invalidate all SpiNNaker chip links
-				assign sl_pkt_txvld_i[i] = 1'b0;
-			end
+                                // invalidate all SpiNNaker chip links
+                                assign sl_pkt_txvld_i[i] = 1'b0;
+                        end
 
-	{0, 1}:
-		// connect board-to-board channels directly to SpiNNaker chip links
-		for (i = 0; i < NUM_LINKS; i = i + 1)
-			begin : spinnaker_tx_link_arbitration_not_used
-				// signal peripheral links as not ready
-				if (PERIPH_INPUT_LINKS[(4 * i) +: 4])
-					assign periph_pkt_rxrdy_i[PERIPH_INPUT_LINKS[(4 * i) +: 4] - 1] = 1'b0;
+        {0, 1}:
+                // connect board-to-board channels directly to SpiNNaker chip links
+                for (i = 0; i < NUM_LINKS; i = i + 1)
+                        begin : spinnaker_tx_link_arbitration_not_used
+                                // signal peripheral links as not ready
+                                if (PERIPH_INPUT_LINKS[(4 * i) +: 4])
+                                        assign periph_pkt_rxrdy_i[PERIPH_INPUT_LINKS[(4 * i) +: 4] - 1] = 1'b0;
 
-				// connect all SpiNNaker chip links directly to b2b channels
-				assign sl_pkt_txdata_i[i] = b2b_pkt_rxdata_i[i / `NUM_CHANS][i % `NUM_CHANS];
-				assign sl_pkt_txvld_i[i]  = b2b_pkt_rxvld_i[i / `NUM_CHANS][i % `NUM_CHANS];
-				assign b2b_pkt_rxrdy_i[i / `NUM_CHANS][i % `NUM_CHANS] = sl_pkt_txrdy_i[i];
-			end
+                                // connect all SpiNNaker chip links directly to b2b channels
+                                assign sl_pkt_txdata_i[i] = b2b_pkt_rxdata_i[i / `NUM_CHANS][i % `NUM_CHANS];
+                                assign sl_pkt_txvld_i[i]  = b2b_pkt_rxvld_i[i / `NUM_CHANS][i % `NUM_CHANS];
+                                assign b2b_pkt_rxrdy_i[i / `NUM_CHANS][i % `NUM_CHANS] = sl_pkt_txrdy_i[i];
+                        end
 
-	{1, 0}:
-		// connect peripheral channels to the SpiNNaker chip links
-		//NOTE: invalidate SpiNNaker chip links not used for peripheral input
-		for (i = 0; i < NUM_LINKS; i = i + 1)
-			if (PERIPH_INPUT_LINKS[(4 * i) +: 4])
-				// if needed add a speed adapter between the half-speed
-				// peripheral links and the full-speed logic
-				if (PERIPH_HALF_SPEED)
-					spio_link_speed_doubler #( .PKT_BITS (`PKT_BITS))
-					spio_link_speed_doubler_i( .RESET_IN (arbiter_reset_i)
-						, .SCLK_IN  (periph_usrclk2_i)
-						, .FCLK_IN  (b2b_usrclk2_i)
-						// Incoming signals (on CLK_IN)
-						, .DATA_IN  (periph_pkt_rxdata_i[PERIPH_INPUT_LINKS[(4 * i) +: 4] - 1])
-						, .VLD_IN   (periph_pkt_rxvld_i[PERIPH_INPUT_LINKS[(4 * i) +: 4] - 1])
-						, .RDY_OUT  (periph_pkt_rxrdy_i[PERIPH_INPUT_LINKS[(4 * i) +: 4] - 1])
-						// Outgoing signals (on CLK2_IN)
-						, .DATA_OUT (sl_pkt_txdata_i[i])
-						, .VLD_OUT  (sl_pkt_txvld_i[i])
-						, .RDY_IN   (sl_pkt_txrdy_i[i])
-					);
-				else
-					begin
-						// connect peripheral input channel to SpiNNaker chip link
-						assign sl_pkt_txdata_i[i] = periph_pkt_rxdata_i[PERIPH_INPUT_LINKS[(4 * i) +: 4] - 1];
-						assign sl_pkt_txvld_i[i]  = periph_pkt_rxvld_i[PERIPH_INPUT_LINKS[(4 * i) +: 4] - 1];
-						assign periph_pkt_rxrdy_i[PERIPH_INPUT_LINKS[(4 * i) +: 4] - 1] = sl_pkt_txrdy_i[i];
-					end
-			else
-				// invalidate unused SpiNNaker chip link
-				assign sl_pkt_txvld_i[i] = 1'b0;
+        {1, 0}, {1, 1}:
+                for (i = 0; i < NUM_LINKS; i = i + 1)
+                        begin : peripheral_input_links
+                                if (PERIPH_INPUT_LINKS[(4 * i) +: 4])
+                                        begin
+                                               // arbitrate between peripheral and b2b channels
+                                               wire [`PKT_BITS-1:0] fast_periph_pkt_rxdata_i;
+                                               wire                 fast_periph_pkt_rxvld_i;
+                                               wire                 fast_periph_pkt_rxrdy_i;
 
-	{1, 1}:
-		// arbitrate between board-to-board and peripheral links
-		for (i = 0; i < NUM_LINKS; i = i + 1)
-			begin : spinnaker_tx_link_arbitration
-				if (PERIPH_INPUT_LINKS[(4 * i) +: 4])
-					begin
-						// arbitrate between peripheral and b2b channels
-						wire [`PKT_BITS-1:0] fast_periph_pkt_rxdata_i;
-						wire                 fast_periph_pkt_rxvld_i;
-						wire                 fast_periph_pkt_rxrdy_i;
+                                                // if needed add a speed adapter between the half-speed
+                                                // peripheral link and the full-speed arbiter
+                                                if (PERIPH_HALF_SPEED)
+                                                        begin : peripheral_doubler
+                                                                spio_link_speed_doubler #( .PKT_BITS (`PKT_BITS))
+                                                                spio_link_speed_doubler_i( .RESET_IN (arbiter_reset_i)
+                                                                                         , .SCLK_IN  (periph_usrclk2_i)
+                                                                                         , .FCLK_IN  (b2b_usrclk2_i)
+                                                                                            // Incoming signals (on CLK_IN)
+                                                                                         , .DATA_IN  (periph_pkt_rxdata_i[PERIPH_INPUT_LINKS[(4 * i) +: 4] - 1])
+                                                                                         , .VLD_IN   (periph_pkt_rxvld_i[PERIPH_INPUT_LINKS[(4 * i) +: 4] - 1])
+                                                                                         , .RDY_OUT  (periph_pkt_rxrdy_i[PERIPH_INPUT_LINKS[(4 * i) +: 4] - 1])
+                                                                                            // Outgoing signals (on CLK2_IN)
+                                                                                         , .DATA_OUT (fast_periph_pkt_rxdata_i)
+                                                                                         , .VLD_OUT  (fast_periph_pkt_rxvld_i)
+                                                                                         , .RDY_IN   (fast_periph_pkt_rxrdy_i)
+                                                                                         );
+                                                        end
+                                                else
+                                                        begin : peripheral_doubler_not_used
+                                                                // connect full-speed peripheral link directly to arbiter
+                                                                assign fast_periph_pkt_rxdata_i = periph_pkt_rxdata_i[PERIPH_INPUT_LINKS[(4 * i) +: 4] - 1];
+                                                                assign fast_periph_pkt_rxvld_i  = periph_pkt_rxvld_i[PERIPH_INPUT_LINKS[(4 * i) +: 4] - 1];
+                                                                assign periph_pkt_rxrdy_i[PERIPH_INPUT_LINKS[(4 * i) +: 4] - 1] = fast_periph_pkt_rxrdy_i;
+                                                        end
 
-						// if needed add a speed adapter between the half-speed
-						// peripheral link and the full-speed arbiter
-						if (PERIPH_HALF_SPEED)
-							begin : peripheral_doubler
-								spio_link_speed_doubler #( .PKT_BITS (`PKT_BITS))
-								spio_link_speed_doubler_i( .RESET_IN (arbiter_reset_i)
-											 , .SCLK_IN  (periph_usrclk2_i)
-											 , .FCLK_IN  (b2b_usrclk2_i)
-											    // Incoming signals (on CLK_IN)
-											 , .DATA_IN  (periph_pkt_rxdata_i[PERIPH_INPUT_LINKS[(4 * i) +: 4] - 1])
-											 , .VLD_IN   (periph_pkt_rxvld_i[PERIPH_INPUT_LINKS[(4 * i) +: 4] - 1])
-											 , .RDY_OUT  (periph_pkt_rxrdy_i[PERIPH_INPUT_LINKS[(4 * i) +: 4] - 1])
-											    // Outgoing signals (on CLK2_IN)
-											 , .DATA_OUT (fast_periph_pkt_rxdata_i)
-											 , .VLD_OUT  (fast_periph_pkt_rxvld_i)
-											 , .RDY_IN   (fast_periph_pkt_rxrdy_i)
-											 );
-							end
-						else
-							begin : peripheral_doubler_not_used
-								// connect full-speed peripheral link directly to arbiter
-								assign fast_periph_pkt_rxdata_i = periph_pkt_rxdata_i[PERIPH_INPUT_LINKS[(4 * i) +: 4] - 1];
-								assign fast_periph_pkt_rxvld_i  = periph_pkt_rxvld_i[PERIPH_INPUT_LINKS[(4 * i) +: 4] - 1];
-								assign periph_pkt_rxrdy_i[PERIPH_INPUT_LINKS[(4 * i) +: 4] - 1] = fast_periph_pkt_rxrdy_i;
-							end
-
-						// arbitrate into SpiNNaker chip link
-						spio_rr_arbiter #( .PKT_BITS (`PKT_BITS))
-						spio_rr_arbiter_i( .CLK_IN   (b2b_usrclk2_i)
-								 , .RESET_IN (arbiter_reset_i)
-								    // Input ports
-								 , .DATA0_IN (b2b_pkt_rxdata_i[i / `NUM_CHANS][i % `NUM_CHANS])
-								 , .VLD0_IN  (b2b_pkt_rxvld_i[i / `NUM_CHANS][i % `NUM_CHANS])
-								 , .RDY0_OUT (b2b_pkt_rxrdy_i[i / `NUM_CHANS][i % `NUM_CHANS])
-								 , .DATA1_IN (fast_periph_pkt_rxdata_i)
-								 , .VLD1_IN  (fast_periph_pkt_rxvld_i)
-								 , .RDY1_OUT (fast_periph_pkt_rxrdy_i)
-								    // Output port where the merged stream will be sent
-								 , .DATA_OUT (sl_pkt_txdata_i[i])
-								 , .VLD_OUT  (sl_pkt_txvld_i[i])
-								 , .RDY_IN   (sl_pkt_txrdy_i[i])
-								 );
-					end
-				else
-					begin
-						// connect b2b channel directly to SpiNNaker chip link
-						assign sl_pkt_txdata_i[i] = b2b_pkt_rxdata_i[i / `NUM_CHANS][i % `NUM_CHANS];
-						assign sl_pkt_txvld_i[i]  = b2b_pkt_rxvld_i[i / `NUM_CHANS][i % `NUM_CHANS];
-						assign b2b_pkt_rxrdy_i[i / `NUM_CHANS][i % `NUM_CHANS] = sl_pkt_txrdy_i[i];
-					end
-			end
+                                                if (INCLUDE_B2B_SUPPORT)
+                                                        // arbitrate into SpiNNaker chip link
+                                                                spio_rr_arbiter #( .PKT_BITS (`PKT_BITS))
+                                                                spio_rr_arbiter_i( .CLK_IN   (b2b_usrclk2_i)
+                                                                                 , .RESET_IN (arbiter_reset_i)
+                                                                                    // Input ports
+                                                                                 , .DATA0_IN (b2b_pkt_rxdata_i[i / `NUM_CHANS][i % `NUM_CHANS])
+                                                                                 , .VLD0_IN  (b2b_pkt_rxvld_i[i / `NUM_CHANS][i % `NUM_CHANS])
+                                                                                 , .RDY0_OUT (b2b_pkt_rxrdy_i[i / `NUM_CHANS][i % `NUM_CHANS])
+                                                                                 , .DATA1_IN (fast_periph_pkt_rxdata_i)
+                                                                                 , .VLD1_IN  (fast_periph_pkt_rxvld_i)
+                                                                                 , .RDY1_OUT (fast_periph_pkt_rxrdy_i)
+                                                                                    // Output port where the merged stream will be sent
+                                                                                 , .DATA_OUT (sl_pkt_txdata_i[i])
+                                                                                 , .VLD_OUT  (sl_pkt_txvld_i[i])
+                                                                                 , .RDY_IN   (sl_pkt_txrdy_i[i])
+                                                                                 );
+                                                else
+                                                        begin
+                                                                assign sl_pkt_txdata_i[i]      = fast_periph_pkt_rxdata_i;
+                                                                assign sl_pkt_txvld_i[i]       = fast_periph_pkt_rxvld_i;
+                                                                assign fast_periph_pkt_rxrdy_i = sl_pkt_txrdy_i[i];
+                                                        end
+                                        end
+                                else
+                                        if (INCLUDE_B2B_SUPPORT)
+                                                begin
+                                                        // on non-peripheral-input channels connect b2b channel directly to SpiNNaker chip link
+                                                        assign sl_pkt_txdata_i[i] = b2b_pkt_rxdata_i[i / `NUM_CHANS][i % `NUM_CHANS];
+                                                        assign sl_pkt_txvld_i[i]  = b2b_pkt_rxvld_i[i / `NUM_CHANS][i % `NUM_CHANS];
+                                                        assign b2b_pkt_rxrdy_i[i / `NUM_CHANS][i % `NUM_CHANS] = sl_pkt_txrdy_i[i];
+                                                end
+                                        else
+                                                //on non-peripheral-input channels invalidate SpiNNaker chip links
+                                                assign sl_pkt_txvld_i[i] = 1'b0;
+                        end
 endcase endgenerate
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2335,7 +2260,8 @@ assign    top_reg_write_data_i    = reg_write_data_i;
 // Top-level register bank
 ////////////////////////////////////////////////////////////////////////////////
 
-spinnaker_fpgas_reg_bank
+spinnaker_fpgas_reg_bank #( .XR             (XR)
+                          )
 spinnaker_fpgas_reg_bank_i( .CLK_IN         (reg_bank_clk_i)
                           , .RESET_IN       (reg_bank_reset_i)
                             // Register bank interface
@@ -2357,8 +2283,8 @@ spinnaker_fpgas_reg_bank_i( .CLK_IN         (reg_bank_clk_i)
                                              }
                                             )
                           , .SPINNAKER_LINK_ENABLE(spinnaker_link_enable_i)
-                          , .PERIPH_MC_KEY  (periph_mc_key_i)
-                          , .PERIPH_MC_MASK (periph_mc_mask_i)
+                          , .PERIPH_MC_KEY  ()  //NOTE: alias for xper_mc_key[0]
+                          , .PERIPH_MC_MASK ()  //NOTE: alias for xper_mc_mask[0]
                           , .SCRMBL_IDL_DAT (scrmbl_idl_dat_i)
                           , .LED_OVERRIDE   (led_override_i)
                           , .RXEQMIX        (rxeqmix_i)
@@ -2369,6 +2295,8 @@ spinnaker_fpgas_reg_bank_i( .CLK_IN         (reg_bank_clk_i)
                           , .LC_MASK        (lc_mask_i)
                           , .RC_KEY         (rc_key_i)
                           , .RC_MASK        (rc_mask_i)
+                          , .XPER_MC_KEY    (xper_mc_key_i)
+                          , .XPER_MC_MASK   (xper_mc_mask_i)
                           );
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2410,94 +2338,94 @@ spio_pkt_ctr_rx( .CLK_IN    (pkt_ctr_clk_i)
 // Virtual I/O connections to allow observation of useful values
 
 generate if (INCLUDE_DEBUG_CHIPSCOPE_VIO)
-	begin : chipscope
+        begin : chipscope
 
-		wire [35:0] chipscope_control_i;
+                wire [35:0] chipscope_control_i;
 
-		wire [63:0] chipscope_sync_in_i;
+                wire [63:0] chipscope_sync_in_i;
 
-		// Chipscope Integrated CONtroller (ICON)
-		chipscope_icon chipscope_icon_i (.CONTROL0 (chipscope_control_i));
+                // Chipscope Integrated CONtroller (ICON)
+                chipscope_icon chipscope_icon_i (.CONTROL0 (chipscope_control_i));
 
-		// Chipscope Virtual I/O (VIO) Port
-		chipscope_vio chipscope_vio_i ( .CONTROL (chipscope_control_i)
-		                              , .CLK     (b2b_usrclk2_i)
-		                              , .SYNC_IN (chipscope_sync_in_i)
-		                              );
+                // Chipscope Virtual I/O (VIO) Port
+                chipscope_vio chipscope_vio_i ( .CONTROL (chipscope_control_i)
+                                              , .CLK     (b2b_usrclk2_i)
+                                              , .SYNC_IN (chipscope_sync_in_i)
+                                              );
 
-		// SpiNNaker link RX ready/vld
-		assign chipscope_sync_in_i[ 0+:16] = { sl_pkt_rxrdy_i[15]
-		                                     , sl_pkt_rxrdy_i[14]
-		                                     , sl_pkt_rxrdy_i[13]
-		                                     , sl_pkt_rxrdy_i[12]
-		                                     , sl_pkt_rxrdy_i[11]
-		                                     , sl_pkt_rxrdy_i[10]
-		                                     , sl_pkt_rxrdy_i[9]
-		                                     , sl_pkt_rxrdy_i[8]
-		                                     , sl_pkt_rxrdy_i[7]
-		                                     , sl_pkt_rxrdy_i[6]
-		                                     , sl_pkt_rxrdy_i[5]
-		                                     , sl_pkt_rxrdy_i[4]
-		                                     , sl_pkt_rxrdy_i[3]
-		                                     , sl_pkt_rxrdy_i[2]
-		                                     , sl_pkt_rxrdy_i[1]
-		                                     , sl_pkt_rxrdy_i[0]
-		                                     };
-		assign chipscope_sync_in_i[16+:16] = { sl_pkt_rxvld_i[15]
-		                                     , sl_pkt_rxvld_i[14]
-		                                     , sl_pkt_rxvld_i[13]
-		                                     , sl_pkt_rxvld_i[12]
-		                                     , sl_pkt_rxvld_i[11]
-		                                     , sl_pkt_rxvld_i[10]
-		                                     , sl_pkt_rxvld_i[9]
-		                                     , sl_pkt_rxvld_i[8]
-		                                     , sl_pkt_rxvld_i[7]
-		                                     , sl_pkt_rxvld_i[6]
-		                                     , sl_pkt_rxvld_i[5]
-		                                     , sl_pkt_rxvld_i[4]
-		                                     , sl_pkt_rxvld_i[3]
-		                                     , sl_pkt_rxvld_i[2]
-		                                     , sl_pkt_rxvld_i[1]
-		                                     , sl_pkt_rxvld_i[0]
-		                                     };
-		// SpiNNaker link TX ready/
-		assign chipscope_sync_in_i[32+:16] = { sl_pkt_txrdy_i[15]
-		                                     , sl_pkt_txrdy_i[14]
-		                                     , sl_pkt_txrdy_i[13]
-		                                     , sl_pkt_txrdy_i[12]
-		                                     , sl_pkt_txrdy_i[11]
-		                                     , sl_pkt_txrdy_i[10]
-		                                     , sl_pkt_txrdy_i[9]
-		                                     , sl_pkt_txrdy_i[8]
-		                                     , sl_pkt_txrdy_i[7]
-		                                     , sl_pkt_txrdy_i[6]
-		                                     , sl_pkt_txrdy_i[5]
-		                                     , sl_pkt_txrdy_i[4]
-		                                     , sl_pkt_txrdy_i[3]
-		                                     , sl_pkt_txrdy_i[2]
-		                                     , sl_pkt_txrdy_i[1]
-		                                     , sl_pkt_txrdy_i[0]
-		                                     };
-		assign chipscope_sync_in_i[48+:16] = { sl_pkt_txvld_i[15]
-		                                     , sl_pkt_txvld_i[14]
-		                                     , sl_pkt_txvld_i[13]
-		                                     , sl_pkt_txvld_i[12]
-		                                     , sl_pkt_txvld_i[11]
-		                                     , sl_pkt_txvld_i[10]
-		                                     , sl_pkt_txvld_i[9]
-		                                     , sl_pkt_txvld_i[8]
-		                                     , sl_pkt_txvld_i[7]
-		                                     , sl_pkt_txvld_i[6]
-		                                     , sl_pkt_txvld_i[5]
-		                                     , sl_pkt_txvld_i[4]
-		                                     , sl_pkt_txvld_i[3]
-		                                     , sl_pkt_txvld_i[2]
-		                                     , sl_pkt_txvld_i[1]
-		                                     , sl_pkt_txvld_i[0]
-		                                     };
+                // SpiNNaker link RX ready/vld
+                assign chipscope_sync_in_i[ 0+:16] = { sl_pkt_rxrdy_i[15]
+                                                     , sl_pkt_rxrdy_i[14]
+                                                     , sl_pkt_rxrdy_i[13]
+                                                     , sl_pkt_rxrdy_i[12]
+                                                     , sl_pkt_rxrdy_i[11]
+                                                     , sl_pkt_rxrdy_i[10]
+                                                     , sl_pkt_rxrdy_i[9]
+                                                     , sl_pkt_rxrdy_i[8]
+                                                     , sl_pkt_rxrdy_i[7]
+                                                     , sl_pkt_rxrdy_i[6]
+                                                     , sl_pkt_rxrdy_i[5]
+                                                     , sl_pkt_rxrdy_i[4]
+                                                     , sl_pkt_rxrdy_i[3]
+                                                     , sl_pkt_rxrdy_i[2]
+                                                     , sl_pkt_rxrdy_i[1]
+                                                     , sl_pkt_rxrdy_i[0]
+                                                     };
+                assign chipscope_sync_in_i[16+:16] = { sl_pkt_rxvld_i[15]
+                                                     , sl_pkt_rxvld_i[14]
+                                                     , sl_pkt_rxvld_i[13]
+                                                     , sl_pkt_rxvld_i[12]
+                                                     , sl_pkt_rxvld_i[11]
+                                                     , sl_pkt_rxvld_i[10]
+                                                     , sl_pkt_rxvld_i[9]
+                                                     , sl_pkt_rxvld_i[8]
+                                                     , sl_pkt_rxvld_i[7]
+                                                     , sl_pkt_rxvld_i[6]
+                                                     , sl_pkt_rxvld_i[5]
+                                                     , sl_pkt_rxvld_i[4]
+                                                     , sl_pkt_rxvld_i[3]
+                                                     , sl_pkt_rxvld_i[2]
+                                                     , sl_pkt_rxvld_i[1]
+                                                     , sl_pkt_rxvld_i[0]
+                                                     };
+                // SpiNNaker link TX ready/
+                assign chipscope_sync_in_i[32+:16] = { sl_pkt_txrdy_i[15]
+                                                     , sl_pkt_txrdy_i[14]
+                                                     , sl_pkt_txrdy_i[13]
+                                                     , sl_pkt_txrdy_i[12]
+                                                     , sl_pkt_txrdy_i[11]
+                                                     , sl_pkt_txrdy_i[10]
+                                                     , sl_pkt_txrdy_i[9]
+                                                     , sl_pkt_txrdy_i[8]
+                                                     , sl_pkt_txrdy_i[7]
+                                                     , sl_pkt_txrdy_i[6]
+                                                     , sl_pkt_txrdy_i[5]
+                                                     , sl_pkt_txrdy_i[4]
+                                                     , sl_pkt_txrdy_i[3]
+                                                     , sl_pkt_txrdy_i[2]
+                                                     , sl_pkt_txrdy_i[1]
+                                                     , sl_pkt_txrdy_i[0]
+                                                     };
+                assign chipscope_sync_in_i[48+:16] = { sl_pkt_txvld_i[15]
+                                                     , sl_pkt_txvld_i[14]
+                                                     , sl_pkt_txvld_i[13]
+                                                     , sl_pkt_txvld_i[12]
+                                                     , sl_pkt_txvld_i[11]
+                                                     , sl_pkt_txvld_i[10]
+                                                     , sl_pkt_txvld_i[9]
+                                                     , sl_pkt_txvld_i[8]
+                                                     , sl_pkt_txvld_i[7]
+                                                     , sl_pkt_txvld_i[6]
+                                                     , sl_pkt_txvld_i[5]
+                                                     , sl_pkt_txvld_i[4]
+                                                     , sl_pkt_txvld_i[3]
+                                                     , sl_pkt_txvld_i[2]
+                                                     , sl_pkt_txvld_i[1]
+                                                     , sl_pkt_txvld_i[0]
+                                                     };
 
 
-	end
+        end
 endgenerate
 ////////////////////////////////////////////////////////////////////////////////
 
