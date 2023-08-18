@@ -1868,7 +1868,7 @@ generate if (INCLUDE_PERIPH_OUTPUT_SUPPORT)
                 // match remote configuration routing keys
                 assign rkey_matches_i = (sl_pkt_rxdata_i[PERIPH_OUTPUT_LINK][8+:32] & rc_mask_i) == rc_key_i;
                 
-                // match local configuration rotuing keys
+                // match local configuration routing keys
                 assign lkey_matches_i = (sl_pkt_rxdata_i[PERIPH_OUTPUT_LINK][8+:32] & lc_mask_i) == lc_key_i;
                 
                 // route packets according to key/mask settings
