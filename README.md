@@ -39,6 +39,15 @@ The following publication describes the SpiNNlink specification and implementati
 LA Plana, J Garside, J Heathcote, J Pepper, S Temple, S Davidson, M Luján and S Furber, *spiNNlink: FPGA-Based Interconnect for the Million-Core SpiNNaker System*, in IEEE Access, vol. 8, pp. 84918-84928, 2020, doi: [10.1109/ACCESS.2020.2991038](https://doi.org/10.1109/ACCESS.2020.2991038).
 
 
+spif
+----
+
+[spif](https://github.com/SpiNNakerManchester/spif) is an FPGA-based platform to interface event-based peripherals,
+such as event cameras and event-based robotic actuators, to a SpiNNaker system. spif is built on top of spI/O and
+connects to the SpiNNaker system using a SATA cable and the spiNNlink protocol used in SpiNNaker systems for
+board-to-board interconnect.
+
+
 [Open Issues](https://github.com/SpiNNakerManchester/spio/issues)
 -----------
 
