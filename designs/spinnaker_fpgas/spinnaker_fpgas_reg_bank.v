@@ -7,18 +7,20 @@ module spinnaker_fpgas_reg_bank #( // Address bits
                                    parameter REGA_BITS = 14
                                    // Data bits
                                  , parameter REGD_BITS = 32
+                                   // extra peripheral routing registers
+                                 , parameter XR        = 6
                                  )
-                                 ( input  wire CLK_IN
-                                 , input  wire RESET_IN
+                                 ( input  wire                   CLK_IN
+                                 , input  wire                   RESET_IN
                                    // Register bank SPI interface
-                                 ,   input  wire                 WRITE_IN
-                                 ,   input  wire [REGA_BITS-1:0] ADDR_IN
-                                 ,   input  wire [REGD_BITS-1:0] WRITE_DATA_IN
-                                 ,   output reg  [REGD_BITS-1:0] READ_DATA_OUT
-                                 // Register bank local configuration  interface
-                                 ,   input  wire                 LC_WRITE_IN
-                                 ,   input  wire           [7:0] LC_ADDR_IN
-                                 ,   input  wire [REGD_BITS-1:0] LC_WR_DATA_IN
+                                 , input  wire                   WRITE_IN
+                                 , input  wire   [REGA_BITS-1:0] ADDR_IN
+                                 , input  wire   [REGD_BITS-1:0] WRITE_DATA_IN
+                                 , output reg    [REGD_BITS-1:0] READ_DATA_OUT
+                                   // Register bank local configuration  interface
+                                 , input  wire                   LC_WRITE_IN
+                                 , input  wire    [LCA_BITS-1:0] LC_ADDR_IN
+                                 , input  wire   [REGD_BITS-1:0] LC_WR_DATA_IN
                                    // Version
                                  , input  wire   [REGD_BITS-1:0] VERSION_IN
                                    // Compilation flags { INCLUDE_DEBUG_CHIPSCOPE_VIO
@@ -31,8 +33,8 @@ module spinnaker_fpgas_reg_bank #( // Address bits
                                    // 2-of-7 Link enable signals
                                  , output reg             [31:0] SPINNAKER_LINK_ENABLE
                                    // Peripheral routing key/mask
-                                 , output reg             [31:0] PERIPH_MC_KEY
-                                 , output reg             [31:0] PERIPH_MC_MASK
+                                 , output wire   [REGD_BITS-1:0] PERIPH_MC_KEY
+                                 , output wire   [REGD_BITS-1:0] PERIPH_MC_MASK
                                  , output reg              [3:0] SCRMBL_IDL_DAT
                                    // Status LED overrides (for indicating
                                    // configuration status of the FPGA)
@@ -67,15 +69,29 @@ module spinnaker_fpgas_reg_bank #( // Address bits
                                    //   , B2B_TXPREEMPHASIS
                                    //   };
                                  , output reg             [11:0] TXPREEMPHASIS
-                                 // peripheral input enable
-                                 , output reg              [1:0] PERIPH_IN_EN
-                                 // local configuration routing key/mask
-                                 , output reg             [31:0] LC_KEY
-                                 , output reg             [31:0] LC_MASK
-                                 // remote configuration routing key/mask
-                                 , output reg             [31:0] RC_KEY
-                                 , output reg             [31:0] RC_MASK
+                                   // peripheral input enable
+                                 , output reg                    PERIPH_IN_EN
+                                   // local configuration routing key/mask
+                                 , output reg    [REGD_BITS-1:0] LC_KEY
+                                 , output reg    [REGD_BITS-1:0] LC_MASK
+                                   // remote configuration routing key/mask
+                                 , output reg    [REGD_BITS-1:0] RC_KEY
+                                 , output reg    [REGD_BITS-1:0] RC_MASK
+                                   // extra peripheral routing keys/masks
+                                 , output reg [XR*REGD_BITS-1:0] XPER_MC_KEY
+                                 , output reg [XR*REGD_BITS-1:0] XPER_MC_MASK
                                  );
+
+// local configuration address bits
+parameter LCA_BITS = 8;
+
+////////////////////////////////////////////////////////////////////////////////
+// extra peripheral routing key/mask registers
+//NOTE: XR must be a power of 2!
+////////////////////////////////////////////////////////////////////////////////
+parameter  XR_SHF = $clog2 (REGD_BITS);  //NOTE: Xilinx complains about $clog2
+localparam XR_MSK = 32'h0000_000f;       //NOTE: room for 16 XREGS
+localparam XR_ADM = ~XR_MSK;
 
 // default register values
 localparam PKEY_DEF   = 32'hffff_ffff;  // peripheral routing key
@@ -90,6 +106,9 @@ localparam LKEY_DEF   = 32'hffff_fe00;  // local configuration routing key
 localparam LMSK_DEF   = 32'hffff_ff00;  // local configuration routing mask
 localparam RKEY_DEF   = 32'hffff_ff00;  // remote configuration routing key
 localparam RMSK_DEF   = 32'hffff_ff00;  // remote configuration routing mask
+
+localparam XKEY_DEF   = {XR {PKEY_DEF}};  // extra peripheral routing keys
+localparam XMSK_DEF   = {XR {PMSK_DEF}};  // extra peripheral routing masks
 
 // GTP Analog signal generation settings (either found via IBERT or left as zeros)
 localparam    B2B_RXEQMIX = 2'b10;   // 5.4 dB
@@ -153,6 +172,9 @@ localparam RMSK_REG = 15;  // local configuration route mask
 localparam PIND_REG = 16;  // peripheral input disable
 localparam PINE_REG = 17;  // peripheral input enable
 
+localparam XKEY_REG = 32;  // extra peripheral MC route keys
+localparam XMSK_REG = 48;  // extra peripheral MC route masks
+
 // LC_KEY and LC_MASK must be updated atomically to avoid
 // configuration errors. Changes to LC_MASK will not take
 // effect until a subsequent change to LC_KEY takes effect
@@ -201,13 +223,16 @@ always @ (posedge CLK_IN, posedge RESET_IN)
 				TXPE_REG: TXPREEMPHASIS <= WRITE_DATA_IN;
 			endcase
 
+// PERIPH_MC_KEY and PERIPH_MC_MASK are now aliases of XR[0]
+assign PERIPH_MC_KEY  = XPER_MC_KEY[0 +: REGD_BITS];
+assign PERIPH_MC_MASK = XPER_MC_MASK[0 +: REGD_BITS];
 
 // Write address decode for routing registers
 always @ (posedge CLK_IN, posedge RESET_IN)
 	if (RESET_IN)
 		begin
-			PERIPH_MC_KEY  <= PKEY_DEF;
-			PERIPH_MC_MASK <= PMSK_DEF;
+			XPER_MC_KEY    <= XKEY_DEF;
+			XPER_MC_MASK   <= XMSK_DEF;
 			LC_KEY         <= LKEY_DEF;
 			LC_MASK_TMP    <= LMSK_DEF;
 			RC_KEY         <= RKEY_DEF;
@@ -219,30 +244,46 @@ always @ (posedge CLK_IN, posedge RESET_IN)
 			// local configuration writes
 			//NOTE: LC_KEY and LC_MASK must be updated atomically!
 			if (LC_WRITE_IN)
-				case (LC_ADDR_IN)
-					PKEY_REG: PERIPH_MC_KEY  <= LC_WR_DATA_IN;
-					PMSK_REG: PERIPH_MC_MASK <= LC_WR_DATA_IN;
-					LKEY_REG: LC_KEY         <= LC_WR_DATA_IN;
-					LMSK_REG: LC_MASK_TMP    <= LC_WR_DATA_IN;
-					RKEY_REG: RC_KEY         <= LC_WR_DATA_IN;
-					RMSK_REG: RC_MASK        <= LC_WR_DATA_IN;
-					PIND_REG: PERIPH_IN_EN   <= 1'b0;
-					PINE_REG: PERIPH_IN_EN   <= 1'b1;
-				endcase
+				begin
+					if ((LC_ADDR_IN & XR_ADM) == XKEY_REG)
+						XPER_MC_KEY[((LC_ADDR_IN & XR_MSK) << XR_SHF) +: REGD_BITS]  <= LC_WR_DATA_IN;
+
+					if ((LC_ADDR_IN & XR_ADM) == XMSK_REG)
+						XPER_MC_MASK[((LC_ADDR_IN & XR_MSK) << XR_SHF) +: REGD_BITS] <= LC_WR_DATA_IN;
+
+					case (LC_ADDR_IN)
+						PKEY_REG: XPER_MC_KEY[0 +: REGD_BITS]  <= LC_WR_DATA_IN;
+						PMSK_REG: XPER_MC_MASK[0 +: REGD_BITS] <= LC_WR_DATA_IN;
+						LKEY_REG: LC_KEY                       <= LC_WR_DATA_IN;
+						LMSK_REG: LC_MASK_TMP                  <= LC_WR_DATA_IN;
+						RKEY_REG: RC_KEY                       <= LC_WR_DATA_IN;
+						RMSK_REG: RC_MASK                      <= LC_WR_DATA_IN;
+						PIND_REG: PERIPH_IN_EN                 <= 1'b0;
+						PINE_REG: PERIPH_IN_EN                 <= 1'b1;
+					endcase
+				end
 
 			// SPI writes
 			//NOTE: prioritise local configuration writes
 			if (WRITE_IN && (!LC_WRITE_IN || (ADDR_IN != LC_ADDR_IN)))
-				case (ADDR_IN)
-					PKEY_REG: PERIPH_MC_KEY  <= WRITE_DATA_IN;
-					PMSK_REG: PERIPH_MC_MASK <= WRITE_DATA_IN;
-					LKEY_REG: LC_KEY         <= WRITE_DATA_IN;
-					LMSK_REG: LC_MASK_TMP    <= WRITE_DATA_IN;
-					RKEY_REG: RC_KEY         <= WRITE_DATA_IN;
-					RMSK_REG: RC_MASK        <= WRITE_DATA_IN;
-					PIND_REG: PERIPH_IN_EN   <= 1'b0;
-					PINE_REG: PERIPH_IN_EN   <= 1'b1;
-				endcase
+				begin
+					if ((ADDR_IN & XR_ADM) == XKEY_REG)
+						XPER_MC_KEY[((ADDR_IN & XR_MSK) << XR_SHF) +: REGD_BITS]  <= WRITE_DATA_IN;
+
+					if ((ADDR_IN & XR_ADM) == XMSK_REG)
+						XPER_MC_MASK[((ADDR_IN & XR_MSK) << XR_SHF) +: REGD_BITS] <= WRITE_DATA_IN;
+
+					case (ADDR_IN)
+						PKEY_REG: XPER_MC_KEY[0 +: REGD_BITS]  <= WRITE_DATA_IN;
+						PMSK_REG: XPER_MC_MASK[0 +: REGD_BITS] <= WRITE_DATA_IN;
+						LKEY_REG: LC_KEY                       <= WRITE_DATA_IN;
+						LMSK_REG: LC_MASK_TMP                  <= WRITE_DATA_IN;
+						RKEY_REG: RC_KEY                       <= WRITE_DATA_IN;
+						RMSK_REG: RC_MASK                      <= WRITE_DATA_IN;
+						PIND_REG: PERIPH_IN_EN                 <= 1'b0;
+						PINE_REG: PERIPH_IN_EN                 <= 1'b1;
+					endcase
+				end
 		end
 
 // Read address decode
